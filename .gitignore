@@ -1,0 +1,16 @@
+.DS_Store
+__pycache__/
+*.py[cod]
+.pycache_smoke/
+.pycache_tmp/
+
+.venv/
+venv/
+
+.flet/
+build/
+dist/
+
+# Local editor/agent settings
+.claude/
+.vscode/

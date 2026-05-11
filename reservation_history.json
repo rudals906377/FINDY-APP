@@ -1,0 +1,28 @@
+[
+  {
+    "id": "r1",
+    "artist_id": "a1",
+    "artist_name": "민지 디자이너",
+    "job": "헤어 디자이너",
+    "category": "헤어",
+    "service": "펌",
+    "date": "2026-04-29",
+    "time": "09:30",
+    "note": "",
+    "status": "예약 완료",
+    "created_at": "2026-04-28 13:37"
+  },
+  {
+    "id": "r2",
+    "artist_id": "a6",
+    "artist_name": "하준 아티스트",
+    "job": "반영구 아티스트",
+    "category": "반영구시술",
+    "service": "눈썹",
+    "date": "2026-04-29",
+    "time": "16:30",
+    "note": "",
+    "status": "예약 완료",
+    "created_at": "2026-04-29 14:45"
+  }
+]

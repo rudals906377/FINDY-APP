@@ -1,0 +1,3952 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FINDY — 리뷰와 커뮤니티로 찾는 뷰티 경험</title>
+  <meta name="description" content="FINDY에서 실제 뷰티 리뷰와 커뮤니티 이야기를 먼저 확인하고, 앱 출시 알림을 받아보세요." />
+  <link rel="icon" type="image/png" href="app_logo.png" />
+  <link rel="apple-touch-icon" href="app_logo.png" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.css" crossorigin />
+
+  <style>
+    :root {
+      --main:       #AE8F6F;
+      --point:      #8B6B4F;
+      --soft:       #F5EEE7;
+      --sub:        #E6D7C8;
+      --bg:         #FFFFFF;
+      --surface:    #FAF8F4;
+      --border:     #ECE5DB;
+      --divider:    #F1ECE4;
+      --text:       #2C2A28;
+      --text-strong:#1A1A1A;
+      --subtext:    #9A9189;
+      --muted:      #BDB4AB;
+      --shadow-sm:  0 2px 8px  rgba(26,20,14,.04);
+      --shadow-md:  0 6px 22px rgba(26,20,14,.07);
+      --shadow-lg:  0 12px 36px rgba(26,20,14,.09);
+      --r-sm: 10px; --r-md: 16px; --r-lg: 22px; --r-xl: 28px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      color: var(--text);
+      background: var(--bg);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: inherit; text-decoration: none; }
+    button { font-family: inherit; cursor: pointer; border: none; background: none; }
+    input, textarea, select { font-family: inherit; }
+
+    /* ── 공통 레이아웃 ── */
+    .container { max-width: 1080px; margin: 0 auto; padding: 0 32px; }
+
+    .view-section { display: none; }
+    .view-section.active { display: block; }
+
+    .section-header { text-align: center; margin-bottom: 52px; }
+    .eyebrow {
+      display: inline-block;
+      font-size: 12px; font-weight: 700;
+      color: var(--main);
+      letter-spacing: .1em; text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+    .section-title {
+      font-size: 32px; font-weight: 800;
+      color: var(--text-strong);
+      letter-spacing: -.03em; line-height: 1.2;
+    }
+    .section-title-accent { color: var(--main); }
+    .section-sub { margin-top: 12px; font-size: 15px; color: var(--subtext); }
+
+    /* ── 헤더 ── */
+    .site-header {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(255,255,255,.92);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--border);
+    }
+    .header-inner {
+      max-width: 1180px; margin: 0 auto;
+      padding: 16px 32px;
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      gap: 24px;
+    }
+    .brand {
+      display: inline-flex;
+      justify-self: center;
+      align-items: center;
+    }
+    .brand-logo {
+      width: clamp(76px, 5.8vw, 104px);
+      height: clamp(38px, 2.9vw, 52px);
+      display: block;
+      object-fit: fill;
+    }
+    .header-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 10px;
+      grid-column: 3;
+      grid-row: 1;
+    }
+    .header-auth {
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      grid-column: 1;
+      grid-row: 1;
+    }
+    .brand { grid-column: 2; grid-row: 1; }
+    .header-cta {
+      padding: 10px 22px;
+      background: #fff;
+      color: var(--point);
+      border: 1px solid var(--sub);
+      font-size: 14px; font-weight: 600;
+      border-radius: 999px;
+      transition: background 180ms ease, border-color 180ms ease, color 180ms ease, transform 180ms ease;
+    }
+    .header-cta:hover {
+      background: var(--point);
+      border-color: var(--point);
+      color: #fff;
+      transform: translateY(-1px);
+    }
+    .header-login {
+      padding: 10px 18px;
+      background: #fff;
+      color: var(--point);
+      border: 1px solid var(--border);
+      font-size: 13px;
+      font-weight: 800;
+      border-radius: 999px;
+      transition: background 180ms ease, border-color 180ms ease, color 180ms ease, transform 180ms ease;
+    }
+    .header-login:hover {
+      background: var(--soft);
+      border-color: var(--sub);
+      transform: translateY(-1px);
+    }
+
+    /* ── 좌측 카테고리 바로가기 ── */
+    .side-category-nav {
+      position: fixed;
+      left: 22px;
+      top: 50%;
+      transform: translateY(-50%);
+      z-index: 80;
+      width: 132px;
+      padding: 10px;
+      background: rgba(255,255,255,.94);
+      border: 1px solid var(--border);
+      border-radius: 22px;
+      box-shadow: var(--shadow-md);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .side-nav-label {
+      padding: 4px 8px 6px;
+      font-size: 11px;
+      font-weight: 800;
+      color: var(--main);
+      letter-spacing: .03em;
+    }
+    .side-nav-btn {
+      width: 100%;
+      min-height: 34px;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 8px 9px;
+      border-radius: 14px;
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 700;
+      text-align: left;
+      transition: background 160ms ease, color 160ms ease, transform 160ms ease;
+    }
+    .side-nav-btn:hover,
+    .side-nav-btn.active {
+      background: var(--soft);
+      color: var(--point);
+      transform: translateX(2px);
+    }
+    .side-nav-icon {
+      width: 18px;
+      text-align: center;
+      flex-shrink: 0;
+    }
+    .side-nav-divider {
+      height: 1px;
+      background: var(--divider);
+      margin: 3px 4px;
+    }
+
+    /* ── 히어로 (당근 스타일) ── */
+    .hero {
+      min-height: calc(100vh - 70px);
+      padding: 72px 32px 56px;
+      text-align: center;
+      background: #fff;
+    }
+
+    .hero-heading {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+    }
+
+    /* 타이틀 */
+    .hero-title {
+      font-size: clamp(34px, 4.4vw, 54px); font-weight: 900;
+      letter-spacing: -.04em; color: var(--text-strong);
+      line-height: 1; margin-bottom: 14px;
+      display: inline-flex; align-items: center;
+      gap: 18px; flex-wrap: nowrap; justify-content: center;
+      width: 100%;
+    }
+    .hero-title .hero-title-logo {
+      width: clamp(86px, 9vw, 128px);
+      height: clamp(86px, 9vw, 128px);
+      object-fit: contain;
+      flex-shrink: 0;
+      transform: translateY(0);
+    }
+
+    /* 로테이터 */
+    .hero-rotator {
+      position: relative; display: inline-block;
+      width: auto;
+      height: 1.15em;
+      overflow: hidden; vertical-align: bottom;
+      text-align: center; color: var(--main);
+      isolation: isolate;
+      padding: 0 6px;
+      transition: width 420ms cubic-bezier(.22,.61,.36,1);
+    }
+    .hero-rotator::before {
+      content: none;
+    }
+    .hero-rotator span {
+      position: absolute; left: 50%; right: auto;
+      width: max-content;
+      white-space: nowrap;
+      text-align: center;
+      transform: translate(-50%, 110%); opacity: 0;
+      transition: transform 420ms cubic-bezier(.22,.61,.36,1), opacity 260ms ease;
+    }
+    .hero-rotator span.is-current  { transform: translate(-50%, 0); opacity: 1; }
+    .hero-rotator span.is-leaving  { transform: translate(-50%, -110%); opacity: 0; }
+
+    .hero-subcopy {
+      max-width: 640px;
+      margin: 0 auto 30px;
+      color: var(--subtext);
+      font-size: 16px;
+      line-height: 1.7;
+      text-align: center;
+    }
+
+    /* 검색바 */
+    .search-bar {
+      max-width: 700px; margin: 0 auto;
+      position: relative;
+      display: flex; align-items: stretch;
+      background: #fff;
+      border: 1.5px solid var(--border);
+      border-radius: 999px;
+      padding: 6px 6px 6px 22px;
+      box-shadow: var(--shadow-md);
+      transition: border-color 180ms ease, box-shadow 180ms ease;
+    }
+    .search-bar:focus-within {
+      border-color: var(--main);
+      box-shadow: 0 6px 28px rgba(174,143,111,.18);
+    }
+    .search-cat {
+      display: flex; align-items: center; gap: 5px;
+      padding-right: 16px;
+      border-right: 1px solid var(--border);
+      font-size: 15px; font-weight: 700; color: var(--text);
+      cursor: pointer; user-select: none; white-space: nowrap;
+    }
+    .search-cat svg { width: 13px; height: 13px; color: var(--subtext); flex-shrink: 0; }
+    .search-category-menu {
+      position: absolute;
+      top: calc(100% + 10px);
+      left: 16px;
+      z-index: 20;
+      min-width: 148px;
+      padding: 8px;
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      box-shadow: var(--shadow-md);
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(-6px);
+      transition: opacity 160ms ease, transform 160ms ease;
+    }
+    .search-category-menu.is-open {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translateY(0);
+    }
+    .search-category-option {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 9px 10px;
+      border-radius: 12px;
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 700;
+      text-align: left;
+    }
+    .search-category-option:hover,
+    .search-category-option.is-active {
+      background: var(--soft);
+      color: var(--point);
+    }
+    .search-input {
+      flex: 1; padding: 14px 16px;
+      border: none; outline: none;
+      font-size: 15px; color: var(--text);
+      background: transparent; font-family: inherit;
+      min-width: 0;
+    }
+    .search-input::placeholder { color: var(--muted); }
+    .search-submit {
+      width: 50px; height: 50px; flex-shrink: 0;
+      color: var(--main);
+      display: flex; align-items: center; justify-content: center;
+      transition: color 180ms ease, transform 160ms ease;
+    }
+    .search-submit:hover { color: var(--point); transform: translateX(2px); }
+    .search-submit svg { width: 24px; height: 24px; }
+
+    /* 인기 검색어 */
+    .popular-wrap {
+      max-width: 700px; margin: 16px auto 0;
+      display: flex; flex-wrap: wrap;
+      align-items: center; gap: 6px 14px;
+      font-size: 13px;
+    }
+    .popular-label { color: var(--subtext); font-weight: 500; white-space: nowrap; }
+    .popular-wrap a {
+      color: var(--text); transition: color 140ms ease;
+      white-space: nowrap;
+    }
+    .popular-wrap a:hover { color: var(--main); }
+
+    /* 카테고리 그리드 */
+    .hero-cats {
+      max-width: 900px; margin: 52px auto 0;
+    }
+    .hero-cats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+    }
+    .hero-cat-card {
+      background: var(--surface);
+      border-radius: var(--r-lg);
+      padding: 24px 18px 20px;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 14px;
+      cursor: pointer;
+      transition: background 200ms ease, transform 200ms ease, box-shadow 200ms ease;
+      text-align: center;
+      border: 1px solid transparent;
+      min-height: 152px;
+    }
+    .hero-cat-card:hover {
+      background: #fff;
+      border-color: var(--border);
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
+    }
+    .hero-cat-icon {
+      width: 46px; height: 46px;
+      border-radius: 14px;
+      background: var(--soft);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px;
+    }
+    .hero-cat-name {
+      font-size: 16px; font-weight: 700;
+      color: var(--text-strong); letter-spacing: -.01em;
+    }
+    .hero-cat-meta {
+      display: none;
+    }
+
+    /* 히어로 통계 (리뷰 섹션 상단으로 이동) */
+    .stats-bar {
+      background: var(--surface);
+      border-top: 1px solid var(--divider);
+      border-bottom: 1px solid var(--divider);
+      padding: 24px 32px;
+    }
+    .stats-bar-inner {
+      max-width: 900px; margin: 0 auto;
+      display: flex; justify-content: center; gap: 64px;
+    }
+    .stat { text-align: center; }
+    .stat-num {
+      font-size: 26px; font-weight: 900;
+      color: var(--text-strong); letter-spacing: -.03em;
+    }
+    .stat-num span { color: var(--main); }
+    .stat-lbl { font-size: 12px; color: var(--subtext); margin-top: 3px; }
+
+	    /* ── 리뷰 등록 폼 ── */
+    .form-section {
+      background: var(--surface);
+      padding: 100px 0;
+      border-top: 1px solid var(--divider);
+    }
+    .form-card {
+      background: #fff;
+      border-radius: var(--r-xl);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow-md);
+      padding: 52px;
+      max-width: 660px; margin: 0 auto;
+    }
+    .review-form-card {
+      max-width: 760px;
+      padding: 42px;
+    }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+    .review-form-grid { gap: 16px; }
+    .form-group { display: flex; flex-direction: column; gap: 8px; }
+    .form-group.full { grid-column: 1 / -1; }
+    .form-label { font-size: 13px; font-weight: 700; color: var(--text-strong); }
+    .req { color: var(--main); }
+
+    .form-input, .form-select, .form-textarea {
+      width: 100%; padding: 14px 17px;
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: var(--r-md);
+      font-size: 15px; color: var(--text);
+      outline: none;
+      transition: border-color 180ms ease, background 180ms ease;
+    }
+    .form-input:focus, .form-select:focus, .form-textarea:focus {
+      border-color: var(--main); background: #fff;
+    }
+    .review-form-card .form-input,
+    .review-form-card .form-select {
+      padding: 12px 15px;
+    }
+    .review-form-card .form-textarea { min-height: 112px; }
+    .form-input::placeholder, .form-textarea::placeholder { color: var(--muted); }
+
+    /* 셀렉트 드롭다운 화살표 */
+    .form-select {
+      appearance: none; -webkit-appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none'%3E%3Cpath d='M6 9l6 6 6-6' stroke='%239A9189' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 14px center;
+      padding-right: 42px;
+      cursor: pointer;
+    }
+    .form-textarea { resize: vertical; min-height: 130px; line-height: 1.65; }
+
+    /* 별점 */
+    .star-wrap { display: flex; flex-direction: column; gap: 8px; }
+    .star-rating {
+      position: relative;
+      width: max-content;
+      line-height: 1;
+    }
+    .star-stars {
+      position: relative;
+      display: inline-block;
+      font-size: 30px;
+      letter-spacing: 4px;
+      line-height: 1;
+      color: var(--border);
+      pointer-events: none;
+    }
+    .star-fill {
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 0%;
+      overflow: hidden;
+      white-space: nowrap;
+      color: #F4C430;
+      transition: width 120ms ease;
+    }
+    .star-rating input[type="range"] {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      opacity: 0;
+      cursor: pointer;
+    }
+    .star-hint { font-size: 12px; color: var(--muted); }
+
+    /* 글자 수 */
+    .char-row { display: flex; justify-content: flex-end; margin-top: 5px; }
+    .char-count { font-size: 12px; color: var(--muted); }
+
+    /* 사진 첨부 */
+    .photo-upload-area {
+      position: relative;
+      border: 2px dashed var(--border);
+      border-radius: var(--r-md);
+      padding: 28px 20px;
+      text-align: center;
+      cursor: pointer;
+      background: var(--surface);
+      transition: border-color 180ms ease, background 180ms ease;
+    }
+    .photo-upload-area:hover,
+    .photo-upload-area.drag-over {
+      border-color: var(--main);
+      background: var(--soft);
+    }
+    .photo-upload-area input[type="file"] {
+      position: absolute; inset: 0;
+      width: 100%; height: 100%;
+      opacity: 0; cursor: pointer;
+    }
+    .photo-upload-icon { font-size: 28px; margin-bottom: 8px; }
+    .photo-upload-label {
+      font-size: 14px; font-weight: 600; color: var(--text);
+      display: block; margin-bottom: 4px;
+    }
+    .photo-upload-hint { font-size: 12px; color: var(--muted); }
+    .photo-upload-hint span { color: var(--main); font-weight: 600; }
+
+    /* 사진 미리보기 그리드 */
+    .photo-preview-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-top: 12px;
+    }
+    .photo-preview-item {
+      position: relative;
+      aspect-ratio: 1;
+      border-radius: var(--r-sm);
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+    .photo-preview-item img {
+      width: 100%; height: 100%;
+      object-fit: cover; display: block;
+    }
+    .photo-preview-remove {
+      position: absolute; top: 4px; right: 4px;
+      width: 22px; height: 22px;
+      background: rgba(26,20,14,.65);
+      border-radius: 50%;
+      color: #fff; font-size: 12px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      transition: background 140ms ease;
+      line-height: 1;
+    }
+    .photo-preview-remove:hover { background: rgba(180,60,60,.85); }
+
+	    /* 리뷰 카드 사진 */
+    .rc-photos {
+      display: grid;
+      gap: 6px;
+      border-radius: var(--r-sm);
+      overflow: hidden;
+    }
+    .rc-photos.count-1 { grid-template-columns: 1fr; }
+    .rc-photos.count-2 { grid-template-columns: 1fr 1fr; }
+    .rc-photos.count-3 { grid-template-columns: 1fr 1fr 1fr; }
+    .rc-photos.count-many { grid-template-columns: 1fr 1fr; }
+    .rc-photo {
+      aspect-ratio: 1;
+      overflow: hidden;
+      border-radius: 8px;
+      cursor: pointer;
+      position: relative;
+    }
+    .rc-photo img {
+      width: 100%; height: 100%;
+      object-fit: cover; display: block;
+      transition: transform 260ms ease;
+    }
+    .rc-photo:hover img { transform: scale(1.05); }
+    .rc-photo-more {
+      position: absolute; inset: 0;
+      background: rgba(26,20,14,.52);
+      display: flex; align-items: center; justify-content: center;
+      color: #fff; font-size: 18px; font-weight: 800;
+      border-radius: 8px;
+    }
+
+    /* 라이트박스 */
+    .lightbox {
+      position: fixed; inset: 0; z-index: 9000;
+      background: rgba(10,8,6,.9);
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0; pointer-events: none;
+      transition: opacity 240ms ease;
+    }
+    .lightbox.open { opacity: 1; pointer-events: all; }
+    .lightbox img {
+      max-width: 90vw; max-height: 88vh;
+      border-radius: var(--r-md);
+      object-fit: contain;
+      box-shadow: 0 24px 64px rgba(0,0,0,.5);
+    }
+    .lightbox-close {
+      position: absolute; top: 20px; right: 24px;
+      width: 42px; height: 42px; border-radius: 50%;
+      background: rgba(255,255,255,.15);
+      color: #fff; font-size: 20px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      transition: background 160ms ease;
+    }
+    .lightbox-close:hover { background: rgba(255,255,255,.28); }
+
+    /* 제출 버튼 */
+    .form-submit {
+      width: 100%; padding: 17px;
+      background: var(--text-strong); color: #fff;
+      font-size: 16px; font-weight: 700;
+      border-radius: var(--r-md);
+      margin-top: 10px;
+      transition: background 180ms ease, transform 180ms ease;
+    }
+    .form-submit:hover { background: var(--point); transform: translateY(-1px); }
+    .form-submit:disabled { background: var(--muted); cursor: not-allowed; transform: none; }
+
+    /* ── 로그인 ── */
+    .login-section {
+      min-height: calc(100vh - 86px);
+      align-items: center;
+      background: var(--surface);
+      border-top: 1px solid var(--divider);
+      padding: 90px 0;
+    }
+    .login-section.active { display: flex; }
+    .login-card {
+      max-width: 460px;
+      margin: 0 auto;
+      padding: 46px;
+      border-radius: var(--r-xl);
+      border: 1px solid var(--border);
+      background: #fff;
+      box-shadow: var(--shadow-md);
+      text-align: center;
+    }
+    .login-card img {
+      width: 118px;
+      height: auto;
+      margin-bottom: 22px;
+    }
+    .login-title {
+      font-size: 28px;
+      line-height: 1.22;
+      font-weight: 900;
+      color: var(--text-strong);
+      letter-spacing: -.03em;
+    }
+    .login-sub {
+      margin: 12px 0 28px;
+      font-size: 14px;
+      line-height: 1.7;
+      color: var(--subtext);
+    }
+    .login-options {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .login-option {
+      width: 100%;
+      min-height: 50px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: #fff;
+      color: var(--text-strong);
+      font-size: 14px;
+      font-weight: 800;
+      transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
+    }
+    .login-option:hover {
+      background: var(--soft);
+      border-color: var(--sub);
+      transform: translateY(-1px);
+    }
+    .login-note {
+      margin-top: 18px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    /* ── 내정보 ── */
+    .my-section {
+      background: var(--surface);
+      padding: 100px 0;
+      border-top: 1px solid var(--divider);
+    }
+    .my-layout {
+      display: grid;
+      grid-template-columns: 320px minmax(0, 1fr);
+      gap: 22px;
+      align-items: start;
+    }
+    .my-profile,
+    .my-panel {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: var(--r-xl);
+      box-shadow: var(--shadow-sm);
+    }
+    .my-profile {
+      padding: 28px;
+      position: sticky;
+      top: 92px;
+    }
+    .my-avatar {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      background: var(--soft);
+      border: 1px solid var(--sub);
+      color: var(--point);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      font-weight: 900;
+      margin-bottom: 18px;
+    }
+    .my-name {
+      font-size: 22px;
+      font-weight: 900;
+      color: var(--text-strong);
+      letter-spacing: -.03em;
+    }
+    .my-sub {
+      margin-top: 6px;
+      font-size: 13px;
+      color: var(--subtext);
+    }
+    .my-info-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 22px;
+    }
+    .my-info-item {
+      padding: 14px;
+      border-radius: 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+    }
+    .my-info-item span {
+      display: block;
+      font-size: 11px;
+      color: var(--subtext);
+      margin-bottom: 6px;
+    }
+    .my-info-item strong {
+      display: block;
+      font-size: 14px;
+      color: var(--text-strong);
+    }
+    .my-beauty-link {
+      width: 100%;
+      margin-top: 16px;
+      padding: 16px;
+      border-radius: 18px;
+      border: 1px solid var(--sub);
+      background: var(--soft);
+      color: var(--point);
+      text-align: left;
+      font-weight: 900;
+      transition: background 160ms ease, transform 160ms ease;
+    }
+    .my-beauty-link span {
+      display: block;
+      margin-top: 5px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--subtext);
+    }
+    .my-beauty-link:hover {
+      background: #fff;
+      transform: translateY(-1px);
+    }
+    .my-stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 22px;
+    }
+    .my-stat {
+      padding: 16px;
+      border-radius: 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+    }
+    .my-stat strong {
+      display: block;
+      font-size: 24px;
+      color: var(--text-strong);
+      line-height: 1;
+    }
+    .my-stat span {
+      display: block;
+      margin-top: 8px;
+      font-size: 12px;
+      color: var(--subtext);
+    }
+    .my-logout {
+      width: 100%;
+      margin-top: 18px;
+      padding: 12px 16px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: #fff;
+      color: var(--point);
+      font-weight: 800;
+      transition: background 160ms ease, border-color 160ms ease;
+    }
+    .my-logout:hover {
+      background: var(--soft);
+      border-color: var(--sub);
+    }
+    .my-panels {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      min-width: 0;
+    }
+    .my-panel {
+      padding: 24px;
+    }
+    .my-panel-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+    .my-panel-title {
+      font-size: 18px;
+      font-weight: 900;
+      color: var(--text-strong);
+    }
+    .my-panel-count {
+      font-size: 12px;
+      color: var(--subtext);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 6px 10px;
+    }
+    .my-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .my-item {
+      width: 100%;
+      padding: 15px;
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      text-align: left;
+      transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
+    }
+    .my-item:hover {
+      background: var(--soft);
+      border-color: var(--sub);
+      transform: translateY(-1px);
+    }
+    .my-item-title {
+      font-size: 14px;
+      font-weight: 850;
+      color: var(--text-strong);
+      line-height: 1.45;
+    }
+    .my-item-meta {
+      margin-top: 6px;
+      font-size: 12px;
+      color: var(--subtext);
+    }
+    .my-empty {
+      padding: 22px;
+      border-radius: 16px;
+      border: 1px dashed var(--border);
+      color: var(--subtext);
+      background: var(--surface);
+      font-size: 13px;
+      text-align: center;
+    }
+    .my-support-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .my-support-card {
+      min-height: 112px;
+      padding: 18px;
+      border-radius: 18px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .my-support-card strong {
+      display: block;
+      font-size: 15px;
+      color: var(--text-strong);
+      margin-bottom: 8px;
+    }
+    .my-support-card span {
+      font-size: 12px;
+      color: var(--subtext);
+      line-height: 1.6;
+    }
+
+	    /* ── 리뷰 피드 ── */
+    .reviews-section { padding: 100px 0; }
+
+    .reviews-toolbar {
+      display: flex; align-items: center;
+      justify-content: space-between;
+      margin-bottom: 28px; flex-wrap: wrap; gap: 14px;
+    }
+    .reviews-heading-row {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 18px;
+      margin-bottom: 0;
+    }
+    .review-write-top {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+      padding: 13px 20px;
+      background: var(--main);
+      color: #fff;
+      border-radius: 999px;
+      font-size: 14px;
+      font-weight: 800;
+      box-shadow: var(--shadow-sm);
+      transition: background 180ms ease, transform 180ms ease;
+    }
+    .review-write-top:hover {
+      background: var(--point);
+      transform: translateY(-1px);
+    }
+    .reviews-count { font-size: 14px; color: var(--subtext); }
+    .reviews-count strong { color: var(--text-strong); font-weight: 700; }
+
+    .community-filter-panel {
+      width: 100%;
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      align-items: start;
+      gap: 18px 28px;
+      padding: 18px 0 8px;
+    }
+    .community-filter-groups {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 12px;
+      min-width: 0;
+    }
+    .filter-tabs { display: flex; gap: 8px; flex-wrap: wrap; }
+    .filter-tab {
+      padding: 8px 17px;
+      border-radius: 999px;
+      border: 1.5px solid var(--border);
+      font-size: 13px; font-weight: 500;
+      color: var(--subtext); background: #fff;
+      cursor: pointer;
+      white-space: nowrap;
+      flex-shrink: 0;
+      transition: all 160ms ease;
+    }
+    .filter-tab.active,
+    .filter-tab:hover { border-color: var(--main); color: var(--point); background: var(--soft); }
+
+    .reviews-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+    }
+    .review-card {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: var(--r-lg);
+      padding: 26px;
+      display: flex; flex-direction: column; gap: 14px;
+      cursor: pointer;
+      transition: transform 220ms ease, box-shadow 220ms ease;
+    }
+    .review-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); }
+    .review-card.is-detail {
+      cursor: default;
+      min-height: 420px;
+      padding: 34px;
+      border-radius: var(--r-xl);
+      box-shadow: var(--shadow-sm);
+    }
+    .review-card.is-detail:hover { transform: none; box-shadow: var(--shadow-sm); }
+    .review-card.is-detail .rc-name { font-size: 20px; }
+    .review-card.is-detail .rc-service { font-size: 14px; white-space: normal; }
+    .review-card.is-detail .rc-avatar { width: 54px; height: 54px; font-size: 19px; }
+    .review-card.is-detail .rc-stars { font-size: 18px; }
+    .review-card.is-detail .rc-text {
+      display: block;
+      overflow: visible;
+      font-size: 17px;
+      line-height: 1.9;
+      white-space: pre-line;
+    }
+    .review-card.is-detail .rc-photos {
+      max-width: 560px;
+      margin-top: 4px;
+    }
+    .review-card.is-detail .rc-photos.count-1 {
+      grid-template-columns: minmax(0, 220px);
+      max-width: 220px;
+    }
+
+    .rc-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+    .rc-avatar {
+      width: 42px; height: 42px; border-radius: 50%;
+      background: var(--soft); border: 1.5px solid var(--sub);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px; font-weight: 800; color: var(--point);
+      flex-shrink: 0;
+    }
+    .rc-meta { flex: 1; min-width: 0; }
+    .rc-name { font-size: 14px; font-weight: 700; color: var(--text-strong); }
+    .rc-service { font-size: 12px; color: var(--subtext); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .rc-badge {
+      padding: 4px 11px;
+      background: var(--soft); border-radius: 999px;
+      font-size: 11px; font-weight: 600; color: var(--point);
+      flex-shrink: 0;
+    }
+    .rc-stars { font-size: 13px; color: #F4C430; letter-spacing: 1px; }
+    .rc-text {
+      font-size: 14px; color: var(--text); line-height: 1.72; flex: 1;
+      display: -webkit-box;
+      -webkit-line-clamp: 4; -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+	    .rc-date { font-size: 12px; color: var(--muted); }
+	    .rc-extra {
+	      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+	      font-size: 12px; color: var(--subtext);
+	    }
+	    .rc-actions {
+	      display: flex; gap: 8px; padding-top: 2px;
+	      border-top: 1px solid var(--divider);
+	    }
+	    .rc-action {
+	      font-size: 12px; color: var(--subtext);
+	      background: var(--surface); border: 1px solid var(--border);
+	      border-radius: 999px; padding: 6px 10px;
+	    }
+	    .rc-action.is-active,
+	    .cm-action.is-active {
+	      color: var(--point);
+	      background: var(--soft);
+	      border-color: var(--sub);
+	      font-weight: 800;
+	    }
+
+    .reviews-empty {
+      grid-column: 1 / -1;
+      text-align: center; padding: 90px 20px;
+      color: var(--subtext);
+    }
+    .empty-icon { font-size: 52px; margin-bottom: 18px; }
+    .reviews-empty p { font-size: 15px; }
+
+    /* 더보기 버튼 */
+    .load-more-wrap { text-align: center; margin-top: 40px; }
+    .load-more {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 14px 32px;
+      border: 1.5px solid var(--border);
+      border-radius: 999px;
+      font-size: 14px; font-weight: 600; color: var(--text);
+      background: #fff; cursor: pointer;
+      transition: all 180ms ease;
+    }
+	    .load-more:hover { border-color: var(--main); color: var(--point); background: var(--soft); }
+	    .load-more.hidden { display: none; }
+
+	    /* ── 커뮤니티 ── */
+	    .community-section {
+	      background: var(--surface);
+	      padding: 100px 0;
+	      border-top: 1px solid var(--divider);
+	    }
+	    .community-layout {
+	      display: grid;
+	      grid-template-columns: 1fr;
+	      gap: 24px;
+	      align-items: start;
+	    }
+	    .community-write,
+	    .community-feed-card {
+	      background: #fff;
+	      border: 1px solid var(--border);
+	      border-radius: var(--r-xl);
+	      box-shadow: var(--shadow-sm);
+	    }
+	    .community-write { padding: 28px; position: sticky; top: 92px; }
+	    .community-write h3 { font-size: 19px; color: var(--text-strong); margin-bottom: 8px; }
+	    .community-write p { font-size: 13px; color: var(--subtext); margin-bottom: 18px; }
+	    .community-form { display: flex; flex-direction: column; gap: 12px; }
+	    .community-board { min-width: 0; }
+	    .community-content-grid {
+	      display: grid;
+	      grid-template-columns: minmax(0, 1fr) 300px;
+	      gap: 18px;
+	      align-items: start;
+	    }
+	    .community-detail-actions {
+	      display: flex;
+	      justify-content: flex-end;
+	      margin-bottom: 14px;
+	    }
+	    .community-feed { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+	    .community-feed-card {
+	      padding: 24px;
+	      transition: transform 180ms ease, box-shadow 180ms ease;
+	      cursor: pointer;
+	    }
+	    .community-feed-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+	    .community-feed-card.is-detail {
+	      cursor: default;
+	      min-height: 360px;
+	      padding: 32px;
+	    }
+	    .community-feed-card.is-detail:hover { transform: none; box-shadow: var(--shadow-sm); }
+	    .cm-top { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+	    .cm-title { font-size: 17px; font-weight: 800; color: var(--text-strong); line-height: 1.35; }
+	    .community-feed-card.is-detail .cm-title { font-size: 23px; line-height: 1.35; }
+	    .cm-badge {
+	      flex-shrink: 0;
+	      background: var(--soft);
+	      border: 1px solid var(--sub);
+	      color: var(--point);
+	      border-radius: 999px;
+	      padding: 5px 11px;
+	      font-size: 11px;
+	      font-weight: 700;
+	    }
+	    .cm-meta { margin-top: 8px; font-size: 12px; color: var(--subtext); }
+	    .cm-body { margin-top: 14px; font-size: 14px; color: var(--text); line-height: 1.75; white-space: pre-line; }
+	    .community-feed-card.is-detail .cm-body { margin-top: 26px; font-size: 16px; line-height: 1.9; }
+	    .cm-photos {
+	      margin-top: 18px;
+	      display: grid;
+	      gap: 8px;
+	      width: 100%;
+	      max-width: 520px;
+	    }
+	    .cm-photos.count-1,
+	    .cm-photos.count-2 {
+	      grid-template-columns: repeat(2, minmax(0, 120px));
+	      max-width: 248px;
+	    }
+	    .cm-photos.count-3 {
+	      grid-template-columns: repeat(3, minmax(0, 120px));
+	      max-width: 376px;
+	    }
+	    .cm-photos.count-many {
+	      grid-template-columns: repeat(4, minmax(0, 1fr));
+	    }
+	    .community-feed-card.is-detail .cm-photos {
+	      margin-top: 22px;
+	      grid-template-columns: repeat(4, minmax(0, 1fr));
+	      max-width: 560px;
+	    }
+	    .cm-photo {
+	      position: relative;
+	      aspect-ratio: 1;
+	      overflow: hidden;
+	      border-radius: 14px;
+	      border: 1px solid var(--border);
+	      background: var(--surface);
+	      cursor: zoom-in;
+	    }
+	    .cm-photo img {
+	      width: 100%;
+	      height: 100%;
+	      object-fit: cover;
+	      display: block;
+	      transition: transform 220ms ease;
+	    }
+	    .cm-photo:hover img { transform: scale(1.04); }
+	    .cm-photo-more {
+	      position: absolute;
+	      inset: 0;
+	      display: flex;
+	      align-items: center;
+	      justify-content: center;
+	      background: rgba(26,20,14,.48);
+	      color: #fff;
+	      font-size: 18px;
+	      font-weight: 800;
+	    }
+	    .cm-actions {
+	      margin-top: 16px;
+	      display: flex; gap: 8px; flex-wrap: wrap;
+	      font-size: 12px; color: var(--subtext);
+	    }
+	    .cm-action {
+	      background: var(--surface);
+	      border: 1px solid var(--border);
+	      border-radius: 999px;
+	      padding: 7px 11px;
+	    }
+	    .community-list-panel {
+	      position: sticky;
+	      top: 92px;
+	      background: #fff;
+	      border: 1px solid var(--border);
+	      border-radius: var(--r-xl);
+	      box-shadow: var(--shadow-sm);
+	      padding: 18px;
+	    }
+	    .community-list-title {
+	      font-size: 14px;
+	      font-weight: 800;
+	      color: var(--text-strong);
+	      margin-bottom: 12px;
+	    }
+	    .community-list {
+	      display: flex;
+	      flex-direction: column;
+	      gap: 8px;
+	      max-height: 520px;
+	      overflow-y: auto;
+	      padding-right: 2px;
+	    }
+	    .community-list-item {
+	      width: 100%;
+	      padding: 12px;
+	      border-radius: 14px;
+	      text-align: left;
+	      color: var(--text);
+	      background: var(--surface);
+	      border: 1px solid transparent;
+	      transition: background 160ms ease, border-color 160ms ease;
+	    }
+	    .community-list-item:hover,
+	    .community-list-item.is-active {
+	      background: var(--soft);
+	      border-color: var(--sub);
+	    }
+	    .community-list-item-title {
+	      font-size: 13px;
+	      font-weight: 800;
+	      line-height: 1.35;
+	      color: var(--text-strong);
+	      display: -webkit-box;
+	      -webkit-line-clamp: 2;
+	      -webkit-box-orient: vertical;
+	      overflow: hidden;
+	    }
+	    .community-list-item-meta {
+	      margin-top: 6px;
+	      font-size: 11px;
+	      color: var(--subtext);
+	    }
+
+    /* ── 출시 소개 스냅 구간 ── */
+    .launch-scroll {
+      height: calc(100vh - 70px);
+      min-height: 620px;
+      overflow: hidden;
+      overscroll-behavior: contain;
+      position: relative;
+      border-top: 1px solid var(--divider);
+      background: var(--surface);
+    }
+    .launch-panel {
+      position: absolute;
+      inset: 0;
+      min-height: 100%;
+      display: flex;
+      align-items: center;
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(34px);
+      transition: opacity 420ms ease, transform 520ms cubic-bezier(.22,.61,.36,1);
+    }
+    .launch-panel.is-active {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translateY(0);
+    }
+    .launch-panel.is-leaving-up { transform: translateY(-34px); }
+    .launch-panel.is-leaving-down { transform: translateY(34px); }
+    .launch-panel-dots {
+      position: absolute;
+      right: 34px;
+      top: 50%;
+      transform: translateY(-50%);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      z-index: 2;
+    }
+    .launch-panel-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: var(--sub);
+      transition: height 180ms ease, background 180ms ease;
+    }
+    .launch-panel-dot.is-active {
+      height: 24px;
+      background: var(--main);
+    }
+
+    /* ── 앱 소개 ── */
+    .features-section {
+      background: var(--surface);
+      padding: 88px 0;
+    }
+    .features-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 26px; align-items: stretch; }
+    .feature-card {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: var(--r-lg);
+      padding: 34px 30px;
+      min-height: 340px;
+      display: flex;
+      flex-direction: column;
+      transition: transform 220ms ease, box-shadow 220ms ease;
+    }
+    .feature-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); }
+    .feature-icon {
+      width: 54px; height: 54px; border-radius: 18px;
+      background: var(--soft);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 26px; margin-bottom: 22px;
+    }
+    .feature-title { font-size: 18px; font-weight: 700; color: var(--text-strong); letter-spacing: -.015em; margin-bottom: 12px; line-height: 1.45; }
+    .feature-desc { font-size: 14px; color: var(--subtext); line-height: 1.9; }
+    .feature-key {
+      margin-top: auto;
+      padding-top: 22px;
+      font-size: 13px;
+      font-weight: 800;
+      color: var(--point);
+      letter-spacing: -.01em;
+    }
+    .features-impact {
+      margin: 34px auto 0;
+      max-width: 680px;
+      text-align: center;
+      color: var(--text-strong);
+      font-size: 18px;
+      font-weight: 800;
+      line-height: 1.65;
+      letter-spacing: -.02em;
+    }
+
+    /* ── 앱 미리보기 배너 ── */
+    .app-banner {
+      padding: 88px 0;
+      background: #fff;
+    }
+    .app-banner-inner {
+      max-width: 1080px; margin: 0 auto; padding: 0 32px;
+      display: grid; grid-template-columns: 1fr 1fr;
+      align-items: center; gap: 64px;
+    }
+    .app-banner-text { }
+    .app-banner-title {
+      font-size: 36px; font-weight: 900;
+      color: var(--text-strong); letter-spacing: -.03em;
+      line-height: 1.18; margin-bottom: 20px;
+    }
+    .app-banner-title em { font-style: normal; color: var(--main); }
+    .app-banner-desc { font-size: 15px; color: var(--subtext); line-height: 1.75; margin-bottom: 32px; }
+    .store-badges { display: flex; gap: 12px; flex-wrap: wrap; }
+    .store-badge {
+      display: inline-flex; align-items: center; gap: 10px;
+      padding: 13px 22px;
+      background: var(--text-strong); color: #fff;
+      border-radius: var(--r-md);
+      font-size: 14px; font-weight: 600;
+      transition: background 180ms ease, transform 180ms ease;
+      opacity: .7;
+      cursor: default;
+    }
+    .store-badge span { font-size: 11px; font-weight: 400; opacity: .75; display: block; }
+    .store-badge strong { font-size: 15px; display: block; }
+    .store-badge.soon { position: relative; }
+    .store-badge.soon::after {
+      content: '출시 예정';
+      position: absolute; top: -10px; right: -8px;
+      background: var(--main); color: #fff;
+      font-size: 10px; font-weight: 700;
+      padding: 3px 8px; border-radius: 999px;
+    }
+
+    /* 폰 목업 */
+    .phone-mockup {
+      display: flex; justify-content: center;
+    }
+    .phone-frame {
+      width: 240px; height: 480px;
+      background: var(--surface);
+      border-radius: 36px;
+      border: 2px solid var(--border);
+      box-shadow: var(--shadow-lg);
+      position: relative; overflow: hidden;
+      display: flex; flex-direction: column;
+    }
+    .phone-notch {
+      width: 80px; height: 22px;
+      background: var(--border); border-radius: 0 0 12px 12px;
+      margin: 0 auto;
+    }
+    .phone-screen {
+      flex: 1; padding: 16px 14px; display: flex; flex-direction: column; gap: 10px;
+    }
+    .phone-screen-title {
+      font-size: 13px; font-weight: 800; color: var(--point); letter-spacing: -.01em;
+    }
+    .phone-mini-card {
+      background: #fff; border-radius: 12px; border: 1px solid var(--border);
+      padding: 12px; display: flex; gap: 10px; align-items: center;
+    }
+    .phone-avatar {
+      width: 34px; height: 34px; border-radius: 50%;
+      background: var(--soft); border: 1.5px solid var(--sub);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 700; color: var(--point); flex-shrink: 0;
+    }
+    .phone-card-text { }
+    .phone-card-name { font-size: 11px; font-weight: 700; color: var(--text-strong); }
+    .phone-card-sub { font-size: 10px; color: var(--subtext); margin-top: 1px; }
+    .phone-stars { font-size: 10px; color: #F4C430; margin-top: 2px; }
+    .phone-bottom {
+      height: 46px; background: #fff; border-top: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-around;
+      padding: 0 8px;
+    }
+    .phone-nav-dot {
+      width: 6px; height: 6px; border-radius: 50%; background: var(--border);
+    }
+    .phone-nav-dot.active { background: var(--main); }
+
+    /* ── 웨이트리스트 ── */
+    .waitlist-section { padding: 88px 0; text-align: center; background: #fff; }
+    .waitlist-form {
+      display: flex; gap: 10px;
+      max-width: 500px; margin: 36px auto 0;
+    }
+    .waitlist-input {
+      flex: 1; padding: 17px 22px;
+      border: 1.5px solid var(--border); border-radius: 999px;
+      font-size: 15px; outline: none; background: #fff;
+      transition: border-color 180ms ease;
+    }
+    .waitlist-input:focus { border-color: var(--main); }
+    .waitlist-input::placeholder { color: var(--muted); }
+    .waitlist-btn {
+      padding: 17px 30px;
+      background: var(--main); color: #fff;
+      font-size: 15px; font-weight: 700;
+      border-radius: 999px; white-space: nowrap;
+      transition: background 180ms ease, transform 180ms ease;
+    }
+    .waitlist-btn:hover { background: var(--point); transform: translateY(-1px); }
+    .waitlist-note { font-size: 13px; color: var(--muted); margin-top: 14px; }
+    .waitlist-joined { display: inline-block; margin-top: 22px; font-size: 14px; color: var(--subtext); }
+    .waitlist-joined strong { color: var(--main); }
+
+    /* ── 푸터 ── */
+    .site-footer {
+      border-top: 1px solid var(--border);
+      padding: 44px 32px 64px;
+      background: var(--surface);
+    }
+    .footer-inner {
+      max-width: 1080px; margin: 0 auto;
+      display: flex; justify-content: space-between;
+      align-items: center; flex-wrap: wrap; gap: 18px;
+    }
+    .footer-brand { font-size: 14px; font-weight: 700; color: var(--point); }
+    .footer-meta { font-size: 12px; color: var(--subtext); }
+    .footer-meta a { margin-left: 18px; transition: color 160ms ease; }
+    .footer-meta a:hover { color: var(--main); }
+
+    /* ── 토스트 ── */
+    .toast {
+      position: fixed; bottom: 36px; left: 50%;
+      transform: translateX(-50%) translateY(24px);
+      background: var(--text-strong); color: #fff;
+      padding: 14px 26px; border-radius: 999px;
+      font-size: 14px; font-weight: 500;
+      opacity: 0; pointer-events: none; z-index: 9999;
+      white-space: nowrap;
+      transition: opacity 280ms ease, transform 280ms cubic-bezier(.22,.61,.36,1);
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* ── 반응형 ── */
+    @media (max-width: 960px) {
+      .side-category-nav {
+        left: 50%;
+        right: auto;
+        top: auto;
+        bottom: 14px;
+        width: calc(100vw - 28px);
+        max-width: 520px;
+        transform: translateX(-50%);
+        flex-direction: row;
+        align-items: center;
+        overflow-x: auto;
+        border-radius: 999px;
+        padding: 8px;
+        gap: 4px;
+      }
+      .side-nav-label,
+      .side-nav-divider { display: none; }
+      .side-nav-btn {
+        width: auto;
+        min-width: max-content;
+        min-height: 36px;
+        padding: 8px 12px;
+        border-radius: 999px;
+        font-size: 12px;
+      }
+      .side-nav-btn:hover,
+      .side-nav-btn.active { transform: none; }
+      .container { padding: 0 20px; }
+      .header-inner { padding: 14px 20px; grid-template-columns: 1fr auto 1fr; gap: 14px; }
+      .brand { justify-self: center; }
+      .header-actions { gap: 7px; }
+      .header-cta { padding: 9px 14px; font-size: 12px; }
+      .launch-scroll { height: calc(100vh - 66px); min-height: 560px; }
+      .launch-panel { min-height: calc(100vh - 66px); }
+      .launch-panel-dots { right: 16px; }
+      .hero { padding: 52px 20px 40px; }
+      .hero-title { font-size: 28px; gap: 8px; }
+      .hero-rotator { width: 132px; }
+      .hero-cats { margin-top: 36px; }
+      .hero-cats-grid { grid-template-columns: repeat(4, 1fr); gap: 10px; }
+      .hero-cat-card { padding: 16px 12px 14px; gap: 10px; }
+      .hero-cat-icon { width: 38px; height: 38px; font-size: 18px; border-radius: 11px; }
+      .hero-cat-name { font-size: 14px; }
+      .hero-cat-meta { display: none; }
+      .stats-bar-inner { gap: 32px; }
+      .reviews-heading-row { align-items: stretch; flex-direction: column; }
+      .review-write-top { width: max-content; }
+      .form-card { padding: 36px 24px; }
+      .form-grid { grid-template-columns: 1fr; }
+      .review-form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+	      .reviews-grid { grid-template-columns: repeat(2, 1fr); }
+	      .community-layout { grid-template-columns: 1fr; }
+	      .community-write { position: static; }
+      .community-content-grid { grid-template-columns: 1fr; }
+      .community-list-panel { position: static; }
+      .my-layout { grid-template-columns: 1fr; }
+      .my-profile { position: static; }
+      .community-feed-card.is-detail .cm-photos {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        max-width: none;
+      }
+	      .features-grid { grid-template-columns: 1fr; gap: 16px; }
+      .feature-card { min-height: auto; }
+      .features-impact { font-size: 16px; margin-top: 26px; }
+      .app-banner-inner { grid-template-columns: 1fr; gap: 48px; }
+      .phone-mockup { order: -1; }
+      .form-section, .reviews-section, .features-section,
+      .app-banner, .waitlist-section { padding: 64px 0; }
+    }
+    @media (max-width: 560px) {
+      .hero-title { font-size: 20px; }
+      .brand-logo { width: 58px; height: 32px; }
+      .header-cta { padding: 8px 11px; }
+      .hero-rotator { width: 96px; }
+      .hero-cats-grid { grid-template-columns: repeat(4, 1fr); gap: 8px; }
+      .hero-cat-card { padding: 14px 8px; align-items: center; }
+      .hero-cat-icon { width: 36px; height: 36px; font-size: 16px; }
+      .hero-cat-name { font-size: 12px; text-align: center; }
+      .reviews-grid { grid-template-columns: 1fr; }
+      .review-form-grid { grid-template-columns: 1fr; }
+      .community-filter-panel { grid-template-columns: 1fr; }
+      .community-filter-groups { align-items: stretch; }
+      .my-support-grid { grid-template-columns: 1fr; }
+      .my-info-grid { grid-template-columns: 1fr; }
+      .cm-photos,
+      .community-feed-card.is-detail .cm-photos {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        max-width: none;
+      }
+      .waitlist-form { flex-direction: column; }
+      .waitlist-btn { border-radius: var(--r-md); width: 100%; }
+      .waitlist-input { border-radius: var(--r-md); text-align: center; }
+      .filter-tabs { overflow-x: auto; padding-bottom: 4px; flex-wrap: nowrap; }
+      .section-title { font-size: 24px; }
+      .stats-bar-inner { gap: 20px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══ 헤더 ══════════════════════════════════════════ -->
+<header class="site-header">
+  <div class="header-inner">
+    <div class="header-auth">
+      <button class="header-login" id="auth-button" type="button">로그인</button>
+    </div>
+    <a class="brand" href="#home" data-view-link="home">
+      <img class="brand-logo" src="findy_trim.png" alt="FINDY" />
+    </a>
+    <div class="header-actions">
+      <a class="header-cta" href="#write-review" data-view-link="write">리뷰 작성</a>
+      <a class="header-cta" href="#community" data-view-link="community">커뮤니티 참여</a>
+    </div>
+  </div>
+	</header>
+
+	<nav class="side-category-nav" aria-label="빠른 카테고리 이동">
+	  <div class="side-nav-label">Find Your ...</div>
+	  <button class="side-nav-btn active" type="button" data-side-action="all">
+	    <span class="side-nav-icon">✨</span><span>Home</span>
+	  </button>
+	  <button class="side-nav-btn" type="button" data-side-category="헤어">
+	    <span class="side-nav-icon">✂️</span><span>헤어</span>
+	  </button>
+	  <button class="side-nav-btn" type="button" data-side-category="네일아트">
+	    <span class="side-nav-icon">💅</span><span>네일</span>
+	  </button>
+	  <button class="side-nav-btn" type="button" data-side-category="메이크업">
+	    <span class="side-nav-icon">💄</span><span>메이크업</span>
+	  </button>
+	  <button class="side-nav-btn" type="button" data-side-category="반영구">
+	    <span class="side-nav-icon">🪄</span><span>반영구</span>
+	  </button>
+	  <button class="side-nav-btn" type="button" data-side-category="웨딩">
+	    <span class="side-nav-icon">💍</span><span>웨딩</span>
+	  </button>
+	  <button class="side-nav-btn" type="button" data-side-category="포토">
+	    <span class="side-nav-icon">📸</span><span>포토</span>
+	  </button>
+	  <div class="side-nav-divider"></div>
+	  <button class="side-nav-btn" type="button" data-side-action="community">
+	    <span class="side-nav-icon">💬</span><span>커뮤니티</span>
+	  </button>
+	  <div class="side-nav-divider"></div>
+	  <button class="side-nav-btn" type="button" data-side-action="features">
+	    <span class="side-nav-icon">🔎</span><span>FINDY 소개</span>
+	  </button>
+	  <button class="side-nav-btn" type="button" data-side-action="waitlist">
+	    <span class="side-nav-icon">📱</span><span>출시 알림</span>
+	  </button>
+	</nav>
+
+	<main>
+
+<!-- ══ 로그인 ═════════════════════════════════════════ -->
+<section class="login-section view-section" id="login" data-view="login">
+  <div class="container">
+    <div class="login-card">
+      <img src="findy_trim.png" alt="FINDY" />
+      <p class="login-sub">
+        전체글 보기와 글 작성을 이용하려면 로그인이 필요해요.<br/>
+        지금은 과제용 데모라 버튼 클릭만으로 로그인됩니다.
+      </p>
+      <div class="login-options">
+        <button class="login-option" type="button" data-login-provider="네이버">네이버로 계속하기</button>
+        <button class="login-option" type="button" data-login-provider="카카오">카카오로 계속하기</button>
+        <button class="login-option" type="button" data-login-provider="구글">구글로 계속하기</button>
+        <button class="login-option" type="button" data-login-provider="애플">애플로 계속하기</button>
+      </div>
+      <p class="login-note">로그인 후 요청했던 화면으로 바로 이동합니다.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ══ 내정보 ═════════════════════════════════════════ -->
+<section class="my-section view-section" id="my" data-view="my">
+  <div class="container">
+    <div class="section-header" style="text-align:left;">
+      <span class="eyebrow">My FINDY</span>
+      <h2 class="section-title">내정보</h2>
+      <p class="section-sub">작성한 리뷰와 커뮤니티 글, FINDY 소식을 한곳에서 확인해요.</p>
+    </div>
+    <div class="my-layout">
+      <aside class="my-profile">
+        <div class="my-avatar" id="my-avatar">F</div>
+        <div class="my-name" id="my-name">김파인</div>
+        <div class="my-sub" id="my-provider">로그인 정보</div>
+        <div class="my-info-grid">
+          <div class="my-info-item">
+            <span>성별</span>
+            <strong id="my-gender">여성</strong>
+          </div>
+          <div class="my-info-item">
+            <span>나이</span>
+            <strong id="my-age">24세</strong>
+          </div>
+          <div class="my-info-item" style="grid-column:1 / -1;">
+            <span>지역</span>
+            <strong id="my-region">서울 강남</strong>
+          </div>
+        </div>
+        <button class="my-beauty-link" type="button" data-view-link="my-beauty">
+          나의 뷰티
+          <span id="my-beauty-summary">추구하는 느낌, 스타일, 감성을 작성해보세요.</span>
+        </button>
+        <div class="my-stats">
+          <div class="my-stat">
+            <strong id="my-review-count">0</strong>
+            <span>내 리뷰</span>
+          </div>
+          <div class="my-stat">
+            <strong id="my-post-count">0</strong>
+            <span>내 커뮤니티</span>
+          </div>
+          <div class="my-stat">
+            <strong id="my-like-count">0</strong>
+            <span>좋아요</span>
+          </div>
+          <div class="my-stat">
+            <strong id="my-save-count">0</strong>
+            <span>저장</span>
+          </div>
+        </div>
+        <button class="my-logout" id="my-logout" type="button">로그아웃</button>
+      </aside>
+      <div class="my-panels">
+        <section class="my-panel">
+          <div class="my-panel-head">
+            <div class="my-panel-title">내가 작성한 리뷰</div>
+            <div class="my-panel-count" id="my-review-label">0개</div>
+          </div>
+          <div class="my-list" id="my-review-list"></div>
+        </section>
+        <section class="my-panel">
+          <div class="my-panel-head">
+            <div class="my-panel-title">내가 작성한 커뮤니티</div>
+            <div class="my-panel-count" id="my-post-label">0개</div>
+          </div>
+          <div class="my-list" id="my-post-list"></div>
+        </section>
+        <section class="my-panel">
+          <div class="my-panel-head">
+            <div class="my-panel-title">좋아요한 글</div>
+            <div class="my-panel-count" id="my-like-label">0개</div>
+          </div>
+          <div class="my-list" id="my-like-list"></div>
+        </section>
+        <section class="my-panel">
+          <div class="my-panel-head">
+            <div class="my-panel-title">저장한 글</div>
+            <div class="my-panel-count" id="my-save-label">0개</div>
+          </div>
+          <div class="my-list" id="my-save-list"></div>
+        </section>
+        <section class="my-panel">
+          <div class="my-panel-head">
+            <div class="my-panel-title">공지사항 · 1:1 문의</div>
+          </div>
+          <div class="my-support-grid">
+            <div class="my-support-card">
+              <strong>공지사항</strong>
+              <span>FINDY 베타 웹사이트가 준비 중이에요. 앱 출시 소식과 업데이트를 이곳에서 안내할 예정이에요.</span>
+            </div>
+            <div class="my-support-card">
+              <strong>1:1 문의</strong>
+              <span>서비스 이용 중 궁금한 점이나 개선 의견을 남길 수 있는 문의 기능을 준비 중이에요.</span>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ 나의 뷰티 작성 ═════════════════════════════════ -->
+<section class="form-section view-section" id="my-beauty" data-view="my-beauty">
+  <div class="container">
+    <div class="section-header">
+      <span class="eyebrow">My Beauty Profile</span>
+      <h2 class="section-title">나의 뷰티</h2>
+      <p class="section-sub">내가 추구하는 느낌, 스타일, 감성을 기록해두면 FINDY 추천의 기준이 됩니다.</p>
+    </div>
+    <div class="form-card">
+      <form id="beauty-profile-form" novalidate>
+        <div class="form-grid">
+          <div class="form-group full">
+            <label class="form-label" for="beauty-mood">본인이 추구하는 느낌</label>
+            <input class="form-input" id="beauty-mood" type="text" placeholder="예) 자연스럽고 편안한 분위기" maxlength="60" />
+          </div>
+          <div class="form-group full">
+            <label class="form-label" for="beauty-style">선호하는 스타일</label>
+            <input class="form-input" id="beauty-style" type="text" placeholder="예) 깔끔한 레이어드컷, 누드톤 네일" maxlength="80" />
+          </div>
+          <div class="form-group full">
+            <label class="form-label" for="beauty-sense">좋아하는 감성</label>
+            <textarea class="form-textarea" id="beauty-sense" placeholder="예) 과한 느낌보다 은은하고 오래 봐도 질리지 않는 무드를 좋아해요." maxlength="300"></textarea>
+          </div>
+        </div>
+        <button class="form-submit" type="submit">나의 뷰티 저장</button>
+      </form>
+    </div>
+  </div>
+</section>
+
+<!-- ══ 히어로 ═════════════════════════════════════════ -->
+<section class="hero view-section active" id="home" data-view="home">
+
+	  <!-- 헤드라인 -->
+	  <div class="hero-heading">
+	    <h1 class="hero-title">
+	      Find Your
+	      <span class="hero-rotator" aria-live="polite">
+	        <span class="is-current">헤어</span>
+	        <span>네일아트</span>
+	        <span>Beauty</span>
+	        <span>메이크업</span>
+	        <span>반영구</span>
+	        <span>Beauty</span>
+	        <span>웨딩</span>
+	        <span>포토</span>
+	        <span>Beauty</span>
+	      </span>
+	      !
+	    </h1>
+	    <p class="hero-subcopy">
+	      더 많은 실제 경험과 다양한 질문, 추천을 통해 나에게 맞는 뷰티를 찾아보세요.
+	    </p>
+	  </div>
+
+	  <!-- 검색바 -->
+  <form class="search-bar" role="search" onsubmit="handleSearch(event)">
+    <button class="search-cat" id="search-cat-btn" type="button" aria-haspopup="listbox" aria-expanded="false">
+      <span id="search-cat-label">전체</span>
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
+    <div class="search-category-menu" id="search-category-menu" role="listbox" aria-label="검색 카테고리">
+      <button class="search-category-option is-active" type="button" data-search-category="전체">✨ 전체</button>
+      <button class="search-category-option" type="button" data-search-category="헤어">✂️ 헤어</button>
+      <button class="search-category-option" type="button" data-search-category="네일아트">💅 네일아트</button>
+      <button class="search-category-option" type="button" data-search-category="메이크업">💄 메이크업</button>
+      <button class="search-category-option" type="button" data-search-category="반영구">🪄 반영구</button>
+      <button class="search-category-option" type="button" data-search-category="웨딩">💍 웨딩</button>
+      <button class="search-category-option" type="button" data-search-category="포토">📸 포토</button>
+    </div>
+	    <input class="search-input" id="search-input" type="search"
+	      placeholder="아티스트, 시술, 지역, 고민을 검색해보세요" aria-label="검색어 입력" />
+    <button class="search-submit" type="submit" aria-label="검색">
+      <svg viewBox="0 0 24 24" fill="none">
+        <path d="M5 12h14m-6-6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
+  </form>
+
+  <!-- 인기 검색어 -->
+  <nav class="popular-wrap" aria-label="인기 검색어">
+    <span class="popular-label">인기 검색어</span>
+    <a href="#reviews" onclick="filterByKeyword('헤어'); return false;">레이어드컷</a>
+    <a href="#reviews" onclick="filterByKeyword('네일아트'); return false;">젤네일</a>
+    <a href="#reviews" onclick="filterByKeyword('반영구'); return false;">자연눈썹</a>
+    <a href="#reviews" onclick="filterByKeyword('메이크업'); return false;">윤광 베이스</a>
+    <a href="#reviews" onclick="filterByKeyword('웨딩'); return false;">본식 헤어</a>
+    <a href="#reviews" onclick="filterByKeyword('포토'); return false;">프로필 스냅</a>
+    <a href="#reviews" onclick="filterByKeyword('헤어'); return false;">컬러 염색</a>
+  </nav>
+
+  <!-- 카테고리 그리드 -->
+	  <div class="hero-cats">
+	    <div class="hero-cats-grid">
+	      <a class="hero-cat-card" href="#reviews" onclick="filterByKeyword('헤어'); return false;">
+        <div class="hero-cat-icon">✂️</div>
+        <div>
+          <div class="hero-cat-name">헤어</div>
+          <div class="hero-cat-meta">컷 · 펌 · 컬러</div>
+        </div>
+      </a>
+	      <a class="hero-cat-card" href="#reviews" onclick="filterByKeyword('네일아트'); return false;">
+        <div class="hero-cat-icon">💅</div>
+        <div>
+          <div class="hero-cat-name">네일아트</div>
+          <div class="hero-cat-meta">젤 · 케어 · 디자인</div>
+        </div>
+      </a>
+	      <a class="hero-cat-card" href="#reviews" onclick="filterByKeyword('메이크업'); return false;">
+        <div class="hero-cat-icon">💄</div>
+        <div>
+          <div class="hero-cat-name">메이크업</div>
+          <div class="hero-cat-meta">데일리 · 화보 · 신부</div>
+        </div>
+      </a>
+	      <a class="hero-cat-card" href="#reviews" onclick="filterByKeyword('반영구'); return false;">
+        <div class="hero-cat-icon">🪄</div>
+        <div>
+          <div class="hero-cat-name">반영구시술</div>
+          <div class="hero-cat-meta">눈썹 · 아이라인 · 입술</div>
+        </div>
+      </a>
+	      <a class="hero-cat-card" href="#reviews" onclick="filterByKeyword('웨딩'); return false;">
+        <div class="hero-cat-icon">💍</div>
+        <div>
+          <div class="hero-cat-name">웨딩</div>
+          <div class="hero-cat-meta">신부 · 본식 · 리허설</div>
+        </div>
+      </a>
+	      <a class="hero-cat-card" href="#reviews" onclick="filterByKeyword('포토'); return false;">
+        <div class="hero-cat-icon">📸</div>
+        <div>
+          <div class="hero-cat-name">포토</div>
+          <div class="hero-cat-meta">프로필 · 스냅 · 컨셉</div>
+        </div>
+      </a>
+      <a class="hero-cat-card" href="#reviews" data-view-link="reviews">
+        <div class="hero-cat-icon">⭐</div>
+        <div>
+	          <div class="hero-cat-name">리뷰 보기</div>
+	          <div class="hero-cat-meta">정직한 경험</div>
+        </div>
+      </a>
+	      <a class="hero-cat-card" href="#community" data-view-link="community">
+	        <div class="hero-cat-icon">💬</div>
+	        <div>
+	          <div class="hero-cat-name">커뮤니티</div>
+	          <div class="hero-cat-meta">질문과 추천</div>
+	        </div>
+	      </a>
+	    </div>
+
+	  </div>
+
+</section>
+
+<!-- ══ 통계 바 ══════════════════════════════════════════ -->
+<div class="stats-bar view-section" data-view="reviews">
+  <div class="stats-bar-inner">
+    <div class="stat">
+      <div class="stat-num" id="stat-total">0<span>+</span></div>
+	      <div class="stat-lbl">등록된 리뷰</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num">6<span>개</span></div>
+      <div class="stat-lbl">뷰티 카테고리</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num" id="stat-avg">4.8<span>★</span></div>
+      <div class="stat-lbl">평균 만족도</div>
+    </div>
+  </div>
+</div>
+
+	<!-- ══ 리뷰 등록 폼 ════════════════════════════════════ -->
+	<section class="form-section view-section" id="write-review" data-view="write">
+  <div class="container">
+    <div class="section-header">
+	      <span class="eyebrow">Share Your Experience</span>
+	      <h2 class="section-title">솔직한 리뷰를 남겨주세요</h2>
+	      <p class="section-sub">리뷰 한 줄이 누군가의 소중한 선택을 도와줍니다.</p>
+    </div>
+
+    <div class="form-card review-form-card">
+      <form id="review-form" novalidate>
+        <div class="form-grid review-form-grid">
+
+          <div class="form-group">
+            <label class="form-label" for="f-nickname">닉네임 <span class="req">*</span></label>
+            <input class="form-input" id="f-nickname" type="text"
+              placeholder="예) 뷰티러버" maxlength="20" autocomplete="off" />
+          </div>
+
+	          <div class="form-group">
+	            <label class="form-label" for="f-category">카테고리 <span class="req">*</span></label>
+            <select class="form-select" id="f-category">
+              <option value="" disabled selected>선택해주세요</option>
+              <option value="헤어">✂️ 헤어</option>
+              <option value="네일아트">💅 네일아트</option>
+              <option value="메이크업">💄 메이크업</option>
+              <option value="반영구">🪄 반영구시술</option>
+              <option value="웨딩">💍 웨딩</option>
+              <option value="포토">📸 포토</option>
+            </select>
+	          </div>
+
+	          <div class="form-group">
+	            <label class="form-label" for="f-shop">샵 이름</label>
+	            <input class="form-input" id="f-shop" type="text"
+	              placeholder="예) 민지 헤어 스튜디오" maxlength="40" autocomplete="off" />
+	          </div>
+
+	          <div class="form-group">
+	            <label class="form-label" for="f-location">지역</label>
+	            <input class="form-input" id="f-location" type="text"
+	              placeholder="예) 강남 · 홍대 · 성수" maxlength="24" autocomplete="off" />
+	          </div>
+
+	          <div class="form-group">
+	            <label class="form-label" for="f-artist">아티스트</label>
+	            <input class="form-input" id="f-artist" type="text"
+	              placeholder="예) 김민지 디자이너" maxlength="40" autocomplete="off" />
+	          </div>
+
+	          <div class="form-group">
+	            <label class="form-label" for="f-service">시술명</label>
+            <input class="form-input" id="f-service" type="text"
+              placeholder="예) 레이어드컷 + 볼륨펌" maxlength="40" autocomplete="off" />
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">별점 <span class="req">*</span></label>
+            <div class="star-wrap">
+              <div class="star-rating" id="star-rating" role="radiogroup" aria-label="별점 선택">
+                <div class="star-stars" aria-hidden="true">
+                  <span class="star-base">★★★★★</span>
+                  <span class="star-fill" id="star-fill">★★★★★</span>
+                </div>
+                <input id="rating-value" name="rating" type="range" min="0" max="5" step="0.5" value="0" aria-label="별점 0.5점 단위 선택" />
+              </div>
+              <span class="star-hint" id="star-hint">별을 클릭해 점수를 선택하세요</span>
+            </div>
+          </div>
+
+          <div class="form-group full">
+	            <label class="form-label" for="f-content">리뷰 <span class="req">*</span></label>
+	            <textarea class="form-textarea" id="f-content"
+	              placeholder="솔직하고 구체적인 리뷰를 남겨주세요.&#10;예) 선생님이 얼굴형에 맞게 잘 추천해 주셨고, 결과물이 너무 마음에 들었어요!"
+              maxlength="500"></textarea>
+            <div class="char-row">
+              <span class="char-count"><span id="char-now">0</span> / 500</span>
+            </div>
+          </div>
+
+          <div class="form-group full">
+            <label class="form-label">사진 첨부 <span style="color:var(--muted);font-weight:400;">(선택 · 최대 4장)</span></label>
+            <div class="photo-upload-area" id="photo-drop-zone">
+              <input type="file" id="f-photos" accept="image/*" multiple />
+              <div class="photo-upload-icon">📷</div>
+              <span class="photo-upload-label">사진을 드래그하거나 클릭해서 업로드</span>
+              <span class="photo-upload-hint">JPG, PNG, WEBP · 장당 최대 <span>5MB</span></span>
+            </div>
+            <div class="photo-preview-grid" id="photo-preview-grid"></div>
+          </div>
+
+        </div>
+	        <button class="form-submit" id="submit-btn" type="submit">리뷰 등록하기</button>
+      </form>
+    </div>
+  </div>
+</section>
+
+	<!-- ══ 리뷰 피드 ══════════════════════════════════════ -->
+	<section class="reviews-section view-section" id="reviews" data-view="reviews">
+  <div class="container">
+	    <div class="reviews-heading-row">
+	      <div class="section-header" style="text-align:left; margin-bottom:0;">
+	        <span class="eyebrow">Real Reviews</span>
+		        <h2 class="section-title" id="reviews-title">FINDY <span class="section-title-accent">전체</span> 리뷰</h2>
+	      </div>
+	      <a class="review-write-top" href="#write-review" data-view-link="write">
+	        <span>✏️</span><span>리뷰 작성</span>
+	      </a>
+	    </div>
+
+    <div class="reviews-toolbar" style="margin-top:24px;">
+	      <p class="reviews-count">총 <strong id="reviews-total">0</strong>개의 리뷰</p>
+    </div>
+
+    <div class="reviews-grid" id="reviews-grid" style="margin-top:28px;"></div>
+
+    <div class="load-more-wrap">
+	      <button class="load-more hidden" id="load-more-btn">리뷰 더보기 ↓</button>
+    </div>
+  </div>
+	</section>
+
+	<!-- ══ 리뷰 전체글 보기 ═══════════════════════════════ -->
+	<section class="reviews-section view-section" id="review-detail" data-view="review-detail">
+	  <div class="container">
+	    <div class="section-header" style="text-align:left;">
+	      <span class="eyebrow">Review Detail</span>
+	      <h2 class="section-title" id="review-detail-title">FINDY <span class="section-title-accent">전체</span> 리뷰</h2>
+	      <p class="section-sub">선택한 리뷰를 크게 보고, 오른쪽 리스트에서 다른 리뷰로 이동할 수 있어요.</p>
+	    </div>
+	    <div class="community-content-grid">
+	      <div class="community-feed" id="review-detail-feed"></div>
+	      <aside class="community-list-panel" aria-label="전체 리뷰 리스트">
+	        <div class="community-detail-actions">
+	          <a class="review-write-top" href="#write-review" data-view-link="write">
+	            <span>✏️</span><span>리뷰 작성</span>
+	          </a>
+	        </div>
+	        <div class="community-list-title">리뷰 리스트</div>
+	        <p class="reviews-count" style="margin-bottom:12px;">총 <strong id="review-detail-total">0</strong>개의 리뷰</p>
+	        <div class="community-list" id="review-detail-list"></div>
+	      </aside>
+	    </div>
+	  </div>
+	</section>
+
+	<!-- ══ 커뮤니티 ═══════════════════════════════════════ -->
+	<section class="community-section view-section" id="community" data-view="community">
+	  <div class="container">
+	    <div class="reviews-heading-row">
+	      <div class="section-header" style="text-align:left; margin-bottom:0;">
+	        <span class="eyebrow">Beauty Community</span>
+	        <h2 class="section-title">리뷰로 부족한 이야기는 커뮤니티에서</h2>
+	        <p class="section-sub">추천 요청, 가격대 질문, 전후 사진 공유까지 FINDY에서 먼저 모아볼게요.</p>
+	      </div>
+	      <a class="review-write-top" href="#community-write" data-view-link="community-write">
+	        <span>✏️</span><span>글 작성</span>
+	      </a>
+	    </div>
+
+	    <div class="community-layout" style="margin-top:42px;">
+	      <div class="community-board">
+	        <div class="reviews-toolbar community-filter-panel" style="margin-bottom:18px;">
+	          <p class="reviews-count">총 <strong id="community-total">0</strong>개의 커뮤니티 글</p>
+	          <div class="community-filter-groups">
+	            <div class="filter-tabs" id="community-category-tabs" role="tablist" aria-label="커뮤니티 카테고리">
+	              <button class="filter-tab active" data-filter="전체" role="tab" aria-selected="true">전체</button>
+	              <button class="filter-tab" data-filter="헤어" role="tab">헤어</button>
+	              <button class="filter-tab" data-filter="네일아트" role="tab">네일아트</button>
+	              <button class="filter-tab" data-filter="메이크업" role="tab">메이크업</button>
+	              <button class="filter-tab" data-filter="반영구" role="tab">반영구</button>
+	              <button class="filter-tab" data-filter="웨딩" role="tab">웨딩</button>
+	              <button class="filter-tab" data-filter="포토" role="tab">포토</button>
+	            </div>
+	            <div class="filter-tabs" id="community-tabs" role="tablist">
+	              <button class="filter-tab active" data-filter="전체" role="tab" aria-selected="true">전체</button>
+	              <button class="filter-tab" data-filter="추천 요청" role="tab">추천 요청</button>
+	              <button class="filter-tab" data-filter="질문" role="tab">질문</button>
+	              <button class="filter-tab" data-filter="전후 공유" role="tab">전후 공유</button>
+	              <button class="filter-tab" data-filter="가격 공유" role="tab">가격 공유</button>
+	            </div>
+	          </div>
+	        </div>
+	        <div class="community-feed" id="community-feed"></div>
+	      </div>
+	    </div>
+	  </div>
+	</section>
+
+	<!-- ══ 커뮤니티 전체글 보기 ═══════════════════════════ -->
+	<section class="community-section view-section" id="community-detail" data-view="community-detail">
+	  <div class="container">
+	    <div class="section-header" style="text-align:left;">
+	      <span class="eyebrow">Community Post</span>
+	      <h2 class="section-title">전체글 보기</h2>
+	      <p class="section-sub">선택한 글을 크게 보고, 오른쪽 리스트에서 다른 글로 이동할 수 있어요.</p>
+	    </div>
+	    <div class="community-content-grid">
+	      <div class="community-feed" id="community-detail-feed"></div>
+	      <aside class="community-list-panel" aria-label="전체 커뮤니티 글">
+	        <div class="community-detail-actions">
+	          <a class="review-write-top" href="#community-write" data-view-link="community-write">
+	            <span>✏️</span><span>글 작성</span>
+	          </a>
+	        </div>
+	        <div class="community-list-title">전체 글 리스트</div>
+	        <div class="community-list" id="community-post-list"></div>
+	      </aside>
+	    </div>
+	  </div>
+	</section>
+
+	<!-- ══ 커뮤니티 글쓰기 ═══════════════════════════════ -->
+	<section class="form-section view-section" id="community-write" data-view="community-write">
+	  <div class="container">
+	    <div class="section-header">
+	      <span class="eyebrow">Write Community</span>
+	      <h2 class="section-title">전체글 쓰기</h2>
+	      <p class="section-sub">궁금한 뷰티 고민이나 추천받고 싶은 내용을 남겨주세요.</p>
+	    </div>
+	    <div class="form-card">
+	      <form class="community-form" id="community-form" novalidate>
+	        <div class="form-grid">
+	          <div class="form-group">
+	            <label class="form-label" for="c-category">뷰티 카테고리 <span class="req">*</span></label>
+	            <select class="form-select" id="c-category">
+	              <option value="헤어">✂️ 헤어</option>
+	              <option value="네일아트">💅 네일아트</option>
+	              <option value="메이크업">💄 메이크업</option>
+	              <option value="반영구">🪄 반영구시술</option>
+	              <option value="웨딩">💍 웨딩</option>
+	              <option value="포토">📸 포토</option>
+	            </select>
+	          </div>
+	          <div class="form-group">
+	            <label class="form-label" for="c-type">글 종류 <span class="req">*</span></label>
+	            <select class="form-select" id="c-type">
+	              <option value="추천 요청">추천 요청</option>
+	              <option value="질문">질문</option>
+	              <option value="전후 공유">전후 공유</option>
+	              <option value="가격 공유">가격 공유</option>
+	            </select>
+	          </div>
+	          <div class="form-group full">
+	            <label class="form-label" for="c-title">제목 <span class="req">*</span></label>
+	            <input class="form-input" id="c-title" type="text" placeholder="예) 강남 쪽 레이어드컷 잘하는 곳 추천 부탁드려요" maxlength="50" />
+	          </div>
+	          <div class="form-group full">
+	            <label class="form-label" for="c-content">내용 <span class="req">*</span></label>
+	            <textarea class="form-textarea" id="c-content" placeholder="궁금한 점이나 공유하고 싶은 이야기를 적어주세요.&#10;예) 얼굴형, 원하는 분위기, 예산, 지역 등을 함께 적으면 더 좋은 답변을 받을 수 있어요." maxlength="400"></textarea>
+	          </div>
+	          <div class="form-group full">
+	            <label class="form-label">사진 첨부 <span style="color:var(--muted);font-weight:400;">(선택 · 최대 4장)</span></label>
+	            <div class="photo-upload-area" id="community-photo-drop-zone">
+	              <input type="file" id="c-photos" accept="image/*" multiple />
+	              <div class="photo-upload-icon">📷</div>
+	              <span class="photo-upload-label">사진을 드래그하거나 클릭해서 업로드</span>
+	              <span class="photo-upload-hint" id="community-photo-hint">JPG, PNG, WEBP · 장당 최대 <span>5MB</span></span>
+	            </div>
+	            <div class="photo-preview-grid" id="community-photo-preview-grid"></div>
+	          </div>
+	        </div>
+	        <button class="form-submit" type="submit">커뮤니티 글 등록</button>
+	      </form>
+	    </div>
+	  </div>
+	</section>
+
+	<!-- ══ 출시 소개 스냅 구간 ═════════════════════════════ -->
+<section class="launch-scroll view-section" id="launch-scroll" data-view="home features waitlist" aria-label="FINDY 출시 소개">
+
+	<!-- ══ 앱 소개 ════════════════════════════════════════ -->
+<section class="features-section launch-panel is-active" id="features" data-launch-panel="features">
+  <div class="container">
+    <div class="section-header">
+      <span class="eyebrow">Why FINDY</span>
+      <h2 class="section-title">FINDY가 특별한 이유</h2>
+      <p class="section-sub">뷰티 아티스트를 찾는 새로운 기준</p>
+    </div>
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon">🔎</div>
+        <div class="feature-title">탐색은 어렵고, 선택은 더 어렵다</div>
+        <p class="feature-desc">사용자는 SNS와 검색을 통해 스타일을 찾지만 원하는 결과를 정확히 찾기 어렵고 반복 탐색이 발생합니다.<br/>수많은 샵과 아티스트 속에서 비슷한 가격과 리뷰는 오히려 선택을 더 어렵게 만듭니다.</p>
+        <div class="feature-key">탐색 비효율 + 선택 과잉</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">⭐</div>
+	        <div class="feature-title">정보는 넘치지만, 믿을 수 없다</div>
+	        <p class="feature-desc">광고·협찬 중심 노출과 왜곡된 리뷰로 인해 실제 실력과 정보의 신뢰도가 떨어집니다.<br/>또한 가격은 사전 안내 없이 변동되는 경우가 많아 사용자는 결과와 비용을 예측하기 어렵습니다.</p>
+        <div class="feature-key">신뢰 부족 + 가격 불투명</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📅</div>
+        <div class="feature-title">이용 과정은 복잡하고, 결과는 불확실하다</div>
+        <p class="feature-desc">검색 → 비교 → 리뷰 확인 → 예약까지 플랫폼이 분산되어 과정이 번거롭습니다.<br/>스타일 전달의 한계와 기대치 불일치로 결과 만족도 또한 일정하지 않습니다.</p>
+        <div class="feature-key">분산된 UX + 결과 불확실성</div>
+      </div>
+    </div>
+    <p class="features-impact">사용자는 서비스를 선택하는 것이 아니라,<br/>결과를 예측할 수 없는 상태에서 선택하고 있습니다.</p>
+  </div>
+</section>
+
+<!-- ══ 앱 미리보기 배너 ═══════════════════════════════ -->
+<section class="app-banner launch-panel" data-launch-panel="app">
+  <div class="app-banner-inner">
+    <div class="app-banner-text">
+      <span class="eyebrow">Coming Soon</span>
+      <h2 class="app-banner-title">
+        아티스트 찾기부터<br/>예약까지,<br/><em>FINDY 앱</em>으로 한 번에
+      </h2>
+      <p class="app-banner-desc">
+        가까운 곳의 검증된 뷰티 아티스트를 포트폴리오와<br/>
+	        실제 리뷰를 보고 예약할 수 있어요.<br/>
+        출시 알림을 신청하면 얼리버드 혜택을 드려요.
+      </p>
+      <div class="store-badges">
+        <div class="store-badge soon">
+          <span>Download on the</span>
+          <strong>App Store</strong>
+        </div>
+        <div class="store-badge soon">
+          <span>Get it on</span>
+          <strong>Google Play</strong>
+        </div>
+      </div>
+    </div>
+    <div class="phone-mockup">
+      <div class="phone-frame">
+        <div class="phone-notch"></div>
+        <div class="phone-screen">
+          <div class="phone-screen-title" style="display:flex;align-items:center;gap:6px;">
+            <img src="app_logo.png" alt="FINDY" style="height:20px;width:20px;object-fit:contain;border-radius:5px;" />
+            추천 아티스트
+          </div>
+          <div class="phone-mini-card">
+            <div class="phone-avatar">김</div>
+            <div class="phone-card-text">
+              <div class="phone-card-name">김지은 헤어디자이너</div>
+              <div class="phone-card-sub">레이어드컷 · 볼륨펌 전문</div>
+              <div class="phone-stars">★★★★★ 4.9</div>
+            </div>
+          </div>
+          <div class="phone-mini-card">
+            <div class="phone-avatar">이</div>
+            <div class="phone-card-text">
+              <div class="phone-card-name">이수연 네일아티스트</div>
+              <div class="phone-card-sub">젤네일 · 아트 전문</div>
+              <div class="phone-stars">★★★★★ 5.0</div>
+            </div>
+          </div>
+          <div class="phone-mini-card">
+            <div class="phone-avatar">박</div>
+            <div class="phone-card-text">
+              <div class="phone-card-name">박민지 메이크업아티스트</div>
+              <div class="phone-card-sub">화보 · 데일리 메이크업</div>
+              <div class="phone-stars">★★★★★ 4.8</div>
+            </div>
+          </div>
+        </div>
+        <div class="phone-bottom">
+          <div class="phone-nav-dot"></div>
+          <div class="phone-nav-dot"></div>
+          <div class="phone-nav-dot active"></div>
+          <div class="phone-nav-dot"></div>
+          <div class="phone-nav-dot"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ 웨이트리스트 ══════════════════════════════════ -->
+<section class="waitlist-section launch-panel" id="waitlist" data-launch-panel="waitlist">
+  <div class="container">
+    <div class="section-header">
+      <span class="eyebrow">Early Access</span>
+      <h2 class="section-title">앱 출시, 가장 먼저 알려드릴게요</h2>
+      <p class="section-sub">출시 알림 신청 시 얼리버드 전용 혜택을 드려요 🎁</p>
+    </div>
+    <form class="waitlist-form" id="waitlist-form" novalidate>
+      <input class="waitlist-input" id="wl-email" type="email"
+        placeholder="이메일 주소를 입력해주세요" autocomplete="email" />
+      <button class="waitlist-btn" type="submit">알림 신청</button>
+    </form>
+    <p class="waitlist-note">스팸 메일은 절대 발송하지 않아요.</p>
+    <div class="waitlist-joined">
+      이미 <strong id="wl-count">247</strong>명이 알림을 신청했어요 🎉
+    </div>
+  </div>
+</section>
+
+<div class="launch-panel-dots" aria-hidden="true">
+  <span class="launch-panel-dot is-active"></span>
+  <span class="launch-panel-dot"></span>
+  <span class="launch-panel-dot"></span>
+</div>
+
+</section>
+
+</main>
+
+<!-- ══ 푸터 ═══════════════════════════════════════════ -->
+<footer class="site-footer view-section" data-view="home features waitlist reviews review-detail community community-detail community-write write login my my-beauty">
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <img src="logo.png" alt="FINDY" style="height:20px; width:auto; vertical-align:middle; margin-right:6px;" />
+      · Find Your Beauty
+    </div>
+    <div class="footer-meta">
+      © 2026 FINDY
+      <a href="#">이용약관</a>
+      <a href="#">개인정보처리방침</a>
+      <a href="#">고객센터</a>
+    </div>
+  </div>
+</footer>
+
+<div class="toast" id="toast" role="alert" aria-live="polite"></div>
+
+<!-- 라이트박스 -->
+<div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="사진 크게 보기">
+  <button class="lightbox-close" id="lightbox-close" aria-label="닫기">✕</button>
+	  <img id="lightbox-img" src="" alt="리뷰 사진" />
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     FINDY 웹사이트 스크립트
+     리뷰는 localStorage 에 저장됩니다.
+     실제 서비스 전환 시 SEED_REVIEWS와 saveReview()를
+     Supabase / Firebase 등 실제 DB API로 교체하세요.
+══════════════════════════════════════════════════ -->
+<script>
+'use strict';
+
+/* ─── 상수 ─────────────────────────────── */
+	const STORAGE_KEY  = 'findy_reviews_v1';
+	const COMMUNITY_KEY = 'findy_community_v1';
+	const WAITLIST_KEY = 'findy_waitlist_v1';
+	const AUTH_KEY = 'findy_auth_user_v1';
+	const PROFILE_KEY = 'findy_profile_v1';
+	const BEAUTY_KEY = 'findy_beauty_profile_v1';
+	const REACTION_KEY = 'findy_reactions_v1';
+	const PAGE_SIZE    = 6;
+	let pendingAuthAction = null;
+	let currentView = 'home';
+
+	/* ─── 시드 리뷰 (베타 대표 리뷰) ────────── */
+const SEED_REVIEWS = [
+	  {
+	    id:'seed-1', nickname:'김지은', category:'헤어', service:'레이어드컷 + 볼륨펌',
+	    artist:'민지 헤어 스튜디오', location:'강남',
+	    rating:5, date:'2026-04-20', seed:true,
+    content:'강남에서 10년째 헤어샵 다녔는데 FINDY로 찾은 선생님이 제일 만족스러워요. 포트폴리오 보고 예약했는데 실물이 더 예쁘게 나왔어요!'
+  },
+	  {
+	    id:'seed-2', nickname:'이서연', category:'네일아트', service:'젤네일 + 글리터 아트',
+	    artist:'수아 네일', location:'성수',
+	    rating:5, date:'2026-04-18', seed:true,
+    content:'포트폴리오 느낌 그대로 나와서 너무 만족해요. 작업 속도도 빠르고 꼼꼼하셔서 또 방문할 예정이에요 :)'
+  },
+	  {
+	    id:'seed-3', nickname:'박민지', category:'메이크업', service:'화보 메이크업',
+	    artist:'하린 메이크업', location:'홍대',
+	    rating:5, date:'2026-04-16', seed:true,
+    content:'촬영 당일 긴장해서 갔는데 선생님이 너무 친절하셔서 편하게 받았어요. 결과물도 대만족 ✨'
+  },
+	  {
+	    id:'seed-4', nickname:'최하윤', category:'웨딩', service:'본식 헤어·메이크업',
+	    artist:'라움 웨딩뷰티', location:'청담',
+	    rating:5, date:'2026-04-14', seed:true,
+    content:'결혼식 당일 첫눈에 반한 메이크업이었어요. 리허설 포함해서 두 번 받았는데 매번 완벽했어요. 강력 추천합니다!'
+  },
+	  {
+	    id:'seed-5', nickname:'정다인', category:'포토', service:'프로필 스냅 촬영',
+	    artist:'온도 포토', location:'연남',
+	    rating:4, date:'2026-04-12', seed:true,
+    content:'인생 프로필 사진 건졌어요. 콘셉트 잡는 것도 도와주시고 자연스럽게 찍어주셔서 부끄럼 많은 저도 잘 나왔어요.'
+  },
+	  {
+	    id:'seed-6', nickname:'강수빈', category:'반영구', service:'자연눈썹 반영구',
+	    artist:'브로우룸', location:'잠실',
+	    rating:5, date:'2026-04-10', seed:true,
+    content:'매일 눈썹 그리는 게 스트레스였는데 반영구 받고 아침 루틴이 확 줄었어요. 자연스럽게 해주셔서 주변에서 자연 눈썹인 줄 알아요!'
+  },
+	  {
+	    id:'seed-7', nickname:'윤서하', category:'헤어', service:'애쉬그레이 컬러',
+	    artist:'태민 헤어 스튜디오', location:'합정',
+	    rating:5, date:'2026-04-08', seed:true,
+    content:'탈색 두 번 했는데 손상이 거의 없었어요. 색도 원하는 느낌 그대로 나왔고 선생님이 과정 내내 꼼꼼히 설명해 주셨어요.'
+  },
+	  {
+	    id:'seed-8', nickname:'송지우', category:'네일아트', service:'봄 플라워 아트',
+	    artist:'데이지 네일', location:'망원',
+	    rating:5, date:'2026-04-06', seed:true,
+    content:'SNS에서 본 디자인 저장해 갔는데 더 예쁘게 해주셨어요. 지속력도 3주 넘게 유지되고 있어요!'
+  },
+	];
+
+	const SEED_POSTS = [
+	  {
+	    id:'post-1', category:'헤어', type:'추천 요청', author:'윤하',
+	    title:'강남 쪽 레이어드컷 잘하는 곳 추천 부탁드려요',
+	    content:'얼굴형이 긴 편이라 층이 너무 과하지 않은 레이어드컷을 찾고 있어요. 상담 꼼꼼한 아티스트면 더 좋아요.',
+	    comments:8, saves:14, date:'2026-04-24', seed:true
+	  },
+	  {
+	    id:'post-2', category:'반영구', type:'질문', author:'수빈',
+	    title:'자연눈썹 반영구 유지기간 보통 어느 정도예요?',
+	    content:'처음 받아보려고 하는데 너무 진하게 될까 봐 걱정돼요. 자연스럽게 해본 분들 경험 궁금합니다.',
+	    comments:12, saves:9, date:'2026-04-23', seed:true
+	  },
+	  {
+	    id:'post-3', category:'웨딩', type:'가격 공유', author:'하윤',
+	    title:'본식 헤메 견적 비교할 때 꼭 봐야 할 점',
+	    content:'가격만 보지 말고 리허설 포함 여부, 얼리스타트 비용, 헬퍼 비용까지 같이 확인해야 하더라고요.',
+	    comments:5, saves:21, date:'2026-04-22', seed:true
+	  },
+	  {
+	    id:'post-4', category:'포토', type:'전후 공유', author:'다인',
+	    title:'프로필 스냅 찍기 전 표정 연습 도움 많이 됐어요',
+	    content:'촬영 전날 거울 보고 웃는 각도 연습했는데 결과물이 훨씬 자연스러웠어요. 작가님과 무드 레퍼런스 공유도 중요했어요.',
+	    comments:4, saves:16, date:'2026-04-21', seed:true
+	  }
+	];
+
+/* ─── 유틸 ─────────────────────────────── */
+function esc(s) {
+  return String(s||'')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function stars(n) {
+  const value = Number(n) || 0;
+  const full = Math.floor(value);
+  const half = value % 1 >= 0.5;
+  const empty = Math.max(0, 5 - full - (half ? 1 : 0));
+  return '★'.repeat(full) + (half ? '⯨' : '') + '☆'.repeat(empty);
+}
+function fmtDate(s) {
+  const d = new Date(s);
+  if (isNaN(d)) return s;
+  return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`;
+}
+function initial(name) { return (name||'?').charAt(0); }
+
+/* ─── 토스트 ─────────────────────────────── */
+function toast(msg, ms=3000) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(el._t);
+  el._t = setTimeout(()=> el.classList.remove('show'), ms);
+}
+
+/* ─── 로그인 상태 ───────────────────────── */
+function currentUser() {
+  try { return JSON.parse(localStorage.getItem(AUTH_KEY) || 'null'); }
+  catch { return null; }
+}
+function isLoggedIn() {
+  return !!currentUser();
+}
+function updateAuthButton() {
+  const btn = document.getElementById('auth-button');
+  if (!btn) return;
+  const user = currentUser();
+  btn.textContent = user ? '내정보' : '로그인';
+  btn.classList.toggle('is-logged-in', !!user);
+}
+function requireLogin(action) {
+  pendingAuthAction = action;
+  toast('로그인이 필요한 기능이에요.');
+  showView('login');
+}
+function completeLogin(provider) {
+  localStorage.setItem(AUTH_KEY, JSON.stringify({
+    provider,
+    loggedInAt: new Date().toISOString(),
+  }));
+  if (!localStorage.getItem(PROFILE_KEY)) {
+    localStorage.setItem(PROFILE_KEY, JSON.stringify({
+      name: '김파인',
+      gender: '여성',
+      age: '24세',
+      region: '서울 강남',
+    }));
+  }
+  updateAuthButton();
+  toast(`${provider}로 로그인됐어요.`);
+  const next = pendingAuthAction;
+  pendingAuthAction = null;
+  if (typeof next === 'function') {
+    next();
+  } else {
+    showView('home');
+  }
+}
+function myItemHtml(title, meta, kind, id) {
+  return `
+    <button class="my-item" type="button" data-my-kind="${esc(kind)}" data-my-id="${esc(id)}">
+      <div class="my-item-title">${esc(title)}</div>
+      <div class="my-item-meta">${esc(meta)}</div>
+    </button>`;
+}
+function currentProfile() {
+  try {
+    return JSON.parse(localStorage.getItem(PROFILE_KEY) || '{}');
+  } catch {
+    return {};
+  }
+}
+function currentBeautyProfile() {
+  try {
+    return JSON.parse(localStorage.getItem(BEAUTY_KEY) || '{}');
+  } catch {
+    return {};
+  }
+}
+function beautySummaryText() {
+  const beauty = currentBeautyProfile();
+  return beauty.mood || beauty.style || beauty.sense
+    ? [beauty.mood, beauty.style].filter(Boolean).join(' · ') || '작성한 뷰티 취향이 있어요.'
+    : '추구하는 느낌, 스타일, 감성을 작성해보세요.';
+}
+function reactionItems(action) {
+  const reactions = loadReactions();
+  const reviewIds = action === 'like' ? reactions.likedReviews : reactions.savedReviews;
+  const postIds = action === 'like' ? reactions.likedPosts : reactions.savedPosts;
+  const reviewItems = reviewIds
+    .map(id => allReviews().find(r => r.id === id))
+    .filter(Boolean)
+    .map(r => ({
+      kind: 'review',
+      id: r.id,
+      title: r.content || r.service || '리뷰',
+      meta: `리뷰 · ${r.category} · ${fmtDate(r.date)}`,
+    }));
+  const postItems = postIds
+    .map(id => allPosts().find(p => p.id === id))
+    .filter(Boolean)
+    .map(p => ({
+      kind: 'post',
+      id: p.id,
+      title: p.title || '커뮤니티 글',
+      meta: `커뮤니티 · ${p.category} · ${p.type} · ${fmtDate(p.date)}`,
+    }));
+  return [...reviewItems, ...postItems];
+}
+function renderMyPage() {
+  const user = currentUser();
+  if (!user) return;
+  const profile = currentProfile();
+  const myReviews = loadUser();
+  const myPosts = loadPosts();
+  const likedItems = reactionItems('like');
+  const savedItems = reactionItems('save');
+  const reviewList = document.getElementById('my-review-list');
+  const postList = document.getElementById('my-post-list');
+  const likeList = document.getElementById('my-like-list');
+  const saveList = document.getElementById('my-save-list');
+
+  document.getElementById('my-avatar').textContent = initial(profile.name || 'F');
+  document.getElementById('my-name').textContent = profile.name || 'FINDY 회원';
+  document.getElementById('my-provider').textContent = `${user.provider} 계정으로 로그인됨`;
+  document.getElementById('my-gender').textContent = profile.gender || '미입력';
+  document.getElementById('my-age').textContent = profile.age || '미입력';
+  document.getElementById('my-region').textContent = profile.region || '미입력';
+  document.getElementById('my-beauty-summary').textContent = beautySummaryText();
+  document.getElementById('my-review-count').textContent = myReviews.length;
+  document.getElementById('my-post-count').textContent = myPosts.length;
+  document.getElementById('my-like-count').textContent = likedItems.length;
+  document.getElementById('my-save-count').textContent = savedItems.length;
+  document.getElementById('my-review-label').textContent = `${myReviews.length}개`;
+  document.getElementById('my-post-label').textContent = `${myPosts.length}개`;
+  document.getElementById('my-like-label').textContent = `${likedItems.length}개`;
+  document.getElementById('my-save-label').textContent = `${savedItems.length}개`;
+
+  reviewList.innerHTML = myReviews.length
+    ? myReviews.slice(0, 4).map(r => myItemHtml(
+        r.content || r.service || '작성한 리뷰',
+        `${r.category} · ${r.service || '시술명 없음'} · ${fmtDate(r.date)}`,
+        'review',
+        r.id
+      )).join('')
+    : '<div class="my-empty">아직 작성한 리뷰가 없어요.</div>';
+
+  postList.innerHTML = myPosts.length
+    ? myPosts.slice(0, 4).map(p => myItemHtml(
+        p.title || '작성한 커뮤니티 글',
+        `${p.category} · ${p.type} · ${fmtDate(p.date)}`,
+        'post',
+        p.id
+      )).join('')
+    : '<div class="my-empty">아직 작성한 커뮤니티 글이 없어요.</div>';
+
+  likeList.innerHTML = likedItems.length
+    ? likedItems.slice(0, 5).map(item => myItemHtml(item.title, item.meta, item.kind, item.id)).join('')
+    : '<div class="my-empty">아직 좋아요한 글이 없어요.</div>';
+
+  saveList.innerHTML = savedItems.length
+    ? savedItems.slice(0, 5).map(item => myItemHtml(item.title, item.meta, item.kind, item.id)).join('')
+    : '<div class="my-empty">아직 저장한 글이 없어요.</div>';
+}
+function renderBeautyProfileForm() {
+  const beauty = currentBeautyProfile();
+  const mood = document.getElementById('beauty-mood');
+  const style = document.getElementById('beauty-style');
+  const sense = document.getElementById('beauty-sense');
+  if (!mood || !style || !sense) return;
+  mood.value = beauty.mood || '';
+  style.value = beauty.style || '';
+  sense.value = beauty.sense || '';
+}
+function initAuth() {
+  updateAuthButton();
+  document.getElementById('auth-button')?.addEventListener('click', () => {
+    if (isLoggedIn()) {
+      renderMyPage();
+      showView('my');
+      return;
+    }
+    showView('login');
+  });
+  document.querySelectorAll('[data-login-provider]').forEach(btn => {
+    btn.addEventListener('click', () => completeLogin(btn.dataset.loginProvider));
+  });
+  document.getElementById('my-logout')?.addEventListener('click', () => {
+    localStorage.removeItem(AUTH_KEY);
+    pendingAuthAction = null;
+    updateAuthButton();
+    toast('로그아웃됐어요.');
+    showView('home');
+  });
+}
+
+function initBeautyProfileForm() {
+  const form = document.getElementById('beauty-profile-form');
+  if (!form) return;
+  form.addEventListener('submit', e => {
+    e.preventDefault();
+    localStorage.setItem(BEAUTY_KEY, JSON.stringify({
+      mood: document.getElementById('beauty-mood').value.trim(),
+      style: document.getElementById('beauty-style').value.trim(),
+      sense: document.getElementById('beauty-sense').value.trim(),
+      updatedAt: new Date().toISOString(),
+    }));
+    renderMyPage();
+    toast('나의 뷰티가 저장됐어요.');
+    showView('my');
+  });
+}
+
+function initMyPageActions() {
+  document.getElementById('my')?.addEventListener('click', e => {
+    const item = e.target.closest('[data-my-kind][data-my-id]');
+    if (!item) return;
+    const id = item.dataset.myId;
+    if (item.dataset.myKind === 'review') {
+      const review = allReviews().find(r => r.id === id);
+      if (review) curFilter = review.category || '전체';
+      selectReview(id);
+    }
+    if (item.dataset.myKind === 'post') {
+      selectCommunityPost(id);
+    }
+  });
+}
+
+/* ─── 스토리지 ──────────────────────────── */
+function loadUser() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]'); }
+  catch { return []; }
+}
+	function saveUser(list) {
+	  localStorage.setItem(STORAGE_KEY, JSON.stringify(list.filter(r=>!r.seed)));
+	}
+	function allReviews() {
+	  return [...loadUser(), ...SEED_REVIEWS];
+	}
+function loadPosts() {
+	  try { return JSON.parse(localStorage.getItem(COMMUNITY_KEY)||'[]'); }
+	  catch { return []; }
+	}
+	function savePosts(list) {
+	  localStorage.setItem(COMMUNITY_KEY, JSON.stringify(list.filter(p=>!p.seed)));
+	}
+	function allPosts() {
+	  return [...loadPosts(), ...SEED_POSTS];
+	}
+function defaultReactions() {
+  return { likedReviews: [], savedReviews: [], likedPosts: [], savedPosts: [] };
+}
+function loadReactions() {
+  try { return { ...defaultReactions(), ...JSON.parse(localStorage.getItem(REACTION_KEY) || '{}') }; }
+  catch { return defaultReactions(); }
+}
+function saveReactions(reactions) {
+  localStorage.setItem(REACTION_KEY, JSON.stringify(reactions));
+}
+function reactionKey(kind, action) {
+  if (kind === 'review' && action === 'like') return 'likedReviews';
+  if (kind === 'review' && action === 'save') return 'savedReviews';
+  if (kind === 'post' && action === 'like') return 'likedPosts';
+  if (kind === 'post' && action === 'save') return 'savedPosts';
+  return '';
+}
+function hasReaction(kind, action, id) {
+  const key = reactionKey(kind, action);
+  return !!key && loadReactions()[key].includes(id);
+}
+function reactionCount(kind, action, id, base=0) {
+  return Number(base || 0) + (hasReaction(kind, action, id) ? 1 : 0);
+}
+function toggleReaction(kind, action, id) {
+  if (!isLoggedIn()) {
+    requireLogin(() => toggleReaction(kind, action, id));
+    return;
+  }
+  const key = reactionKey(kind, action);
+  if (!key) return;
+  const reactions = loadReactions();
+  const set = new Set(reactions[key]);
+  const wasActive = set.has(id);
+  if (wasActive) set.delete(id);
+  else set.add(id);
+  reactions[key] = [...set];
+  saveReactions(reactions);
+  renderReviews(true);
+  renderReviewDetail();
+  renderCommunity();
+  renderCommunityDetail();
+  renderMyPage();
+  toast(wasActive ? `${action === 'like' ? '좋아요' : '저장'}을 취소했어요.` : `${action === 'like' ? '좋아요' : '저장'}했어요.`);
+}
+
+/* ─── 통계 업데이트 ─────────────────────── */
+function updateStats() {
+  const list = allReviews();
+  document.getElementById('stat-total').innerHTML = `${list.length}<span>+</span>`;
+  const avg = list.reduce((s,r)=>s+r.rating,0)/list.length;
+  document.getElementById('stat-avg').innerHTML = `${avg.toFixed(1)}<span>★</span>`;
+}
+
+/* ─── 리뷰 카드 사진 HTML ───────────────── */
+function photosHtml(photos) {
+  if (!photos || photos.length === 0) return '';
+  const show  = photos.slice(0, 4);
+  const extra = photos.length - 4;
+  const cls   = photos.length === 1 ? 'count-1'
+              : photos.length === 2 ? 'count-2'
+              : photos.length === 3 ? 'count-3'
+              : 'count-many';
+
+  const items = show.map((src, i) => {
+    const isLast = i === 3 && extra > 0;
+    return `
+      <div class="rc-photo" data-src="${src}">
+	        <img src="${src}" alt="리뷰 사진 ${i+1}" loading="lazy" />
+        ${isLast ? `<div class="rc-photo-more">+${extra+1}</div>` : ''}
+      </div>`;
+  }).join('');
+
+  return `<div class="rc-photos ${cls}">${items}</div>`;
+}
+
+/* ─── 커뮤니티 카드 사진 HTML ───────────── */
+function communityPhotosHtml(photos) {
+  if (!photos || photos.length === 0) return '';
+  const show  = photos.slice(0, 4);
+  const extra = photos.length - 4;
+  const cls   = photos.length === 1 ? 'count-1'
+              : photos.length === 2 ? 'count-2'
+              : photos.length === 3 ? 'count-3'
+              : 'count-many';
+
+  const items = show.map((src, i) => {
+    const isLast = i === 3 && extra > 0;
+    return `
+      <div class="cm-photo" data-src="${src}">
+        <img src="${src}" alt="커뮤니티 사진 ${i+1}" loading="lazy" />
+        ${isLast ? `<div class="cm-photo-more">+${extra}</div>` : ''}
+      </div>`;
+  }).join('');
+
+  return `<div class="cm-photos ${cls}">${items}</div>`;
+}
+
+/* ─── 리뷰 카드 ─────────────────────────── */
+function makeCard(r, detail=false) {
+  const el = document.createElement('article');
+  const shopName = r.shop || (r.seed ? r.artist : '');
+  const artistName = r.shop ? r.artist : (!r.seed ? r.artist : '');
+  const liked = hasReaction('review', 'like', r.id);
+  const saved = hasReaction('review', 'save', r.id);
+  el.className = `review-card${detail ? ' is-detail' : ''}`;
+  el.tabIndex = detail ? -1 : 0;
+  el.dataset.reviewId = r.id;
+  el.innerHTML = `
+	    <div class="rc-top">
+	      <div class="rc-avatar">${esc(initial(r.nickname))}</div>
+	      <div class="rc-meta">
+	        <div class="rc-name">${esc(r.nickname)}</div>
+	        <div class="rc-service">${esc(r.service||r.category)}</div>
+	      </div>
+	      <span class="rc-badge">${esc(r.category)}</span>
+	    </div>
+	    <div class="rc-stars" aria-label="${r.rating}점">${stars(r.rating)}</div>
+	    <div class="rc-extra">
+	      ${shopName ? `<span>🏷️ ${esc(shopName)}</span>` : ''}
+	      ${r.location ? `<span>📍 ${esc(r.location)}</span>` : ''}
+	      ${artistName ? `<span>👤 ${esc(artistName)}</span>` : ''}
+	    </div>
+	    ${photosHtml(r.photos)}
+	    <p class="rc-text">${esc(r.content)}</p>
+	    <div class="rc-actions">
+	      <button class="rc-action ${liked ? 'is-active' : ''}" type="button" data-action="like" data-kind="review" data-id="${esc(r.id)}">♡ 좋아요 ${reactionCount('review', 'like', r.id, r.likes)}</button>
+	      <button class="rc-action ${saved ? 'is-active' : ''}" type="button" data-action="save" data-kind="review" data-id="${esc(r.id)}">🔖 저장</button>
+	      <button class="rc-action" type="button" data-action="comment" data-kind="review" data-id="${esc(r.id)}">💬 댓글 ${r.comments || 0}</button>
+	    </div>
+	    <div class="rc-date">${fmtDate(r.date)}</div>
+	  `;
+
+  if (!detail) {
+    el.addEventListener('click', () => selectReview(r.id));
+    el.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        selectReview(r.id);
+      }
+    });
+  }
+
+  // 사진 클릭 → 라이트박스
+  el.querySelectorAll('.rc-photo').forEach(p => {
+    p.addEventListener('click', e => {
+      e.stopPropagation();
+      openLightbox(p.dataset.src);
+    });
+  });
+  el.querySelectorAll('[data-action]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const action = btn.dataset.action;
+      if (action === 'comment') {
+        toast('댓글 기능은 준비 중이에요.');
+        return;
+      }
+      toggleReaction(btn.dataset.kind, action, btn.dataset.id);
+    });
+  });
+
+  return el;
+}
+
+/* ─── 리뷰 렌더 ─────────────────────────── */
+let curFilter = '전체';
+let curPage   = 1;
+let selectedReviewId = null;
+
+function filteredReviews() {
+  const all = allReviews();
+  return curFilter === '전체' ? all : all.filter(r => r.category === curFilter);
+}
+
+	function renderReviews(reset=true) {
+  if (reset) curPage = 1;
+  const filtered = filteredReviews();
+  const grid     = document.getElementById('reviews-grid');
+  const moreBtn  = document.getElementById('load-more-btn');
+  const title    = document.getElementById('reviews-title');
+  if (title) title.innerHTML = `FINDY <span class="section-title-accent">${esc(curFilter)}</span> 리뷰`;
+  document.getElementById('reviews-total').textContent = filtered.length;
+
+  if (reset) grid.innerHTML = '';
+
+  if (filtered.length === 0) {
+    grid.innerHTML = `
+      <div class="reviews-empty">
+        <div class="empty-icon">💬</div>
+	        <p>${curFilter==='전체'?'아직 리뷰가 없어요. 첫 번째 리뷰를 남겨보세요!':
+	          `아직 ${curFilter} 카테고리 리뷰가 없어요.<br/>첫 번째 리뷰를 남겨보세요!`}</p>
+      </div>`;
+    moreBtn.classList.add('hidden');
+    return;
+  }
+
+  const slice = filtered.slice((curPage-1)*PAGE_SIZE, curPage*PAGE_SIZE);
+  slice.forEach(r => grid.appendChild(makeCard(r)));
+
+  // 더보기
+  if (curPage * PAGE_SIZE < filtered.length) {
+    moreBtn.classList.remove('hidden');
+  } else {
+    moreBtn.classList.add('hidden');
+  }
+  updateStats();
+}
+
+function makeReviewListItem(r) {
+  const item = document.createElement('button');
+  item.className = 'community-list-item';
+  item.type = 'button';
+  item.dataset.reviewId = r.id;
+  item.innerHTML = `
+    <div class="community-list-item-title">${esc(r.nickname)} · ${esc(r.service || r.category)}</div>
+    <div class="community-list-item-meta">${esc(r.category)} · ${stars(r.rating)} · ${fmtDate(r.date)}</div>
+  `;
+  item.addEventListener('click', () => selectReview(r.id));
+  return item;
+}
+
+function selectReview(id) {
+  if (!isLoggedIn()) {
+    requireLogin(() => selectReview(id));
+    return;
+  }
+  selectedReviewId = id;
+  renderReviewDetail();
+  setSideNavActive(curFilter === '전체' ? 'all' : curFilter);
+  showView('review-detail');
+}
+
+function renderReviewDetail() {
+  const feed = document.getElementById('review-detail-feed');
+  const listEl = document.getElementById('review-detail-list');
+  const total = document.getElementById('review-detail-total');
+  const title = document.getElementById('review-detail-title');
+  if (!feed || !listEl) return;
+
+  const filtered = filteredReviews();
+  const selected = filtered.find(r => r.id === selectedReviewId) || filtered[0];
+
+  if (title) title.innerHTML = `FINDY <span class="section-title-accent">${esc(curFilter)}</span> 리뷰`;
+  if (total) total.textContent = filtered.length;
+  feed.innerHTML = '';
+  listEl.innerHTML = '';
+
+  if (!selected) {
+    feed.innerHTML = `
+      <div class="review-card is-detail">
+        <div class="rc-name">아직 리뷰가 없어요</div>
+        <p class="rc-text">왼쪽 카테고리에서 다른 리뷰를 보거나 첫 리뷰를 남겨보세요.</p>
+      </div>`;
+    return;
+  }
+
+  selectedReviewId = selected.id;
+  feed.appendChild(makeCard(selected, true));
+
+  filtered.forEach(r => {
+    const item = makeReviewListItem(r);
+    item.classList.toggle('is-active', r.id === selectedReviewId);
+    listEl.appendChild(item);
+  });
+}
+
+/* ─── 필터 탭 ───────────────────────────── */
+function initFilterTabs() {
+  const filterTabs = document.getElementById('filter-tabs');
+  if (!filterTabs) return;
+  filterTabs.addEventListener('click', e => {
+    const tab = e.target.closest('.filter-tab');
+    if (!tab) return;
+    setReviewCategory(tab.dataset.filter);
+  });
+}
+
+function setReviewCategory(category) {
+  curFilter = category;
+  document.querySelectorAll('#filter-tabs .filter-tab').forEach(t => {
+    const match = t.dataset.filter === category;
+    t.classList.toggle('active', match);
+    t.setAttribute('aria-selected', match ? 'true':'false');
+  });
+  renderReviews(true);
+  renderReviewDetail();
+  setSideNavActive(category === '전체' ? 'all' : category);
+}
+
+/* ─── 더보기 ────────────────────────────── */
+	function initLoadMore() {
+	  document.getElementById('load-more-btn').addEventListener('click', ()=>{
+	    curPage++;
+	    renderReviews(false);
+	  });
+	}
+
+	function reviewMatchesQuery(r, q) {
+	  const haystack = [r.nickname, r.category, r.service, r.shop, r.artist, r.location, r.content].join(' ').toLowerCase();
+	  return haystack.includes(q);
+	}
+
+	function postMatchesQuery(p, q) {
+	  const haystack = [p.author, p.category, p.type, p.title, p.content].join(' ').toLowerCase();
+	  return haystack.includes(q);
+	}
+
+	function renderSearchResults(query) {
+	  const q = query.toLowerCase();
+	  const inSearchCategory = item => searchCategory === '전체' || item.category === searchCategory;
+	  const matchedReviews = allReviews().filter(r => inSearchCategory(r) && reviewMatchesQuery(r, q));
+	  const matchedPosts = allPosts().filter(p => inSearchCategory(p) && postMatchesQuery(p, q));
+	  const grid = document.getElementById('reviews-grid');
+	  const feed = document.getElementById('community-feed');
+
+	  curFilter = searchCategory;
+	  curCommunityCategory = '전체';
+	  curCommunityFilter = '전체';
+	  document.querySelectorAll('#filter-tabs .filter-tab').forEach(t => {
+	    const isAll = t.dataset.filter === '전체';
+	    t.classList.toggle('active', isAll);
+	    t.setAttribute('aria-selected', isAll ? 'true' : 'false');
+	  });
+	  document.querySelectorAll('#community-tabs .filter-tab').forEach(t => {
+	    const isAll = t.dataset.filter === '전체';
+	    t.classList.toggle('active', isAll);
+	    t.setAttribute('aria-selected', isAll ? 'true' : 'false');
+	  });
+	  document.querySelectorAll('#community-category-tabs .filter-tab').forEach(t => {
+	    const isAll = t.dataset.filter === '전체';
+	    t.classList.toggle('active', isAll);
+	    t.setAttribute('aria-selected', isAll ? 'true' : 'false');
+	  });
+
+	  grid.innerHTML = '';
+	  const title = document.getElementById('reviews-title');
+	  if (title) title.innerHTML = `FINDY <span class="section-title-accent">${esc(searchCategory)}</span> 리뷰`;
+	  document.getElementById('reviews-total').textContent = matchedReviews.length;
+	  if (matchedReviews.length) {
+	    matchedReviews.slice(0, PAGE_SIZE).forEach(r => grid.appendChild(makeCard(r)));
+	  } else {
+	    grid.innerHTML = `<div class="reviews-empty"><div class="empty-icon">🔍</div><p>검색어와 맞는 리뷰가 아직 없어요.</p></div>`;
+	  }
+	  document.getElementById('load-more-btn').classList.add('hidden');
+
+	  feed.innerHTML = '';
+	  const listEl = document.getElementById('community-post-list');
+	  if (listEl) listEl.innerHTML = '';
+	  if (matchedPosts.length) {
+	    selectedCommunityPostId = matchedPosts[0].id;
+	    feed.appendChild(makePostCard(matchedPosts[0], true));
+	    if (listEl) {
+	      matchedPosts.forEach(p => {
+	        const item = makePostListItem(p);
+	        item.classList.toggle('is-active', p.id === selectedCommunityPostId);
+	        listEl.appendChild(item);
+	      });
+	    }
+	  } else {
+	    feed.innerHTML = `<div class="community-feed-card"><div class="cm-title">검색어와 맞는 커뮤니티 글이 없어요</div><p class="cm-body">궁금한 내용을 직접 남겨보세요.</p></div>`;
+	  }
+	  toast(`${searchCategory === '전체' ? '' : `${searchCategory}에서 `}'${query}' 검색 결과를 보여드릴게요.`);
+	}
+
+	let searchCategory = '전체';
+	let curCommunityCategory = '전체';
+	let curCommunityFilter = '전체';
+	let selectedCommunityPostId = null;
+
+	function initSearchCategory() {
+	  const button = document.getElementById('search-cat-btn');
+	  const label = document.getElementById('search-cat-label');
+	  const menu = document.getElementById('search-category-menu');
+	  if (!button || !label || !menu) return;
+
+	  const close = () => {
+	    menu.classList.remove('is-open');
+	    button.setAttribute('aria-expanded', 'false');
+	  };
+
+	  button.addEventListener('click', e => {
+	    e.stopPropagation();
+	    const isOpen = menu.classList.toggle('is-open');
+	    button.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+	  });
+
+	  menu.addEventListener('click', e => {
+	    const option = e.target.closest('.search-category-option');
+	    if (!option) return;
+	    searchCategory = option.dataset.searchCategory;
+	    label.textContent = searchCategory;
+	    menu.querySelectorAll('.search-category-option').forEach(item => {
+	      item.classList.toggle('is-active', item === option);
+	    });
+	    close();
+	    document.getElementById('search-input')?.focus();
+	  });
+
+	  document.addEventListener('click', e => {
+	    if (!menu.contains(e.target) && !button.contains(e.target)) close();
+	  });
+
+	  document.addEventListener('keydown', e => {
+	    if (e.key === 'Escape') close();
+	  });
+	}
+
+	function makePostCard(p, detail=false) {
+	  const el = document.createElement('article');
+	  const liked = hasReaction('post', 'like', p.id);
+	  const saved = hasReaction('post', 'save', p.id);
+	  el.className = `community-feed-card${detail ? ' is-detail' : ''}`;
+	  el.tabIndex = detail ? -1 : 0;
+	  el.dataset.postId = p.id;
+	  el.innerHTML = `
+	    <div class="cm-top">
+	      <div>
+	        <div class="cm-title">${esc(p.title)}</div>
+	        <div class="cm-meta">${esc(p.author || '익명')} · ${esc(p.category)} · ${fmtDate(p.date)}</div>
+	      </div>
+	      <span class="cm-badge">${esc(p.type)}</span>
+	    </div>
+	    ${communityPhotosHtml(p.photos)}
+	    <p class="cm-body">${esc(p.content)}</p>
+	    <div class="cm-actions">
+	      <button class="cm-action ${liked ? 'is-active' : ''}" type="button" data-action="like" data-kind="post" data-id="${esc(p.id)}">♡ 좋아요 ${reactionCount('post', 'like', p.id, p.likes)}</button>
+	      <button class="cm-action ${saved ? 'is-active' : ''}" type="button" data-action="save" data-kind="post" data-id="${esc(p.id)}">🔖 저장 ${reactionCount('post', 'save', p.id, p.saves)}</button>
+	      <button class="cm-action" type="button" data-action="comment" data-kind="post" data-id="${esc(p.id)}">💬 댓글 ${p.comments || 0}</button>
+	    </div>
+	  `;
+	  if (!detail) {
+	    el.addEventListener('click', () => selectCommunityPost(p.id));
+	    el.addEventListener('keydown', e => {
+	      if (e.key === 'Enter' || e.key === ' ') {
+	        e.preventDefault();
+	        selectCommunityPost(p.id);
+	      }
+	    });
+	  }
+	  el.querySelectorAll('.cm-photo').forEach(photo => {
+	    photo.addEventListener('click', e => {
+	      e.stopPropagation();
+	      openLightbox(photo.dataset.src);
+	    });
+	  });
+	  el.querySelectorAll('[data-action]').forEach(btn => {
+	    btn.addEventListener('click', e => {
+	      e.stopPropagation();
+	      const action = btn.dataset.action;
+	      if (action === 'comment') {
+	        toast('댓글 기능은 준비 중이에요.');
+	        return;
+	      }
+	      toggleReaction(btn.dataset.kind, action, btn.dataset.id);
+	    });
+	  });
+	  return el;
+	}
+
+	function makePostListItem(p) {
+	  const item = document.createElement('button');
+	  item.className = 'community-list-item';
+	  item.type = 'button';
+	  item.dataset.postId = p.id;
+	  item.innerHTML = `
+	    <div class="community-list-item-title">${esc(p.title)}</div>
+	    <div class="community-list-item-meta">${esc(p.category)} · ${esc(p.type)} · ${fmtDate(p.date)}</div>
+	  `;
+	  item.addEventListener('click', () => selectCommunityPost(p.id));
+	  return item;
+	}
+
+	function selectCommunityPost(id) {
+	  if (!isLoggedIn()) {
+	    requireLogin(() => selectCommunityPost(id));
+	    return;
+	  }
+	  selectedCommunityPostId = id;
+	  renderCommunityDetail();
+	  setSideNavActive('community');
+	  showView('community-detail');
+	}
+
+	function renderCommunity() {
+	  const feed = document.getElementById('community-feed');
+	  const all = allPosts();
+	  const filtered = all.filter(p => {
+	    const categoryMatch = curCommunityCategory === '전체' || p.category === curCommunityCategory;
+	    const typeMatch = curCommunityFilter === '전체' || p.type === curCommunityFilter;
+	    return categoryMatch && typeMatch;
+	  });
+	  document.getElementById('community-total').textContent = all.length;
+	  feed.innerHTML = '';
+
+	  if (!filtered.length) {
+	    feed.innerHTML = `
+	      <div class="community-feed-card">
+	        <div class="cm-title">아직 등록된 글이 없어요</div>
+	        <p class="cm-body">첫 번째 커뮤니티 글을 남겨보세요.</p>
+	      </div>`;
+	    return;
+	  }
+	  filtered.forEach(p => feed.appendChild(makePostCard(p)));
+	}
+
+	function renderCommunityDetail() {
+	  const feed = document.getElementById('community-detail-feed');
+	  const listEl = document.getElementById('community-post-list');
+	  if (!feed || !listEl) return;
+
+	  const all = allPosts();
+	  const selected = all.find(p => p.id === selectedCommunityPostId) || all[0];
+	  feed.innerHTML = '';
+	  listEl.innerHTML = '';
+
+	  if (!selected) {
+	    feed.innerHTML = `
+	      <div class="community-feed-card is-detail">
+	        <div class="cm-title">아직 등록된 글이 없어요</div>
+	        <p class="cm-body">첫 번째 커뮤니티 글을 남겨보세요.</p>
+	      </div>`;
+	    return;
+	  }
+	  selectedCommunityPostId = selected.id;
+	  feed.appendChild(makePostCard(selected, true));
+
+	  all.forEach(p => {
+	    const item = makePostListItem(p);
+	    item.classList.toggle('is-active', p.id === selectedCommunityPostId);
+	    listEl.appendChild(item);
+	  });
+	}
+
+	function initCommunityTabs() {
+	  document.getElementById('community-category-tabs').addEventListener('click', e => {
+	    const tab = e.target.closest('.filter-tab');
+	    if (!tab) return;
+	    document.querySelectorAll('#community-category-tabs .filter-tab').forEach(t => {
+	      t.classList.remove('active');
+	      t.setAttribute('aria-selected','false');
+	    });
+	    tab.classList.add('active');
+	    tab.setAttribute('aria-selected','true');
+	    curCommunityCategory = tab.dataset.filter;
+	    selectedCommunityPostId = null;
+	    renderCommunity();
+	  });
+
+	  document.getElementById('community-tabs').addEventListener('click', e => {
+	    const tab = e.target.closest('.filter-tab');
+	    if (!tab) return;
+	    document.querySelectorAll('#community-tabs .filter-tab').forEach(t => {
+	      t.classList.remove('active');
+	      t.setAttribute('aria-selected','false');
+	    });
+	    tab.classList.add('active');
+	    tab.setAttribute('aria-selected','true');
+	    curCommunityFilter = tab.dataset.filter;
+	    selectedCommunityPostId = null;
+	    renderCommunity();
+	  });
+	}
+
+	function initCommunityForm() {
+	  const form = document.getElementById('community-form');
+	  form.addEventListener('submit', e => {
+	    e.preventDefault();
+	    const category = document.getElementById('c-category').value;
+	    const type = document.getElementById('c-type').value;
+	    const title = document.getElementById('c-title').value.trim();
+	    const content = document.getElementById('c-content').value.trim();
+
+	    if (!title) { toast('커뮤니티 글 제목을 입력해주세요.'); return; }
+	    if (content.length < 10) { toast('내용을 10자 이상 입력해주세요.'); return; }
+
+	    const post = {
+	      id:`p-${Date.now()}`,
+	      category,
+	      type,
+	      title,
+	      content,
+	      photos:[...pendingCommunityPhotos],
+	      author:'익명',
+	      comments:0,
+	      saves:0,
+	      date:new Date().toISOString().slice(0,10),
+	      seed:false,
+	    };
+	    const list = loadPosts();
+	    list.unshift(post);
+	    savePosts(list);
+	    form.reset();
+	    pendingCommunityPhotos = [];
+	    renderCommunityPhotoPreview();
+	    curCommunityCategory = '전체';
+	    curCommunityFilter = '전체';
+	    selectedCommunityPostId = post.id;
+	    document.querySelectorAll('#community-category-tabs .filter-tab').forEach((t,i)=>{
+	      t.classList.toggle('active', i===0);
+	      t.setAttribute('aria-selected', i===0 ? 'true':'false');
+	    });
+	    document.querySelectorAll('#community-tabs .filter-tab').forEach((t,i)=>{
+	      t.classList.toggle('active', i===0);
+	      t.setAttribute('aria-selected', i===0 ? 'true':'false');
+	    });
+	    renderCommunity();
+	    renderCommunityDetail();
+	    renderMyPage();
+	    toast('커뮤니티 글이 등록됐어요.');
+	    showView('community-detail');
+	  });
+	}
+
+/* ─── 별점 힌트 ─────────────────────────── */
+function initStarHint() {
+  const input = document.getElementById('rating-value');
+  const fill = document.getElementById('star-fill');
+  const hint = document.getElementById('star-hint');
+  if (!input || !fill || !hint) return;
+
+  const labelFor = value => {
+    if (value <= 0) return '별을 클릭해 점수를 선택하세요';
+    if (value <= 1.5) return `${value.toFixed(1)}점 · 아쉬워요`;
+    if (value <= 2.5) return `${value.toFixed(1)}점 · 조금 아쉬워요`;
+    if (value <= 3.5) return `${value.toFixed(1)}점 · 괜찮아요`;
+    if (value <= 4.5) return `${value.toFixed(1)}점 · 좋아요`;
+    return `${value.toFixed(1)}점 · 최고예요!`;
+  };
+  const update = () => {
+    const value = parseFloat(input.value) || 0;
+    fill.style.width = `${(value / 5) * 100}%`;
+    hint.textContent = labelFor(value);
+  };
+
+  input.addEventListener('input', update);
+  input.addEventListener('change', update);
+  update();
+}
+
+/* ─── 사진 업로드 ───────────────────────── */
+const MAX_PHOTOS = 4;
+const MAX_BYTES  = 5 * 1024 * 1024; // 5 MB
+let pendingPhotos = []; // base64 strings
+let pendingCommunityPhotos = [];
+
+function readFileAsBase64(file) {
+  return new Promise((res, rej) => {
+    const reader = new FileReader();
+    reader.onload  = e => res(e.target.result);
+    reader.onerror = rej;
+    reader.readAsDataURL(file);
+  });
+}
+
+async function addPhotos(files) {
+  const remaining = MAX_PHOTOS - pendingPhotos.length;
+  if (remaining <= 0) { toast(`사진은 최대 ${MAX_PHOTOS}장까지 첨부할 수 있어요.`); return; }
+
+  const toAdd = Array.from(files).slice(0, remaining);
+  for (const file of toAdd) {
+    if (!file.type.startsWith('image/')) { toast('이미지 파일만 첨부할 수 있어요.'); continue; }
+    if (file.size > MAX_BYTES) { toast(`${file.name} 파일이 5MB를 초과해요.`); continue; }
+    const b64 = await readFileAsBase64(file);
+    pendingPhotos.push(b64);
+  }
+  renderPhotoPreview();
+}
+
+function renderPhotoPreview() {
+  const grid = document.getElementById('photo-preview-grid');
+  grid.innerHTML = '';
+  pendingPhotos.forEach((src, i) => {
+    const item = document.createElement('div');
+    item.className = 'photo-preview-item';
+    item.innerHTML = `
+      <img src="${src}" alt="첨부 사진 ${i+1}" />
+      <button class="photo-preview-remove" data-idx="${i}" type="button" aria-label="사진 삭제">✕</button>
+    `;
+    item.querySelector('.photo-preview-remove').addEventListener('click', e => {
+      e.stopPropagation();
+      pendingPhotos.splice(parseInt(e.currentTarget.dataset.idx), 1);
+      renderPhotoPreview();
+    });
+    grid.appendChild(item);
+  });
+
+  // 업로드 영역 힌트 업데이트
+  const hint = document.querySelector('.photo-upload-hint');
+  const remaining = MAX_PHOTOS - pendingPhotos.length;
+  hint.innerHTML = remaining > 0
+    ? `JPG, PNG, WEBP · 장당 최대 <span>5MB</span> · ${remaining}장 더 추가 가능`
+    : `최대 ${MAX_PHOTOS}장 첨부 완료`;
+}
+
+function initPhotoUpload() {
+  const input   = document.getElementById('f-photos');
+  const dropZone = document.getElementById('photo-drop-zone');
+
+  // 파일 선택
+  input.addEventListener('change', e => {
+    addPhotos(e.target.files);
+    e.target.value = ''; // 같은 파일 재선택 허용
+  });
+
+  // 드래그 앤 드롭
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+  dropZone.addEventListener('dragleave', ()=> dropZone.classList.remove('drag-over'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('drag-over');
+    addPhotos(e.dataTransfer.files);
+  });
+}
+
+async function addCommunityPhotos(files) {
+  const remaining = MAX_PHOTOS - pendingCommunityPhotos.length;
+  if (remaining <= 0) { toast(`사진은 최대 ${MAX_PHOTOS}장까지 첨부할 수 있어요.`); return; }
+
+  const toAdd = Array.from(files).slice(0, remaining);
+  for (const file of toAdd) {
+    if (!file.type.startsWith('image/')) { toast('이미지 파일만 첨부할 수 있어요.'); continue; }
+    if (file.size > MAX_BYTES) { toast(`${file.name} 파일이 5MB를 초과해요.`); continue; }
+    const b64 = await readFileAsBase64(file);
+    pendingCommunityPhotos.push(b64);
+  }
+  renderCommunityPhotoPreview();
+}
+
+function renderCommunityPhotoPreview() {
+  const grid = document.getElementById('community-photo-preview-grid');
+  const hint = document.getElementById('community-photo-hint');
+  if (!grid || !hint) return;
+
+  grid.innerHTML = '';
+  pendingCommunityPhotos.forEach((src, i) => {
+    const item = document.createElement('div');
+    item.className = 'photo-preview-item';
+    item.innerHTML = `
+      <img src="${src}" alt="첨부 사진 ${i+1}" />
+      <button class="photo-preview-remove" data-idx="${i}" type="button" aria-label="사진 삭제">✕</button>
+    `;
+    item.querySelector('.photo-preview-remove').addEventListener('click', e => {
+      e.stopPropagation();
+      pendingCommunityPhotos.splice(parseInt(e.currentTarget.dataset.idx), 1);
+      renderCommunityPhotoPreview();
+    });
+    grid.appendChild(item);
+  });
+
+  const remaining = MAX_PHOTOS - pendingCommunityPhotos.length;
+  hint.innerHTML = remaining > 0
+    ? `JPG, PNG, WEBP · 장당 최대 <span>5MB</span> · ${remaining}장 더 추가 가능`
+    : `최대 ${MAX_PHOTOS}장 첨부 완료`;
+}
+
+function initCommunityPhotoUpload() {
+  const input = document.getElementById('c-photos');
+  const dropZone = document.getElementById('community-photo-drop-zone');
+  if (!input || !dropZone) return;
+
+  input.addEventListener('change', e => {
+    addCommunityPhotos(e.target.files);
+    e.target.value = '';
+  });
+
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('drag-over');
+    addCommunityPhotos(e.dataTransfer.files);
+  });
+}
+
+/* ─── 라이트박스 ────────────────────────── */
+function openLightbox(src) {
+  const lb  = document.getElementById('lightbox');
+  const img = document.getElementById('lightbox-img');
+  img.src = src;
+  lb.classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeLightbox() {
+  document.getElementById('lightbox').classList.remove('open');
+  document.body.style.overflow = '';
+}
+function initLightbox() {
+  document.getElementById('lightbox-close').addEventListener('click', closeLightbox);
+  document.getElementById('lightbox').addEventListener('click', e => {
+    if (e.target === e.currentTarget) closeLightbox();
+  });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
+}
+
+	/* ─── 리뷰 폼 ───────────────────────────── */
+function initReviewForm() {
+  const form    = document.getElementById('review-form');
+  const content = document.getElementById('f-content');
+  const charNow = document.getElementById('char-now');
+  const btn     = document.getElementById('submit-btn');
+
+  content.addEventListener('input', ()=> { charNow.textContent = content.value.length; });
+
+  form.addEventListener('submit', e => {
+    e.preventDefault();
+
+	    const nickname = document.getElementById('f-nickname').value.trim();
+	    const category = document.getElementById('f-category').value;
+	    const shop     = document.getElementById('f-shop').value.trim();
+	    const location = document.getElementById('f-location').value.trim();
+	    const artist   = document.getElementById('f-artist').value.trim();
+	    const service  = document.getElementById('f-service').value.trim();
+    const ratingEl = document.getElementById('rating-value');
+    const rating = parseFloat(ratingEl.value) || 0;
+    const text     = content.value.trim();
+
+    if (!nickname)        { toast('닉네임을 입력해주세요.'); return; }
+    if (!category)        { toast('카테고리를 선택해주세요.'); return; }
+    if (rating <= 0)      { toast('별점을 선택해주세요.'); return; }
+	    if (text.length < 10) { toast('리뷰를 10자 이상 입력해주세요.'); return; }
+
+    btn.disabled    = true;
+    btn.textContent = '등록 중…';
+
+    const review = {
+	      id:       `u-${Date.now()}`,
+	      nickname, category, shop, location, artist, service,
+	      rating,
+	      content:  text,
+	      photos:   [...pendingPhotos],
+	      likes:    0,
+	      comments: 0,
+	      date:     new Date().toISOString().slice(0,10),
+      seed:     false,
+    };
+
+    // TODO: 실제 백엔드(Supabase 등) 연동 시 여기서 API 호출 (사진은 Storage에 업로드)
+    const list = loadUser();
+    list.unshift(review);
+    saveUser(list);
+
+	    setTimeout(()=>{
+      // 폼 + 사진 리셋
+      form.reset();
+      document.getElementById('rating-value').value = '0';
+      document.getElementById('star-fill').style.width = '0%';
+      charNow.textContent = '0';
+      document.getElementById('star-hint').textContent = '별을 클릭해 점수를 선택하세요';
+      pendingPhotos = [];
+      renderPhotoPreview();
+      btn.disabled    = false;
+	      btn.textContent = '리뷰 등록하기';
+
+	      // 선택한 카테고리로 이동해 새 리뷰 표시
+      setReviewCategory(category);
+      renderMyPage();
+	
+	      toast('✅ 리뷰가 등록됐어요! 감사합니다 🙏');
+	      showView('reviews');
+	    }, 600);
+  });
+}
+
+/* ─── 웨이트리스트 ──────────────────────── */
+function initWaitlist() {
+  const counter = document.getElementById('wl-count');
+  let count = parseInt(localStorage.getItem(WAITLIST_KEY)||'247');
+  counter.textContent = count;
+
+  document.getElementById('waitlist-form').addEventListener('submit', e=>{
+    e.preventDefault();
+    const email = document.getElementById('wl-email').value.trim();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      toast('올바른 이메일 주소를 입력해주세요.');
+      return;
+    }
+    count++;
+    localStorage.setItem(WAITLIST_KEY, String(count));
+    counter.textContent = count;
+    document.getElementById('waitlist-form').reset();
+    toast('🎉 출시 알림 신청 완료! 가장 먼저 알려드릴게요.');
+  });
+}
+
+/* ─── 초기화 ────────────────────────────── */
+/* ─── 히어로 로테이터 ───────────────────── */
+function initRotator() {
+  const rotator = document.querySelector('.hero-rotator');
+  const items = document.querySelectorAll('.hero-rotator span');
+  if (items.length < 2) return;
+  let idx = 0;
+
+  const setWidth = item => {
+    const width = Math.ceil(item.getBoundingClientRect().width) + 12;
+    rotator.style.width = `${width}px`;
+  };
+
+  setWidth(items[idx]);
+  if (document.fonts?.ready) {
+    document.fonts.ready.then(() => setWidth(items[idx]));
+  }
+  window.addEventListener('resize', () => setWidth(items[idx]));
+
+  setInterval(()=>{
+    const cur  = items[idx];
+    const next = items[(idx + 1) % items.length];
+    setWidth(next);
+    cur.classList.remove('is-current');
+    cur.classList.add('is-leaving');
+    next.classList.add('is-current');
+    setTimeout(()=> cur.classList.remove('is-leaving'), 480);
+    idx = (idx + 1) % items.length;
+  }, 2400);
+}
+
+/* ─── 검색 핸들러 ───────────────────────── */
+function handleSearch(e) {
+  e.preventDefault();
+  const q = document.getElementById('search-input').value.trim();
+  if (!q) {
+    if (searchCategory !== '전체') filterByKeyword(searchCategory);
+    return;
+  }
+  renderSearchResults(q);
+  showView('reviews');
+}
+
+function showView(viewName, options={}) {
+  const { push=true, replace=false } = options;
+  if (viewName === 'my') {
+    if (!isLoggedIn()) {
+      requireLogin(() => showView('my'));
+      return;
+    }
+    renderMyPage();
+  }
+  if (viewName === 'my-beauty') {
+    if (!isLoggedIn()) {
+      requireLogin(() => showView('my-beauty'));
+      return;
+    }
+    renderBeautyProfileForm();
+  }
+  const shouldRecord = push && (replace || viewName !== currentView);
+  if (shouldRecord) {
+    const state = { view: viewName };
+    const url = `#${viewName}`;
+    if (replace) {
+      history.replaceState(state, '', url);
+    } else {
+      history.pushState(state, '', url);
+    }
+  }
+  currentView = viewName;
+  document.querySelectorAll('.view-section').forEach(section => {
+    const views = (section.dataset.view || '').split(/\s+/);
+    section.classList.toggle('active', views.includes(viewName));
+  });
+  if (viewName === 'home') {
+    setSideNavActive('all');
+  }
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  setLaunchPanel(viewName === 'waitlist' ? 2 : 0, 'down');
+}
+
+function initHistoryNavigation() {
+  window.addEventListener('popstate', e => {
+    const view = e.state?.view || 'home';
+    showView(view, { push:false });
+  });
+}
+
+function jumpToElement(id) {
+  const target = document.getElementById(id);
+  if (!target) return;
+  const start = window.scrollY;
+  const end = id === 'home' ? 0 : target.offsetTop;
+  const distance = end - start;
+  const duration = 260;
+  const startTime = performance.now();
+
+  const easeOutCubic = t => 1 - Math.pow(1 - t, 3);
+  const step = now => {
+    const progress = Math.min((now - startTime) / duration, 1);
+    window.scrollTo(0, start + distance * easeOutCubic(progress));
+    if (progress < 1) requestAnimationFrame(step);
+  };
+
+  requestAnimationFrame(step);
+}
+
+let launchPanelIndex = 0;
+let launchWheelLocked = false;
+let launchWheelUnlockTimer = null;
+
+function lockLaunchWheel(delay=50) {
+  launchWheelLocked = true;
+  window.clearTimeout(launchWheelUnlockTimer);
+  launchWheelUnlockTimer = window.setTimeout(() => {
+    launchWheelLocked = false;
+  }, delay);
+}
+
+function setLaunchPanel(nextIndex, direction='down') {
+  const panels = [...document.querySelectorAll('.launch-panel')];
+  const dots = [...document.querySelectorAll('.launch-panel-dot')];
+  if (!panels.length) return;
+
+  const bounded = Math.max(0, Math.min(nextIndex, panels.length - 1));
+  if (bounded === launchPanelIndex && panels[bounded].classList.contains('is-active')) return;
+
+  panels.forEach((panel, index) => {
+    const isCurrent = index === launchPanelIndex;
+    const isNext = index === bounded;
+    panel.classList.toggle('is-active', isNext);
+    panel.classList.toggle('is-leaving-up', isCurrent && direction === 'down');
+    panel.classList.toggle('is-leaving-down', isCurrent && direction === 'up');
+    if (!isCurrent) {
+      panel.classList.remove('is-leaving-up', 'is-leaving-down');
+    }
+  });
+  dots.forEach((dot, index) => dot.classList.toggle('is-active', index === bounded));
+  launchPanelIndex = bounded;
+
+  window.setTimeout(() => {
+    panels.forEach(panel => panel.classList.remove('is-leaving-up', 'is-leaving-down'));
+  }, 560);
+}
+
+function initLaunchPanels() {
+  const home = document.getElementById('home');
+  const container = document.getElementById('launch-scroll');
+  const panels = [...document.querySelectorAll('.launch-panel')];
+  if (!container || panels.length < 2) return;
+
+  home?.addEventListener('wheel', e => {
+    if (e.deltaY <= 0 || launchWheelLocked) return;
+    e.preventDefault();
+    lockLaunchWheel(50);
+    setLaunchPanel(0, 'down');
+    jumpToElement('launch-scroll');
+  }, { passive: false });
+
+  container.addEventListener('wheel', e => {
+    const direction = e.deltaY > 0 ? 'down' : 'up';
+    const nextIndex = launchPanelIndex + (direction === 'down' ? 1 : -1);
+    const canSwitch = nextIndex >= 0 && nextIndex < panels.length;
+
+    if (launchWheelLocked) {
+      e.preventDefault();
+      lockLaunchWheel(50);
+      return;
+    }
+
+    if (!canSwitch) {
+      if (direction === 'up' && launchPanelIndex === 0) {
+        e.preventDefault();
+        lockLaunchWheel(50);
+        jumpToElement('home');
+        setSideNavActive('all');
+      }
+      return;
+    }
+
+    e.preventDefault();
+    lockLaunchWheel(50);
+    setLaunchPanel(nextIndex, direction);
+  }, { passive: false });
+}
+
+function filterByKeyword(category) {
+  showView('reviews');
+  setReviewCategory(category);
+}
+
+function setSideNavActive(value) {
+  document.querySelectorAll('.side-nav-btn').forEach(btn => {
+    const isCategory = btn.dataset.sideCategory === value;
+    const isAction = btn.dataset.sideAction === value;
+    btn.classList.toggle('active', isCategory || isAction);
+  });
+}
+
+function initSideCategoryNav() {
+  document.querySelector('.side-category-nav').addEventListener('click', e => {
+    const btn = e.target.closest('.side-nav-btn');
+    if (!btn) return;
+
+    if (btn.dataset.sideCategory) {
+      filterByKeyword(btn.dataset.sideCategory);
+      return;
+    }
+
+    if (btn.dataset.sideAction === 'all') {
+      setReviewCategory('전체');
+      showView('home');
+      return;
+    }
+
+    if (btn.dataset.sideAction === 'community') {
+      setSideNavActive('community');
+      showView('community');
+      return;
+    }
+
+    if (btn.dataset.sideAction === 'features') {
+      setSideNavActive('features');
+      showView('features');
+      return;
+    }
+
+    if (btn.dataset.sideAction === 'waitlist') {
+      setSideNavActive('waitlist');
+      showView('waitlist');
+    }
+  });
+}
+
+function initViewLinks() {
+  document.querySelectorAll('[data-view-link]').forEach(link => {
+    link.addEventListener('click', e => {
+      e.preventDefault();
+      const view = link.dataset.viewLink;
+      if (view === 'reviews') {
+        setReviewCategory('전체');
+      }
+      if (view === 'write') {
+        const categorySelect = document.getElementById('f-category');
+        if (categorySelect && curFilter !== '전체') categorySelect.value = curFilter;
+      }
+      if ((view === 'write' || view === 'community-write') && !isLoggedIn()) {
+        requireLogin(() => {
+          if (view === 'write') {
+            const categorySelect = document.getElementById('f-category');
+            if (categorySelect && curFilter !== '전체') categorySelect.value = curFilter;
+          }
+          showView(view);
+        });
+        return;
+      }
+      if (view === 'review-detail') setSideNavActive(curFilter === '전체' ? 'all' : curFilter);
+      if (view === 'my' || view === 'my-beauty') setSideNavActive('');
+      if (view === 'community' || view === 'community-detail' || view === 'community-write') setSideNavActive('community');
+      if (view === 'features') setSideNavActive('features');
+      if (view === 'waitlist') setSideNavActive('waitlist');
+      showView(view);
+    });
+  });
+}
+
+document.addEventListener('DOMContentLoaded', ()=>{
+  localStorage.removeItem(AUTH_KEY);
+  updateStats();
+  renderReviews();
+  renderReviewDetail();
+  renderCommunity();
+  renderCommunityDetail();
+	  initFilterTabs();
+	  initCommunityTabs();
+	  initLoadMore();
+  initStarHint();
+  initPhotoUpload();
+  initCommunityPhotoUpload();
+  initLightbox();
+  initAuth();
+  initBeautyProfileForm();
+  initMyPageActions();
+	  initReviewForm();
+	  initCommunityForm();
+  initWaitlist();
+  initRotator();
+  initLaunchPanels();
+  initSearchCategory();
+  initSideCategoryNav();
+  initViewLinks();
+  initHistoryNavigation();
+  showView('home', { replace:true });
+});
+</script>
+
+</body>
+</html>
