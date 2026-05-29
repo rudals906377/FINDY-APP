@@ -114,7 +114,7 @@ def shell(page, rerender, body, include_nav=True):
             ft.Container(height=nav_height),
         ],
         spacing=0,
-        scroll=ft.ScrollMode.AUTO,
+        scroll=ft.ScrollMode.HIDDEN,
         expand=True,
     )
 

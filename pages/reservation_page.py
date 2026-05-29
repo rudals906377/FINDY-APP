@@ -22,7 +22,7 @@ def info_tile(title, value):
         padding=ft.padding.all(16),
         bgcolor="#FFFFFF",
         border_radius=22,
-        border=ft.border.all(1, "#ECE5DB"),
+        border=ft.border.all(1, "#E6D7C8"),
         content=ft.Column(
             controls=[
                 ft.Text(title, size=11, color=SUBTEXT_COLOR),
@@ -159,7 +159,7 @@ def render(page, app_state, rerender):
         padding=16,
         bgcolor="#FFFFFF",
         border_radius=24,
-        border=ft.border.all(1, "#ECE5DB"),
+        border=ft.border.all(1, "#E6D7C8"),
         content=ft.Column(
             controls=[
                 ft.Text("예약 요약", size=14, weight=ft.FontWeight.W_500, color=TEXT_COLOR),

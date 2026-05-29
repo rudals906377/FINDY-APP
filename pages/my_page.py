@@ -13,12 +13,12 @@ def info_tile(title, value, subtitle=""):
         padding=ft.padding.all(16),
         bgcolor="#FFFFFF",
         border_radius=22,
-        border=ft.border.all(1, "#ECE5DB"),
+        border=ft.border.all(1, "#E6D7C8"),
         content=ft.Column(
             controls=[
                 ft.Text(title, size=12, color="#8A8178"),
-                ft.Text(value, size=18, weight=ft.FontWeight.W_500, color="#1F1F1F"),
-                ft.Text(subtitle, size=10, color="#B1A79D") if subtitle else ft.Container(height=0),
+                ft.Text(value, size=18, weight=ft.FontWeight.W_500, color="#3B2F27"),
+                ft.Text(subtitle, size=10, color="#C8BAAE") if subtitle else ft.Container(height=0),
             ],
             spacing=5,
         ),

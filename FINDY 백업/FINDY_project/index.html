@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FINDY — Find Your Beauty</title>
+  <meta name="description" content="사실 기반 정직한 리뷰로 만나는 뷰티 아티스트, FINDY." />
+  <link rel="stylesheet" as="style" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.css" />
+  <style>
+    :root {
+      --main: #AE8F6F;
+      --point: #8B6B4F;
+      --soft: #F5EEE7;
+      --sub: #E6D7C8;
+      --bg: #FFFFFF;
+      --surface: #FAF8F4;
+      --border: #ECE5DB;
+      --divider: #F1ECE4;
+      --text: #2C2A28;
+      --text-strong: #1A1A1A;
+      --subtext: #9A9189;
+      --muted: #BDB4AB;
+      --shadow-sm: 0 2px 8px rgba(26, 20, 14, 0.04);
+      --shadow-md: 0 6px 22px rgba(26, 20, 14, 0.06);
+      --shadow-lg: 0 12px 36px rgba(26, 20, 14, 0.08);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      font-feature-settings: 'tnum';
+      color: var(--text);
+      background: var(--bg);
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    a { color: inherit; text-decoration: none; }
+    button { font-family: inherit; cursor: pointer; border: none; background: none; }
+
+    /* ── Header ─────────────────────────────────────────── */
+    .site-header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .header-inner {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 18px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 700;
+      font-size: 20px;
+      color: var(--point);
+      letter-spacing: -0.02em;
+    }
+
+    .brand svg { display: block; }
+
+    .header-cta {
+      padding: 10px 20px;
+      background: var(--main);
+      color: #FFFFFF;
+      font-size: 14px;
+      font-weight: 600;
+      border-radius: 999px;
+      transition: background 180ms ease, transform 180ms ease;
+    }
+
+    .header-cta:hover { background: var(--point); transform: translateY(-1px); }
+
+    /* ── Hero ──────────────────────────────────────────── */
+    .hero {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 90px 32px 40px;
+      text-align: center;
+    }
+
+    .hero-title {
+      font-size: 42px;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      color: var(--text-strong);
+      line-height: 1.25;
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .hero-pin {
+      width: 28px;
+      height: 28px;
+      color: var(--point);
+      flex-shrink: 0;
+    }
+
+    .hero-rotator {
+      position: relative;
+      display: inline-block;
+      min-width: 140px;
+      height: 1.25em;
+      vertical-align: bottom;
+      overflow: hidden;
+      text-align: center;
+    }
+
+    .hero-rotator span {
+      position: absolute;
+      left: 0;
+      right: 0;
+      color: var(--main);
+      transform: translateY(120%);
+      opacity: 0;
+      transition: transform 460ms cubic-bezier(0.22, 0.61, 0.36, 1), opacity 280ms ease;
+    }
+
+    .hero-rotator span.is-current {
+      transform: translateY(0);
+      opacity: 1;
+    }
+
+    .hero-rotator span.is-leaving {
+      transform: translateY(-120%);
+      opacity: 0;
+    }
+
+    .hero-sub {
+      margin-top: 14px;
+      font-size: 15px;
+      color: var(--subtext);
+      font-weight: 400;
+    }
+
+    /* ── Search bar ───────────────────────────────────── */
+    .search-bar {
+      max-width: 720px;
+      margin: 36px auto 0;
+      display: flex;
+      align-items: stretch;
+      background: #FFFFFF;
+      border: 1.5px solid var(--border);
+      border-radius: 999px;
+      padding: 6px 6px 6px 22px;
+      box-shadow: var(--shadow-md);
+      transition: border-color 180ms ease, box-shadow 180ms ease;
+    }
+
+    .search-bar:focus-within {
+      border-color: var(--main);
+      box-shadow: var(--shadow-lg);
+    }
+
+    .search-cat {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding-right: 16px;
+      border-right: 1px solid var(--border);
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text);
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .search-cat svg { width: 14px; height: 14px; color: var(--subtext); }
+
+    .search-input {
+      flex: 1;
+      padding: 14px 18px;
+      border: none;
+      outline: none;
+      font-size: 15px;
+      color: var(--text);
+      background: transparent;
+      font-family: inherit;
+    }
+
+    .search-input::placeholder { color: var(--muted); }
+
+    .search-submit {
+      width: 50px;
+      height: 50px;
+      border-radius: 999px;
+      background: var(--text-strong);
+      color: #FFFFFF;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 180ms ease;
+      flex-shrink: 0;
+    }
+
+    .search-submit:hover { background: var(--point); }
+
+    .search-submit svg { width: 18px; height: 18px; }
+
+    /* ── Trending ─────────────────────────────────────── */
+    .trending {
+      max-width: 880px;
+      margin: 18px auto 0;
+      padding: 0 32px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      gap: 8px 18px;
+      font-size: 13px;
+    }
+
+    .trending-label { color: var(--subtext); font-weight: 500; }
+
+    .trending a {
+      color: var(--text);
+      transition: color 160ms ease;
+    }
+
+    .trending a:hover { color: var(--main); }
+
+    /* ── Category grid ────────────────────────────────── */
+    .categories {
+      max-width: 1080px;
+      margin: 80px auto 0;
+      padding: 0 32px;
+    }
+
+    .category-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+    }
+
+    .category-card {
+      position: relative;
+      aspect-ratio: 1.35 / 1;
+      background: var(--surface);
+      border-radius: 20px;
+      padding: 22px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: transform 220ms cubic-bezier(0.22, 0.61, 0.36, 1), box-shadow 220ms ease, background 180ms ease;
+      cursor: pointer;
+    }
+
+    .category-card:hover {
+      transform: translateY(-3px);
+      background: #FFFFFF;
+      box-shadow: var(--shadow-md);
+    }
+
+    .category-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--soft);
+    }
+
+    .category-icon svg { width: 20px; height: 20px; color: var(--point); }
+
+    .category-card[data-tone="rose"] .category-icon { background: #F4E5DD; }
+    .category-card[data-tone="rose"] .category-icon svg { color: #B47A66; }
+    .category-card[data-tone="pink"] .category-icon { background: #F5E7E0; }
+    .category-card[data-tone="pink"] .category-icon svg { color: #B07064; }
+    .category-card[data-tone="cream"] .category-icon { background: #F4ECE0; }
+    .category-card[data-tone="cream"] .category-icon svg { color: #A18556; }
+    .category-card[data-tone="taupe"] .category-icon { background: var(--sub); }
+    .category-card[data-tone="taupe"] .category-icon svg { color: var(--point); }
+
+    .category-label {
+      font-size: 17px;
+      font-weight: 600;
+      color: var(--text-strong);
+      letter-spacing: -0.01em;
+    }
+
+    .category-meta {
+      margin-top: 4px;
+      font-size: 12px;
+      color: var(--subtext);
+      font-weight: 400;
+    }
+
+    /* ── Locations ───────────────────────────────────── */
+    .locations {
+      max-width: 1080px;
+      margin: 80px auto 120px;
+      padding: 0 32px;
+      text-align: center;
+    }
+
+    .locations-title {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--subtext);
+      margin-bottom: 18px;
+      letter-spacing: 0.01em;
+    }
+
+    .location-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+      max-width: 880px;
+      margin: 0 auto;
+    }
+
+    .location-pill {
+      padding: 10px 20px;
+      background: #FFFFFF;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text);
+      transition: all 180ms ease;
+      cursor: pointer;
+    }
+
+    .location-pill:hover {
+      border-color: var(--main);
+      background: var(--soft);
+      color: var(--point);
+      transform: translateY(-1px);
+    }
+
+    /* ── Footer ──────────────────────────────────────── */
+    .site-footer {
+      border-top: 1px solid var(--border);
+      padding: 40px 32px 60px;
+      background: var(--surface);
+    }
+
+    .footer-inner {
+      max-width: 1080px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    .footer-brand {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--point);
+    }
+
+    .footer-meta {
+      font-size: 12px;
+      color: var(--subtext);
+    }
+
+    .footer-meta a { margin-left: 18px; }
+    .footer-meta a:hover { color: var(--main); }
+
+    /* ── Responsive ──────────────────────────────────── */
+    @media (max-width: 900px) {
+      .header-inner { padding: 14px 20px; }
+      .hero { padding: 60px 20px 30px; }
+      .hero-title { font-size: 30px; }
+      .hero-pin { width: 22px; height: 22px; }
+      .hero-rotator { min-width: 110px; }
+      .search-bar { margin: 28px 16px 0; }
+      .search-cat { padding-right: 12px; font-size: 14px; }
+      .search-input { padding: 12px 14px; font-size: 14px; }
+      .search-submit { width: 44px; height: 44px; }
+      .categories { margin-top: 56px; padding: 0 20px; }
+      .category-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+      .category-card { padding: 18px; aspect-ratio: 1.5 / 1; }
+      .category-label { font-size: 15px; }
+      .locations { margin: 56px auto 80px; padding: 0 20px; }
+      .location-pill { padding: 8px 16px; font-size: 13px; }
+    }
+
+    @media (max-width: 480px) {
+      .hero-title { font-size: 24px; gap: 8px; }
+      .category-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="brand" href="/">
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden="true">
+          <ellipse cx="9" cy="15" rx="5.2" ry="5.2" stroke="#AE8F6F" stroke-width="1.8" fill="none"/>
+          <ellipse cx="19" cy="15" rx="5.2" ry="5.2" stroke="#AE8F6F" stroke-width="1.8" fill="none"/>
+          <circle cx="9" cy="15" r="1.6" fill="#AE8F6F"/>
+          <circle cx="19" cy="15" r="1.6" fill="#AE8F6F"/>
+          <path d="M14 7.5c-1.4 0-2.4 1.2-2.4 2.5h4.8c0-1.3-1-2.5-2.4-2.5z" fill="#AE8F6F"/>
+        </svg>
+        FINDY
+      </a>
+      <a class="header-cta" href="#download">앱 다운로드</a>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <h1 class="hero-title">
+        <svg class="hero-pin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M12 2C7.6 2 4 5.6 4 10c0 5.5 7 12 8 12s8-6.5 8-12c0-4.4-3.6-8-8-8z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" fill="#F5EEE7"/>
+          <circle cx="12" cy="10" r="2.6" fill="currentColor"/>
+        </svg>
+        FINDY에서
+        <span class="hero-rotator" aria-live="polite">
+          <span class="is-current">헤어</span>
+          <span>네일아트</span>
+          <span>메이크업</span>
+          <span>반영구</span>
+          <span>웨딩</span>
+          <span>포토</span>
+        </span>
+        디자이너 찾고 계신가요?
+      </h1>
+      <p class="hero-sub">사실 기반 정직한 후기로 만나는 뷰티 아티스트.</p>
+
+      <form class="search-bar" role="search" onsubmit="event.preventDefault();">
+        <div class="search-cat" role="button" tabindex="0">
+          전체
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <input class="search-input" type="search" placeholder="아티스트, 시술, 동네를 검색해보세요" aria-label="검색어 입력" />
+        <button class="search-submit" type="submit" aria-label="검색">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M5 12h14m-6-6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </form>
+
+      <nav class="trending" aria-label="인기 검색어">
+        <span class="trending-label">인기 검색어</span>
+        <a href="#">레이어드컷</a>
+        <a href="#">윤광 베이스</a>
+        <a href="#">자연 눈썹</a>
+        <a href="#">젤네일</a>
+        <a href="#">본식 헤어</a>
+        <a href="#">프로필 촬영</a>
+        <a href="#">컬러 염색</a>
+        <a href="#">데일리 스냅</a>
+      </nav>
+    </section>
+
+    <section class="categories" aria-label="카테고리">
+      <div class="category-grid">
+        <a class="category-card" data-tone="rose" href="#">
+          <div class="category-icon">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M6 18L18 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="6" cy="6" r="2" fill="currentColor"/><circle cx="18" cy="6" r="2" fill="currentColor"/></svg>
+          </div>
+          <div>
+            <div class="category-label">헤어</div>
+            <div class="category-meta">컷 · 펌 · 컬러</div>
+          </div>
+        </a>
+
+        <a class="category-card" data-tone="pink" href="#">
+          <div class="category-icon">
+            <svg viewBox="0 0 24 24" fill="none"><rect x="9" y="3" width="6" height="14" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M9 17v3a3 3 0 006 0v-3" stroke="currentColor" stroke-width="1.8"/></svg>
+          </div>
+          <div>
+            <div class="category-label">네일아트</div>
+            <div class="category-meta">젤 · 케어 · 디자인</div>
+          </div>
+        </a>
+
+        <a class="category-card" data-tone="rose" href="#">
+          <div class="category-icon">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M3 12c4-1 6-3 9-3s5 2 9 3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M5 16c3-1 5-2 7-2s4 1 7 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="6" r="2" stroke="currentColor" stroke-width="1.8"/></svg>
+          </div>
+          <div>
+            <div class="category-label">메이크업</div>
+            <div class="category-meta">데일리 · 화보 · 신부</div>
+          </div>
+        </a>
+
+        <a class="category-card" data-tone="taupe" href="#">
+          <div class="category-icon">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M4 14c0-4 3-7 8-7s8 3 8 7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="9" cy="14" r="1.5" fill="currentColor"/><circle cx="15" cy="14" r="1.5" fill="currentColor"/></svg>
+          </div>
+          <div>
+            <div class="category-label">반영구</div>
+            <div class="category-meta">눈썹 · 아이라인 · 입술</div>
+          </div>
+        </a>
+
+        <a class="category-card" data-tone="cream" href="#">
+          <div class="category-icon">
+            <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="9" r="3" stroke="currentColor" stroke-width="1.8"/><path d="M6 21l3-7M18 21l-3-7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          </div>
+          <div>
+            <div class="category-label">웨딩</div>
+            <div class="category-meta">신부 · 본식 · 리허설</div>
+          </div>
+        </a>
+
+        <a class="category-card" data-tone="taupe" href="#">
+          <div class="category-icon">
+            <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="7" width="18" height="13" rx="2.5" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="13.5" r="3.5" stroke="currentColor" stroke-width="1.8"/><path d="M9 7l1.5-2h3L15 7" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+          </div>
+          <div>
+            <div class="category-label">포토</div>
+            <div class="category-meta">프로필 · 스냅 · 컨셉</div>
+          </div>
+        </a>
+
+        <a class="category-card" href="#">
+          <div class="category-icon">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.62L12 2 9.19 8.62 2 9.24l5.46 4.73L5.82 21z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+          </div>
+          <div>
+            <div class="category-label">후기 둘러보기</div>
+            <div class="category-meta">사실 기반 정직한 리뷰</div>
+          </div>
+        </a>
+
+        <a class="category-card" href="#">
+          <div class="category-icon">
+            <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="3.5" stroke="currentColor" stroke-width="1.8"/><path d="M5 21c0-3.5 3-6 7-6s7 2.5 7 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          </div>
+          <div>
+            <div class="category-label">디자이너 찾기</div>
+            <div class="category-meta">포트폴리오 · 예약</div>
+          </div>
+        </a>
+      </div>
+    </section>
+
+    <section class="locations" aria-label="인기 지역">
+      <div class="locations-title">📍 인기 지역으로 둘러보기</div>
+      <div class="location-pills">
+        <button class="location-pill">강남</button>
+        <button class="location-pill">홍대</button>
+        <button class="location-pill">압구정</button>
+        <button class="location-pill">청담</button>
+        <button class="location-pill">신사</button>
+        <button class="location-pill">성수</button>
+        <button class="location-pill">송파</button>
+        <button class="location-pill">잠실</button>
+        <button class="location-pill">명동</button>
+        <button class="location-pill">신촌</button>
+        <button class="location-pill">건대</button>
+        <button class="location-pill">가로수길</button>
+        <button class="location-pill">이태원</button>
+        <button class="location-pill">마포</button>
+        <button class="location-pill">분당</button>
+        <button class="location-pill">광교</button>
+        <button class="location-pill">송도</button>
+        <button class="location-pill">해운대</button>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <div class="footer-brand">FINDY · Find Your Beauty</div>
+      <div class="footer-meta">
+        © 2026 FINDY
+        <a href="#">이용약관</a>
+        <a href="#">개인정보처리방침</a>
+        <a href="#">고객센터</a>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    (function rotateHero() {
+      const items = document.querySelectorAll('.hero-rotator span');
+      if (items.length < 2) return;
+      let idx = 0;
+      setInterval(() => {
+        const current = items[idx];
+        const next = items[(idx + 1) % items.length];
+        current.classList.remove('is-current');
+        current.classList.add('is-leaving');
+        next.classList.add('is-current');
+        setTimeout(() => current.classList.remove('is-leaving'), 500);
+        idx = (idx + 1) % items.length;
+      }, 2200);
+    })();
+  </script>
+
+</body>
+</html>

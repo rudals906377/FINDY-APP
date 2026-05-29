@@ -12,7 +12,7 @@ def info_row(label, value):
     return ft.Row(
         controls=[
             ft.Text(label, size=12, color=SUBTEXT_COLOR),
-            ft.Text(value, size=12, color="#1F1F1F", weight=ft.FontWeight.W_500),
+            ft.Text(value, size=12, color="#3B2F27", weight=ft.FontWeight.W_500),
         ],
         alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
         width=CONTENT_WIDTH,
@@ -66,7 +66,7 @@ def render(page, app_state, rerender):
         padding=ft.padding.all(16),
         bgcolor="#FFFFFF",
         border_radius=24,
-        border=ft.border.all(1, "#ECE5DB"),
+        border=ft.border.all(1, "#E6D7C8"),
         content=ft.Column(
             controls=[
                 info_row("아티스트", artist["name"]),

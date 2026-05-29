@@ -37,8 +37,21 @@ def _overlay_header(title, app_icon, on_close):
             controls=[
                 ft.Column(
                     controls=[
-                        ft.Text(title, size=24, weight=ft.FontWeight.W_600, color=TEXT_COLOR),
-                        ft.Text("원하는 항목을 빠르게 탐색해보세요.", size=11, color=SUBTEXT_COLOR),
+                        ft.Text(
+                            title,
+                            size=24,
+                            weight=ft.FontWeight.W_600,
+                            color=TEXT_COLOR,
+                            max_lines=1,
+                            overflow=ft.TextOverflow.ELLIPSIS,
+                        ),
+                        ft.Text(
+                            "원하는 항목을 빠르게 탐색해보세요.",
+                            size=11,
+                            color=SUBTEXT_COLOR,
+                            max_lines=1,
+                            overflow=ft.TextOverflow.ELLIPSIS,
+                        ),
                     ],
                     spacing=4,
                     expand=True,
@@ -100,7 +113,7 @@ def build_left_overlay(
                 width=340,
                 padding=ft.padding.only(left=16, right=14, top=15, bottom=15),
                 border_radius=26,
-                bgcolor="#FFFDFC" if not is_expanded else "#FFFAF6",
+                bgcolor="#FFFDFC" if not is_expanded else "#FCFAF7",
                 border=ft.border.all(1, ft.Colors.with_opacity(0.78, BORDER_COLOR)),
                 shadow=ft.BoxShadow(spread_radius=0, blur_radius=18, color="#0E8B6B4F", offset=ft.Offset(0, 8)),
                 on_click=lambda e, category=main_category: toggle_main_category(category),
@@ -113,17 +126,31 @@ def build_left_overlay(
                                     width=42,
                                     height=42,
                                     border_radius=16,
-                                    bgcolor="#F7F0E9",
+                                    bgcolor="#F8F2EC",
                                     border=ft.border.all(1, "#EFE4D9"),
                                     alignment=ft.Alignment(0, 0),
                                     content=ft.Icon(app_icon(left_overlay_icons.get(main_category, "CIRCLE")), size=20, color=MAIN_COLOR),
                                 ),
                                 ft.Column(
                                     controls=[
-                                        ft.Text(main_category, size=16, color=TEXT_COLOR, weight=ft.FontWeight.W_700),
-                                        ft.Text(category_descriptions.get(main_category, "카테고리 둘러보기"), size=11, color=SUBTEXT_COLOR),
+                                        ft.Text(
+                                            main_category,
+                                            size=16,
+                                            color=TEXT_COLOR,
+                                            weight=ft.FontWeight.W_700,
+                                            max_lines=1,
+                                            overflow=ft.TextOverflow.ELLIPSIS,
+                                        ),
+                                        ft.Text(
+                                            category_descriptions.get(main_category, "카테고리 둘러보기"),
+                                            size=11,
+                                            color=SUBTEXT_COLOR,
+                                            max_lines=1,
+                                            overflow=ft.TextOverflow.ELLIPSIS,
+                                        ),
                                     ],
                                     spacing=3,
+                                    expand=True,
                                 ),
                             ],
                             spacing=13,
@@ -133,7 +160,7 @@ def build_left_overlay(
                             width=34,
                             height=34,
                             border_radius=999,
-                            bgcolor="#F5EEE7",
+                            bgcolor="#F8F2EC",
                             border=ft.border.all(1, "#EFE4D9"),
                             alignment=ft.Alignment(0, 0),
                             content=ft.Icon(
@@ -167,7 +194,15 @@ def build_left_overlay(
                         content=ft.Row(
                             controls=[
                                 ft.Container(width=6, height=6, border_radius=999, bgcolor=MAIN_COLOR),
-                                ft.Text(sub_category, size=13, color=TEXT_COLOR, weight=ft.FontWeight.W_600),
+                                ft.Text(
+                                    sub_category,
+                                    size=13,
+                                    color=TEXT_COLOR,
+                                    weight=ft.FontWeight.W_600,
+                                    max_lines=1,
+                                    overflow=ft.TextOverflow.ELLIPSIS,
+                                    expand=True,
+                                ),
                                 ft.Icon(app_icon("CHEVRON_RIGHT", "ARROW_FORWARD_IOS"), size=16, color=SUBTEXT_COLOR),
                             ],
                             spacing=10,
@@ -211,7 +246,7 @@ def build_left_overlay(
                     ft.Column(
                         controls=[*item_controls, overlay_bottom_spacer()],
                         spacing=8,
-                        scroll=ft.ScrollMode.AUTO,
+                        scroll=ft.ScrollMode.HIDDEN,
                         expand=True,
                     ),
                 ],
@@ -287,7 +322,7 @@ def build_right_overlay(
                 overlay_bottom_spacer(),
             ],
             spacing=0,
-            scroll=ft.ScrollMode.AUTO,
+            scroll=ft.ScrollMode.HIDDEN,
         ),
     )
 

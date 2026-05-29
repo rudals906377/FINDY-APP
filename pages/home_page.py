@@ -71,7 +71,7 @@ def render(page, app_state, rerender):
                 ft.Container(
                     expand=True,
                     padding=ft.padding.all(14),
-                    bgcolor="#FAF7F2",
+                    bgcolor="#F8F2EC",
                     border_radius=20,
                     content=ft.Column(
                         controls=[

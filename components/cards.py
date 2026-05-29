@@ -52,13 +52,26 @@ def page_header(title, on_back=None, width=None, subtitle=None, trailing=None):
             leading,
             ft.Column(
                 controls=[
-                    ft.Text(title, size=24, weight=ft.FontWeight.W_600, color=TEXT_STRONG),
-                    ft.Text(subtitle, size=12, color=SUBTEXT_COLOR) if subtitle else ft.Container(height=0),
+                    ft.Text(
+                        title,
+                        size=23,
+                        weight=ft.FontWeight.W_600,
+                        color=TEXT_STRONG,
+                        max_lines=1,
+                        overflow=ft.TextOverflow.ELLIPSIS,
+                    ),
+                    ft.Text(
+                        subtitle,
+                        size=12,
+                        color=SUBTEXT_COLOR,
+                        max_lines=2,
+                        overflow=ft.TextOverflow.ELLIPSIS,
+                    ) if subtitle else ft.Container(height=0),
                 ],
                 spacing=4,
                 expand=True,
             ),
-            trailing or ft.Container(width=8),
+            trailing or ft.Container(width=38, height=38),
         ],
         spacing=12,
         vertical_alignment=ft.CrossAxisAlignment.CENTER,
@@ -69,7 +82,7 @@ def page_header(title, on_back=None, width=None, subtitle=None, trailing=None):
 def section_title(title, subtitle=None, on_click=None, width=None):
     trailing = ft.Row(
         controls=[
-            ft.Text("전체보기", size=11, color=MAIN_COLOR_DARK),
+            ft.Text("전체보기", size=11, color=MAIN_COLOR_DARK, max_lines=1, overflow=ft.TextOverflow.ELLIPSIS),
             ft.Icon(ft.Icons.ARROW_FORWARD_IOS_ROUNDED, size=12, color=MAIN_COLOR_DARK),
         ],
         spacing=3,
@@ -86,8 +99,21 @@ def section_title(title, subtitle=None, on_click=None, width=None):
             controls=[
                 ft.Column(
                     controls=[
-                        ft.Text(title, size=18, weight=ft.FontWeight.W_500, color=TEXT_STRONG),
-                        ft.Text(subtitle, size=11, color=SUBTEXT_COLOR) if subtitle else ft.Container(height=0),
+                        ft.Text(
+                            title,
+                            size=18,
+                            weight=ft.FontWeight.W_500,
+                            color=TEXT_STRONG,
+                            max_lines=1,
+                            overflow=ft.TextOverflow.ELLIPSIS,
+                        ),
+                        ft.Text(
+                            subtitle,
+                            size=11,
+                            color=SUBTEXT_COLOR,
+                            max_lines=2,
+                            overflow=ft.TextOverflow.ELLIPSIS,
+                        ) if subtitle else ft.Container(height=0),
                     ],
                     spacing=4,
                     expand=True,
@@ -113,7 +139,16 @@ def _button_base(label, *, bgcolor, text_color, border, on_click, width, height,
         content=ft.Row(
             controls=[
                 ft.Icon(icon, size=16, color=text_color) if icon else ft.Container(width=0),
-                ft.Text(label, color=text_color, size=15, weight=ft.FontWeight.W_500),
+                ft.Text(
+                    label,
+                    color=text_color,
+                    size=15,
+                    weight=ft.FontWeight.W_500,
+                    max_lines=1,
+                    overflow=ft.TextOverflow.ELLIPSIS,
+                    text_align=ft.TextAlign.CENTER,
+                    expand=True,
+                ),
             ],
             spacing=8 if icon else 0,
             alignment=ft.MainAxisAlignment.CENTER,
@@ -199,6 +234,8 @@ def chip(label, selected=False, on_click=None):
             size=12,
             color=MAIN_COLOR_DARK if selected else TEXT_COLOR,
             weight=ft.FontWeight.W_500 if selected else ft.FontWeight.W_500,
+            max_lines=1,
+            overflow=ft.TextOverflow.ELLIPSIS,
         ),
     )
 
@@ -235,13 +272,21 @@ def review_card(name, category, review, width, photos=None, rating=5):
                     controls=[
                         ft.Row(
                             controls=[
-                                ft.Text(name, size=15, weight=ft.FontWeight.W_500, color=TEXT_STRONG),
+                                ft.Text(
+                                    name,
+                                    size=15,
+                                    weight=ft.FontWeight.W_500,
+                                    color=TEXT_STRONG,
+                                    max_lines=1,
+                                    overflow=ft.TextOverflow.ELLIPSIS,
+                                    expand=True,
+                                ),
                                 ft.Container(
                                     padding=ft.padding.symmetric(horizontal=8, vertical=3),
                                     bgcolor=CHIP_BG,
                                     border_radius=10,
                                     border=ft.border.all(1, BORDER_COLOR),
-                                    content=ft.Text(category, size=10, color=TEXT_COLOR),
+                                    content=ft.Text(category, size=10, color=TEXT_COLOR, max_lines=1, overflow=ft.TextOverflow.ELLIPSIS),
                                 ),
                             ],
                             spacing=8,
@@ -267,7 +312,7 @@ def review_card(name, category, review, width, photos=None, rating=5):
             alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
             vertical_alignment=ft.CrossAxisAlignment.CENTER,
         ),
-        ft.Text(review, size=12, color=SUBTEXT_COLOR),
+        ft.Text(review, size=12, color=SUBTEXT_COLOR, max_lines=2, overflow=ft.TextOverflow.ELLIPSIS),
     ]
     if photos:
         body_controls.append(
@@ -285,7 +330,7 @@ def review_card(name, category, review, width, photos=None, rating=5):
                         for p in photos[:10]
                     ],
                     spacing=6,
-                    scroll=ft.ScrollMode.AUTO,
+                    scroll=ft.ScrollMode.HIDDEN,
                 ),
             )
         )
@@ -316,8 +361,21 @@ def browse_result_card(item, width, on_click=None):
                     controls=[
                         ft.Column(
                             controls=[
-                                ft.Text(item.get("title", ""), size=16, weight=ft.FontWeight.W_500, color=TEXT_STRONG),
-                                ft.Text(item.get("subtitle", ""), size=12, color=SUBTEXT_COLOR),
+                                ft.Text(
+                                    item.get("title", ""),
+                                    size=16,
+                                    weight=ft.FontWeight.W_500,
+                                    color=TEXT_STRONG,
+                                    max_lines=1,
+                                    overflow=ft.TextOverflow.ELLIPSIS,
+                                ),
+                                ft.Text(
+                                    item.get("subtitle", ""),
+                                    size=12,
+                                    color=SUBTEXT_COLOR,
+                                    max_lines=1,
+                                    overflow=ft.TextOverflow.ELLIPSIS,
+                                ),
                             ],
                             spacing=4,
                             expand=True,
@@ -327,15 +385,22 @@ def browse_result_card(item, width, on_click=None):
                             bgcolor=MAIN_COLOR_SOFT,
                             border_radius=12,
                             border=ft.border.all(1, BORDER_COLOR),
-                            content=ft.Text(item.get("badge", "목록"), size=10, color=MAIN_COLOR_DARK, weight=ft.FontWeight.W_500),
+                            content=ft.Text(
+                                item.get("badge", "목록"),
+                                size=10,
+                                color=MAIN_COLOR_DARK,
+                                weight=ft.FontWeight.W_500,
+                                max_lines=1,
+                                overflow=ft.TextOverflow.ELLIPSIS,
+                            ),
                         ),
                     ],
                     alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                     vertical_alignment=ft.CrossAxisAlignment.CENTER,
                 ),
                 ft.Container(height=1, bgcolor=DIVIDER_COLOR),
-                ft.Text(item.get("meta", ""), size=12, color=TEXT_COLOR),
-                ft.Text(item.get("description", ""), size=13, color=SUBTEXT_COLOR),
+                ft.Text(item.get("meta", ""), size=12, color=TEXT_COLOR, max_lines=1, overflow=ft.TextOverflow.ELLIPSIS),
+                ft.Text(item.get("description", ""), size=13, color=SUBTEXT_COLOR, max_lines=3, overflow=ft.TextOverflow.ELLIPSIS),
             ],
             spacing=10,
         ),
@@ -387,7 +452,19 @@ def auth_button(label, icon_path=None, on_click=None, width=300):
         ink=True,
         shadow=_shadow(SHADOW_SOFT),
         content=ft.Row(
-            controls=[icon, ft.Text(label, size=14, weight=ft.FontWeight.W_500, color=TEXT_STRONG)],
+            controls=[
+                icon,
+                ft.Text(
+                    label,
+                    size=14,
+                    weight=ft.FontWeight.W_500,
+                    color=TEXT_STRONG,
+                    max_lines=1,
+                    overflow=ft.TextOverflow.ELLIPSIS,
+                    text_align=ft.TextAlign.CENTER,
+                    expand=True,
+                ),
+            ],
             spacing=10,
             alignment=ft.MainAxisAlignment.CENTER,
             vertical_alignment=ft.CrossAxisAlignment.CENTER,
@@ -414,8 +491,8 @@ def hero_card(title, subtitle, width, emoji="✨"):
                 ),
                 ft.Column(
                     controls=[
-                        ft.Text(title, size=17, weight=ft.FontWeight.W_500, color=TEXT_STRONG),
-                        ft.Text(subtitle, size=12, color=SUBTEXT_COLOR),
+                        ft.Text(title, size=17, weight=ft.FontWeight.W_500, color=TEXT_STRONG, max_lines=1, overflow=ft.TextOverflow.ELLIPSIS),
+                        ft.Text(subtitle, size=12, color=SUBTEXT_COLOR, max_lines=2, overflow=ft.TextOverflow.ELLIPSIS),
                     ],
                     spacing=4,
                     expand=True,

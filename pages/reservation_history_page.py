@@ -57,7 +57,7 @@ def empty_card(message):
         padding=ft.padding.all(18),
         bgcolor="#FFFFFF",
         border_radius=24,
-        border=ft.border.all(1, "#ECE5DB"),
+        border=ft.border.all(1, "#E6D7C8"),
         content=ft.Text(message, size=12, color=SUBTEXT_COLOR),
     )
 

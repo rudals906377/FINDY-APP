@@ -1,24 +1,25 @@
 from typing import Optional
 
-# Brand colors — official spec (메인/포인트), white base maintained
-MAIN_COLOR = "#AE8F6F"
+# Brand colors — official FINDY color guide
+LOGO_COLOR = "#A47864"
+MAIN_COLOR = "#8B6B4F"
 MAIN_COLOR_DARK = "#8B6B4F"
-MAIN_COLOR_SOFT = "#F5EEE7"
+MAIN_COLOR_SOFT = "#F8F2EC"
 SUB_COLOR = "#E6D7C8"
 
 BG_COLOR = "#FFFFFF"
 SURFACE_COLOR = "#FFFFFF"
 CARD_COLOR = "#FFFFFF"
 
-TEXT_COLOR = "#2C2A28"
-TEXT_STRONG = "#1A1A1A"
-SUBTEXT_COLOR = "#9A9189"
-MUTED_TEXT_COLOR = "#BDB4AB"
+TEXT_COLOR = "#4A3A2A"
+TEXT_STRONG = "#3B2F27"
+SUBTEXT_COLOR = "#9C8A78"
+MUTED_TEXT_COLOR = "#C8BAAE"
 
-CHIP_BG = "#F7F2EC"
-BORDER_COLOR = "#ECE5DB"
-DIVIDER_COLOR = "#F1ECE4"
-INPUT_BG = "#FAF7F2"
+CHIP_BG = "#F8F2EC"
+BORDER_COLOR = "#E6D7C8"
+DIVIDER_COLOR = "#E6D7C8"
+INPUT_BG = "#FCFAF7"
 CATEGORY_BOX_BG = "#FFFFFF"
 
 # Device / layout
@@ -73,8 +74,8 @@ CATEGORY_GAP = 8
 APP_FONT = "Pretendard"
 APP_FONT_BOLD = "Pretendard-Bold"
 
-OPENING_IMAGE = "findy_opening_logo.png"
-LOGIN_BRAND_IMAGE = "findy_logo_vertical.png"
+OPENING_IMAGE = "app_logo/app_findy_opening_logo.png"
+LOGIN_BRAND_IMAGE = "app_logo/app_findy_logo_vertical.png"
 OPENING_DURATION = 2.2
 
 # Shadow presets — softer, more diffuse for a calm beauty-app feel
@@ -108,9 +109,9 @@ FLOATING_SHADOW = SHADOW_FLOATING
 def build_layout_metrics(page_width: Optional[float], phone_width: int = PHONE_WIDTH) -> dict:
     current_page_width = page_width or phone_width
     frame_width = min(phone_width, current_page_width) if current_page_width else phone_width
-    content_width = min(CONTENT_WIDTH, max(280, frame_width - 60))
-    field_width = min(FIELD_WIDTH, max(240, content_width - 40))
-    half_card_width = max(132, int((content_width - SPACE_SM) / 2))
+    content_width = min(CONTENT_WIDTH, max(300, frame_width - 48))
+    field_width = min(FIELD_WIDTH, max(260, content_width - 24))
+    half_card_width = max(148, int((content_width - SPACE_MD) / 2))
     return {
         "frame_width": frame_width,
         "content_width": content_width,

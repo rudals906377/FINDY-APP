@@ -14,6 +14,8 @@ if not os.environ.get("PYTHONPYCACHEPREFIX"):
 
 files = [
     "FINDY324.py",
+    "FINDY_customer.py",
+    "FINDY_artist.py",
     "components/layout.py",
     "components/cards.py",
     "components/overlays.py",
@@ -57,10 +59,12 @@ for rel in files:
         compile_errors.append(f"{rel}: {e}")
 
 asset_files = [
-    "assets/findy_logo_horizontal.png",
-    "assets/findy_logo_vertical.png",
-    "assets/findy_logo_mark.png",
-    "assets/findy_opening_logo.png",
+    "assets/app_logo/app_findy_logo_horizontal.png",
+    "assets/app_logo/app_findy_logo_wordmark.png",
+    "assets/app_logo/app_findy_logo_vertical.png",
+    "assets/app_logo/app_findy_logo_mark.png",
+    "assets/app_logo/app_findy_logo_mark_shell.png",
+    "assets/app_logo/app_findy_opening_logo.png",
     "generate_placeholders.py",
 ]
 
