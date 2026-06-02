@@ -8890,10 +8890,6 @@ async def main(page: ft.Page):
         completion_value = sum(1 for item in completion_items if item["done"]) / max(1, len(completion_items))
         completion_open = app_state.get("artist_profile_completion_open", True)
 
-        def toggle_profile_completion(e=None):
-            app_state["artist_profile_completion_open"] = not app_state.get("artist_profile_completion_open", True)
-            show_artist_main_page()
-
         def completion_row(item):
             return ft.Container(
                 padding=ft.padding.symmetric(horizontal=12, vertical=10),
@@ -8937,36 +8933,48 @@ async def main(page: ft.Page):
                 ),
             )
 
-        completion_controls = [
-            ft.Container(
-                ink=True,
-                on_click=toggle_profile_completion,
-                content=ft.Row(
-                    controls=[
-                        ft.Text("프로필 완성도", size=14, weight=ft.FontWeight.W_700, color=TEXT_COLOR, expand=True),
-                        ft.Text(f"{round(completion_value * 100)}%", size=14, weight=ft.FontWeight.W_800, color=MAIN_COLOR),
-                        ft.Icon(
-                            app_icon("EXPAND_LESS", "KEYBOARD_ARROW_UP") if completion_open else app_icon("EXPAND_MORE", "KEYBOARD_ARROW_DOWN"),
-                            size=20,
-                            color=MAIN_COLOR_DARK,
-                        ),
-                    ],
-                    spacing=8,
-                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                ),
-            ),
-            ft.ProgressBar(value=completion_value, color=MAIN_COLOR, bgcolor=MAIN_COLOR_SOFT),
-        ]
-        if completion_open:
-            completion_controls.extend(
-                [
-                    ft.Text("부족한 항목을 누르면 바로 수정 화면으로 이동해요.", size=11, color=SUBTEXT_COLOR),
-                    ft.Column(
-                        controls=[completion_row(item) for item in completion_items],
+        completion_body = ft.Column(spacing=10)
+
+        def build_completion_controls():
+            is_open = app_state.get("artist_profile_completion_open", True)
+            controls = [
+                ft.Container(
+                    ink=True,
+                    on_click=toggle_profile_completion,
+                    content=ft.Row(
+                        controls=[
+                            ft.Text("프로필 완성도", size=14, weight=ft.FontWeight.W_700, color=TEXT_COLOR, expand=True),
+                            ft.Text(f"{round(completion_value * 100)}%", size=14, weight=ft.FontWeight.W_800, color=MAIN_COLOR),
+                            ft.Icon(
+                                app_icon("EXPAND_LESS", "KEYBOARD_ARROW_UP") if is_open else app_icon("EXPAND_MORE", "KEYBOARD_ARROW_DOWN"),
+                                size=20,
+                                color=MAIN_COLOR_DARK,
+                            ),
+                        ],
                         spacing=8,
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
                     ),
-                ]
-            )
+                ),
+                ft.ProgressBar(value=completion_value, color=MAIN_COLOR, bgcolor=MAIN_COLOR_SOFT),
+            ]
+            if is_open:
+                controls.extend(
+                    [
+                        ft.Text("부족한 항목을 누르면 바로 수정 화면으로 이동해요.", size=11, color=SUBTEXT_COLOR),
+                        ft.Column(
+                            controls=[completion_row(item) for item in completion_items],
+                            spacing=8,
+                        ),
+                    ]
+                )
+            return controls
+
+        def toggle_profile_completion(e=None):
+            app_state["artist_profile_completion_open"] = not app_state.get("artist_profile_completion_open", True)
+            completion_body.controls = build_completion_controls()
+            completion_body.update()
+
+        completion_body.controls = build_completion_controls()
 
         completion = ft.Container(
             width=content_width(),
@@ -8974,10 +8982,7 @@ async def main(page: ft.Page):
             bgcolor=CARD_COLOR,
             border_radius=RADIUS_LG,
             border=ft.border.all(1, BORDER_COLOR),
-            content=ft.Column(
-                controls=completion_controls,
-                spacing=10,
-            ),
+            content=completion_body,
         )
 
         recent_review = reviews[0] if reviews else None
