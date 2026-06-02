@@ -113,7 +113,7 @@ def build_left_overlay(
                 width=340,
                 padding=ft.padding.only(left=16, right=14, top=15, bottom=15),
                 border_radius=26,
-                bgcolor="#FFFDFC" if not is_expanded else "#FCFAF7",
+                bgcolor="#FFFFFF" if not is_expanded else "#FFFFFF",
                 border=ft.border.all(1, ft.Colors.with_opacity(0.78, BORDER_COLOR)),
                 shadow=ft.BoxShadow(spread_radius=0, blur_radius=18, color="#0E8B6B4F", offset=ft.Offset(0, 8)),
                 on_click=lambda e, category=main_category: toggle_main_category(category),
@@ -126,8 +126,8 @@ def build_left_overlay(
                                     width=42,
                                     height=42,
                                     border_radius=16,
-                                    bgcolor="#F8F2EC",
-                                    border=ft.border.all(1, "#EFE4D9"),
+                                    bgcolor="#FFFFFF",
+                                    border=ft.border.all(1, "#E6D7C8"),
                                     alignment=ft.Alignment(0, 0),
                                     content=ft.Icon(app_icon(left_overlay_icons.get(main_category, "CIRCLE")), size=20, color=MAIN_COLOR),
                                 ),
@@ -160,8 +160,8 @@ def build_left_overlay(
                             width=34,
                             height=34,
                             border_radius=999,
-                            bgcolor="#F8F2EC",
-                            border=ft.border.all(1, "#EFE4D9"),
+                            bgcolor="#FFFFFF",
+                            border=ft.border.all(1, "#E6D7C8"),
                             alignment=ft.Alignment(0, 0),
                             content=ft.Icon(
                                 app_icon(
@@ -187,7 +187,7 @@ def build_left_overlay(
                         margin=ft.margin.only(left=14, top=4, bottom=2),
                         padding=ft.padding.symmetric(horizontal=14, vertical=11),
                         border_radius=16,
-                        bgcolor="#FFFDFC",
+                        bgcolor="#FFFFFF",
                         border=ft.border.all(1, ft.Colors.with_opacity(0.72, BORDER_COLOR)),
                         on_click=lambda e, main=main_category, sub=sub_category: on_subcategory_click(main, sub),
                         ink=True,
@@ -216,7 +216,7 @@ def build_left_overlay(
     scrim = ft.Container(
         width=PHONE_WIDTH,
         height=PHONE_HEIGHT,
-        bgcolor=ft.Colors.with_opacity(0.22, "#1A1410"),
+        bgcolor=ft.Colors.with_opacity(0.22, "#1F1A17"),
         opacity=1.0 if left_overlay_visible else 0.0,
         animate_opacity=ft.Animation(180, ft.AnimationCurve.EASE_OUT),
     )
@@ -292,7 +292,7 @@ def build_right_overlay(
     scrim = ft.Container(
         width=PHONE_WIDTH,
         height=PHONE_HEIGHT,
-        bgcolor=ft.Colors.with_opacity(0.22, "#1A1410"),
+        bgcolor=ft.Colors.with_opacity(0.22, "#1F1A17"),
         opacity=1.0,
         animate_opacity=ft.Animation(180, ft.AnimationCurve.EASE_OUT),
     )

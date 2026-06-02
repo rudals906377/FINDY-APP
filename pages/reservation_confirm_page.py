@@ -12,7 +12,7 @@ def info_row(label, value):
     return ft.Row(
         controls=[
             ft.Text(label, size=12, color=SUBTEXT_COLOR),
-            ft.Text(value, size=12, color="#3B2F27", weight=ft.FontWeight.W_500),
+            ft.Text(value, size=12, color="#1F1A17", weight=ft.FontWeight.W_500),
         ],
         alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
         width=CONTENT_WIDTH,
@@ -33,7 +33,7 @@ def render(page, app_state, rerender):
         if error:
             page.snack_bar = ft.SnackBar(
                 content=ft.Text(error),
-                bgcolor="#B85C5C",
+                bgcolor="#8B6B4F",
             )
             page.snack_bar.open = True
             page.update()

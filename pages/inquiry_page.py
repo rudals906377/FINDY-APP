@@ -25,8 +25,8 @@ def _ensure_state(app_state):
 
 
 def _status_badge(status: str):
-    color = MAIN_COLOR if status == "접수 완료" else "#4F8A5B"
-    bg = "#F8F2EC" if status == "접수 완료" else "#EDF7EF"
+    color = MAIN_COLOR if status == "접수 완료" else "#8B6B4F"
+    bg = "#FFFFFF" if status == "접수 완료" else "#FFFFFF"
     return ft.Container(
         padding=ft.padding.symmetric(horizontal=10, vertical=5),
         border_radius=999,
@@ -49,7 +49,7 @@ def _inquiry_card(item):
                     controls=[
                         ft.Column(
                             controls=[
-                                ft.Text(item.get("title", "제목 없음"), size=15, weight=ft.FontWeight.W_500, color="#3B2F27"),
+                                ft.Text(item.get("title", "제목 없음"), size=15, weight=ft.FontWeight.W_500, color="#1F1A17"),
                                 ft.Text(item.get("category", ""), size=11, color=SUBTEXT_COLOR),
                             ],
                             spacing=4,
@@ -59,8 +59,8 @@ def _inquiry_card(item):
                     ],
                     vertical_alignment=ft.CrossAxisAlignment.START,
                 ),
-                ft.Text(item.get("content", ""), size=12, color="#5F584F"),
-                ft.Text(item.get("created_at", ""), size=10, color="#C8BAAE"),
+                ft.Text(item.get("content", ""), size=12, color="#2B2420"),
+                ft.Text(item.get("created_at", ""), size=10, color="#B6AAA2"),
             ],
             spacing=10,
         ),
@@ -123,7 +123,7 @@ def render(page, app_state, rerender):
         category = draft.get("category") or INQUIRY_CATEGORIES[0]
 
         if not title or not content:
-            page.snack_bar = ft.SnackBar(content=ft.Text("제목과 내용을 모두 입력해주세요."), bgcolor="#B85C5C")
+            page.snack_bar = ft.SnackBar(content=ft.Text("제목과 내용을 모두 입력해주세요."), bgcolor="#8B6B4F")
             page.snack_bar.open = True
             page.update()
             return

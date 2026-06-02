@@ -48,8 +48,8 @@ def render(page, app_state, rerender):
                 border=ft.border.all(1, "#E6D7C8"),
                 content=ft.Column(
                     controls=[
-                        ft.Text("스타일", size=14, weight=ft.FontWeight.W_500, color="#3B2F27"),
-                        ft.Text(artist["style"], size=12, color="#8A8178"),
+                        ft.Text("스타일", size=14, weight=ft.FontWeight.W_500, color="#1F1A17"),
+                        ft.Text(artist["style"], size=12, color="#786A62"),
                     ],
                     spacing=6,
                 ),
@@ -63,8 +63,8 @@ def render(page, app_state, rerender):
                 border=ft.border.all(1, "#E6D7C8"),
                 content=ft.Column(
                     controls=[
-                        ft.Text("추천 이유", size=14, weight=ft.FontWeight.W_500, color="#3B2F27"),
-                        ft.Text(artist["reason"], size=12, color="#8A8178"),
+                        ft.Text("추천 이유", size=14, weight=ft.FontWeight.W_500, color="#1F1A17"),
+                        ft.Text(artist["reason"], size=12, color="#786A62"),
                     ],
                     spacing=6,
                 ),

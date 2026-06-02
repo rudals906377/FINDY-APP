@@ -4,7 +4,7 @@ import flet as ft
 
 os.environ["FINDY_APP_MODE"] = "artist"
 
-from FINDY324 import ASSETS_DIR, main
+from FINDY import ASSETS_DIR, main
 
 
 if __name__ == "__main__":

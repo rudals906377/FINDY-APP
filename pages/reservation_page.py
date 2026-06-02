@@ -128,7 +128,7 @@ def render(page, app_state, rerender):
         if not form.get("service") or not form.get("date") or not form.get("time"):
             page.snack_bar = ft.SnackBar(
                 content=ft.Text("시술, 날짜, 시간을 선택해주세요."),
-                bgcolor="#B85C5C",
+                bgcolor="#8B6B4F",
             )
             page.snack_bar.open = True
             page.update()

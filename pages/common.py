@@ -34,7 +34,7 @@ def _floating_shadow():
 
 
 def _nav_pill(active: bool):
-    return "#F4ECE3" if active else ft.Colors.TRANSPARENT
+    return ft.Colors.with_opacity(0.08, MAIN_COLOR) if active else ft.Colors.TRANSPARENT
 
 
 def nav_bar(page, render):
@@ -99,7 +99,7 @@ def top_glow():
         height=140,
         top=-30,
         border_radius=999,
-        bgcolor=ft.Colors.with_opacity(0.12, MAIN_COLOR_SOFT),
+        bgcolor=ft.Colors.with_opacity(0.05, MAIN_COLOR),
         blur=60,
     )
 

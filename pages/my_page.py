@@ -16,9 +16,9 @@ def info_tile(title, value, subtitle=""):
         border=ft.border.all(1, "#E6D7C8"),
         content=ft.Column(
             controls=[
-                ft.Text(title, size=12, color="#8A8178"),
-                ft.Text(value, size=18, weight=ft.FontWeight.W_500, color="#3B2F27"),
-                ft.Text(subtitle, size=10, color="#C8BAAE") if subtitle else ft.Container(height=0),
+                ft.Text(title, size=12, color="#786A62"),
+                ft.Text(value, size=18, weight=ft.FontWeight.W_500, color="#1F1A17"),
+                ft.Text(subtitle, size=10, color="#B6AAA2") if subtitle else ft.Container(height=0),
             ],
             spacing=5,
         ),

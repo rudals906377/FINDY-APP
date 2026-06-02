@@ -13,7 +13,7 @@ if not os.environ.get("PYTHONPYCACHEPREFIX"):
     sys.pycache_prefix = cache_prefix
 
 files = [
-    "FINDY324.py",
+    "FINDY.py",
     "FINDY_customer.py",
     "FINDY_artist.py",
     "components/layout.py",

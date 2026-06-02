@@ -29,6 +29,19 @@ def _shadow(config):
         offset=ft.Offset(config["offset_x"], config["offset_y"]),
     )
 
+def _event_handler(callback):
+    if callback is None:
+        return None
+
+    def handler(e):
+        try:
+            return callback(e)
+        except TypeError:
+            return callback()
+
+    return handler
+
+
 def page_header(title, on_back=None, width=None, subtitle=None, trailing=None):
     leading = (
         ft.Container(
@@ -38,7 +51,7 @@ def page_header(title, on_back=None, width=None, subtitle=None, trailing=None):
             bgcolor="#FFFFFF",
             border=ft.border.all(1, BORDER_COLOR),
             alignment=ft.Alignment(0, 0),
-            on_click=on_back,
+            on_click=_event_handler(on_back),
             ink=True,
             shadow=_shadow(SHADOW_SOFT),
             content=ft.Icon(ft.Icons.ARROW_BACK_IOS_NEW_ROUNDED, size=16, color=TEXT_STRONG),
@@ -223,7 +236,7 @@ def soft_button(label, bgcolor, text_color, on_click, border=None, width=300, he
 def chip(label, selected=False, on_click=None):
     return ft.Container(
         padding=ft.padding.symmetric(horizontal=14, vertical=9),
-        bgcolor=MAIN_COLOR_SOFT if selected else CHIP_BG,
+        bgcolor=MAIN_COLOR if selected else CHIP_BG,
         border_radius=PILL_RADIUS,
         border=ft.border.all(1, MAIN_COLOR if selected else BORDER_COLOR),
         on_click=on_click,
@@ -232,7 +245,7 @@ def chip(label, selected=False, on_click=None):
         content=ft.Text(
             label,
             size=12,
-            color=MAIN_COLOR_DARK if selected else TEXT_COLOR,
+            color="#FFFFFF" if selected else TEXT_COLOR,
             weight=ft.FontWeight.W_500 if selected else ft.FontWeight.W_500,
             max_lines=1,
             overflow=ft.TextOverflow.ELLIPSIS,

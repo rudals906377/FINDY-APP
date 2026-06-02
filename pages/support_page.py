@@ -42,8 +42,8 @@ def _info_block(title: str, value: str, subtitle: str = ""):
         content=ft.Column(
             controls=[
                 ft.Text(title, size=11, color=SUBTEXT_COLOR),
-                ft.Text(value, size=15, weight=ft.FontWeight.W_500, color="#3B2F27"),
-                ft.Text(subtitle, size=10, color="#C8BAAE") if subtitle else ft.Container(height=0),
+                ft.Text(value, size=15, weight=ft.FontWeight.W_500, color="#1F1A17"),
+                ft.Text(subtitle, size=10, color="#B6AAA2") if subtitle else ft.Container(height=0),
             ],
             spacing=5,
         ),

@@ -1,1 +1,0 @@
-FINDY324 점검 버전\n\n실행 순서\n1. python smoke_test.py\n2. python main.py\n

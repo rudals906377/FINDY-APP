@@ -1,7 +1,7 @@
 
 import flet as ft
 from components.cards import page_header, soft_button
-from components.layout import CONTENT_WIDTH, SPACE_MD
+from components.layout import CONTENT_WIDTH, SPACE_MD, MAIN_COLOR
 from pages.common import shell
 from core import router
 
@@ -28,7 +28,7 @@ def render(page, app_state, rerender):
                 subtitle="서비스 개선을 도와주세요.",
             ),
             feedback_text,
-            soft_button("의견 보내기", "#000000", "white", submit),
+            soft_button("의견 보내기", MAIN_COLOR, "white", submit),
         ],
         spacing=SPACE_MD,
         horizontal_alignment=ft.CrossAxisAlignment.CENTER,

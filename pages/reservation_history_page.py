@@ -34,12 +34,12 @@ def reservation_card(item, page, app_state, rerender):
         controls.append(
             soft_button(
                 "예약 취소",
-                "#FFF3F0",
-                "#B85C5C",
+                "#FFFFFF",
+                "#8B6B4F",
                 lambda e, rid=item.get("id"): (_cancel(page, app_state, rerender, rid)),
                 width=CONTENT_WIDTH,
                 height=52,
-                border=ft.border.all(1, "#F2D2CC"),
+                border=ft.border.all(1, "#E6D7C8"),
             )
         )
 
