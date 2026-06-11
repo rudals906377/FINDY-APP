@@ -29,8 +29,10 @@ def save_history(items):
     try:
         with open(RESERVATION_STORAGE_PATH, "w", encoding="utf-8") as f:
             json.dump(items, f, ensure_ascii=False, indent=2)
-    except Exception:
-        pass
+        return True
+    except Exception as exc:
+        print(f"Failed to save reservation history: {exc}")
+        return False
 
 def is_reservation_active(item):
     return item.get("status") not in {"예약 취소", "시술 완료"}
@@ -76,15 +78,25 @@ def save_reservation(history, form):
 
     item = build_reservation_item(history, form)
     history.append(item)
-    save_history(history)
+    if not save_history(history):
+        history.remove(item)
+        return None, "예약 저장에 실패했어요. 다시 시도해주세요."
     return item, None
 
 def cancel_reservation(history, reservation_id):
     for item in history:
         if item.get("id") == reservation_id:
+            previous_status = item.get("status")
+            previous_cancelled_at = item.get("cancelled_at")
             item["status"] = "예약 취소"
             item["cancelled_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
-            save_history(history)
+            if not save_history(history):
+                item["status"] = previous_status
+                if previous_cancelled_at is None:
+                    item.pop("cancelled_at", None)
+                else:
+                    item["cancelled_at"] = previous_cancelled_at
+                return None
             return item
     return None
 

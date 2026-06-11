@@ -96,7 +96,10 @@ async def main(page: ft.Page):
             go_back_page(e)
         except Exception:
             try:
-                show_home_page()
+                if is_artist_runtime():
+                    show_artist_main_page()
+                else:
+                    show_home_page()
             except Exception:
                 pass
     def resolve_asset_file(name: str) -> Optional[str]:
@@ -170,11 +173,18 @@ async def main(page: ft.Page):
             "search": "검색",
             "search_results": "전체 보기",
             "artist_trend_analysis": "트렌드 분석",
+            "artist_profile_preview": "아티스트 프로필",
+            "artist_profile_post": "게시물",
             "artist_portfolio_add": "포트폴리오 추가",
             "artist_price_menu": "가격 메뉴",
             "snap_detail": "스냅",
             "support": "고객센터",
             "inquiry": "문의내역",
+            "customer_messages": "메시지",
+            "artist_messages": "메시지",
+            "message_artist_search": "아티스트 검색",
+            "write_artist_message": "메시지 작성",
+            "message_detail": "메시지 상세",
             "completed": "완료한 시술",
             "cancelled_treatments": "취소된 시술",
             "beauty_profile": "나의 뷰티 정보",
@@ -340,6 +350,21 @@ async def main(page: ft.Page):
             "title": "",
             "content": "",
         },
+        "message_threads": [],
+        "active_message_thread_id": None,
+        "message_draft": {
+            "artist_id": None,
+            "category": "스타일 상담",
+            "content": "",
+        },
+        "message_artist_query": "",
+        "message_reply_draft": "",
+        "message_back_target": None,
+        "completion_feedback": None,
+        "artist_approval_status": "approved",
+        "artist_notifications": [],
+        "reported_content_ids": set(),
+        "hidden_content_ids": set(),
         "my_info_expanded_sections": set(),
         "artist_profile_public": True,
         "artist_consulting_enabled": True,
@@ -353,10 +378,12 @@ async def main(page: ft.Page):
             "career": "8년차 헤어 디자이너로 얼굴형과 분위기에 맞는 스타일을 제안해요.",
             "instagram": "@findy_sua",
             "hours": "화-토 11:00 - 20:00",
+            "public": True,
         },
         "artist_portfolio_items": [
             {
                 "id": "portfolio_1",
+                "menu_id": "menu_1",
                 "title": "레이어드컷 + 볼륨펌",
                 "category": "헤어",
                 "style": "감성",
@@ -367,6 +394,7 @@ async def main(page: ft.Page):
             },
             {
                 "id": "portfolio_2",
+                "menu_id": "menu_2",
                 "title": "애쉬그레이 컬러",
                 "category": "헤어",
                 "style": "트렌디",
@@ -379,26 +407,132 @@ async def main(page: ft.Page):
         "artist_price_menu_items": [
             {
                 "id": "menu_1",
-                "name": "레이어드컷 상담",
+                "name": "레이어드컷 + 볼륨펌",
                 "category": "헤어",
-                "duration": "60분",
-                "price": "상담 후 안내",
-                "description": "얼굴형과 길이감을 보고 레이어드 방향을 제안해요.",
+                "duration": "120분",
+                "price": "12만원대",
+                "description": "얼굴형과 길이감에 맞춰 레이어드와 볼륨감을 함께 제안해요.",
                 "available": True,
             },
             {
                 "id": "menu_2",
-                "name": "빌드펌",
+                "name": "애쉬그레이 컬러",
                 "category": "헤어",
-                "duration": "120분",
+                "duration": "150분",
                 "price": "18만원대",
-                "description": "볼륨과 결을 살리는 펌 시술이에요.",
+                "description": "차분하지만 선명한 무드가 살아나는 컬러 시술이에요.",
                 "available": True,
             },
         ],
         "page_history": [],
         "_last_rendered_page": None,
     }
+
+    ARTIST_PROFILE_DEFAULTS = {
+        "name": "OO 아티스트",
+        "field": "헤어 디자이너",
+        "category": "헤어",
+        "region": "강남",
+        "shop": "OO 샵",
+        "mood": "감성 · 트렌디 · 내추럴",
+        "career": "8년차 헤어 디자이너로 얼굴형과 분위기에 맞는 스타일을 제안해요.",
+        "instagram": "@findy_sua",
+        "hours": "화-토 11:00 - 20:00",
+        "public": True,
+    }
+
+    ARTIST_PRICE_MENU_DEFAULTS = {
+        "id": "",
+        "name": "시술명",
+        "category": "헤어",
+        "duration": "상담 후 안내",
+        "price": "상담 후 안내",
+        "description": "아직 상세 설명이 없어요.",
+        "available": True,
+    }
+
+    ARTIST_PORTFOLIO_DEFAULTS = {
+        "id": "",
+        "menu_id": None,
+        "title": "시술명",
+        "category": "헤어",
+        "style": "감성",
+        "duration": "",
+        "price": "상담 후 안내",
+        "description": "사진과 설명을 추가해 대표 스타일을 완성해보세요.",
+        "public": True,
+        "representative": False,
+        "has_photo": False,
+    }
+
+    def _clone_artist_default(value):
+        if isinstance(value, list):
+            return list(value)
+        if isinstance(value, dict):
+            return dict(value)
+        return value
+
+    def ensure_artist_data():
+        profile = app_state.setdefault("artist_profile", {})
+        for key, value in ARTIST_PROFILE_DEFAULTS.items():
+            profile.setdefault(key, _clone_artist_default(value))
+        if "artist_profile_public" in app_state:
+            profile["public"] = bool(app_state["artist_profile_public"])
+        else:
+            app_state["artist_profile_public"] = bool(profile.get("public", True))
+
+        price_menus = app_state.setdefault("artist_price_menu_items", [])
+        for index, menu in enumerate(price_menus, start=1):
+            for key, value in ARTIST_PRICE_MENU_DEFAULTS.items():
+                menu.setdefault(key, _clone_artist_default(value))
+            if not menu.get("id"):
+                menu["id"] = f"menu_{index}"
+
+        menu_by_id = {menu.get("id"): menu for menu in price_menus if menu.get("id")}
+        menu_by_name = {menu.get("name"): menu for menu in price_menus if menu.get("name")}
+
+        portfolio_items = app_state.setdefault("artist_portfolio_items", [])
+        for index, item in enumerate(portfolio_items, start=1):
+            for key, value in ARTIST_PORTFOLIO_DEFAULTS.items():
+                item.setdefault(key, _clone_artist_default(value))
+            if not item.get("id"):
+                item["id"] = f"portfolio_{index}"
+            if not item.get("menu_id"):
+                matched_menu = menu_by_name.get(item.get("title"))
+                if matched_menu:
+                    item["menu_id"] = matched_menu.get("id")
+
+            linked_menu = menu_by_id.get(item.get("menu_id"))
+            if linked_menu:
+                item["title"] = linked_menu.get("name", item.get("title", "시술명"))
+                item["category"] = linked_menu.get("category", item.get("category", "헤어"))
+                item["duration"] = linked_menu.get("duration", item.get("duration", ""))
+                item["price"] = linked_menu.get("price", item.get("price", "상담 후 안내"))
+                item["description"] = item.get("description") or linked_menu.get("description", ARTIST_PORTFOLIO_DEFAULTS["description"])
+
+        return profile
+
+    def get_artist_profile():
+        return ensure_artist_data()
+
+    def get_artist_price_menus(*, available_only=False):
+        ensure_artist_data()
+        items = app_state.setdefault("artist_price_menu_items", [])
+        if available_only:
+            return [item for item in items if item.get("available", True)]
+        return items
+
+    def get_artist_portfolio_items():
+        ensure_artist_data()
+        return app_state.setdefault("artist_portfolio_items", [])
+
+    def get_artist_price_menu_by_id(menu_id):
+        if not menu_id:
+            return None
+        return next((menu for menu in get_artist_price_menus() if menu.get("id") == menu_id), None)
+
+    ensure_artist_data()
+
     subcategories = SUBCATEGORIES
 
     left_overlay_categories = LEFT_OVERLAY_CATEGORIES
@@ -529,6 +663,273 @@ async def main(page: ft.Page):
         )
         page.snack_bar.open = True
         page.update()
+
+    def open_completion_feedback(title, message, next_label, next_page, selected_tab=None, icon_name="CHECK_CIRCLE"):
+        app_state["completion_feedback"] = {
+            "title": title,
+            "message": message,
+            "next_label": next_label,
+            "next_page": next_page,
+            "selected_tab": selected_tab,
+            "icon": icon_name,
+        }
+        if selected_tab is not None:
+            app_state["selected_tab"] = selected_tab
+        app_state["current_page"] = "completion_feedback"
+        render_current_page()
+
+    def record_artist_notification(kind, title, body, target_page=None):
+        notifications = app_state.setdefault("artist_notifications", [])
+        notifications.insert(
+            0,
+            {
+                "id": f"artist:{kind}:{datetime.now().timestamp()}",
+                "kind": kind,
+                "title": title,
+                "body": body,
+                "timestamp": datetime.now(),
+                "target_page": target_page,
+            },
+        )
+
+    def seed_message_threads():
+        threads = app_state.setdefault("message_threads", [])
+        if threads:
+            return threads
+
+        profile = get_artist_profile()
+        threads.append(
+            {
+                "id": "msg_seed_1",
+                "artist_id": "artist_self",
+                "artist_name": profile.get("name", "OO 아티스트"),
+                "artist_category": profile.get("category", "헤어"),
+                "customer_name": "김수아",
+                "category": "스타일 상담",
+                "status": "답장 필요",
+                "updated_at": "오늘 10:20",
+                "messages": [
+                    {
+                        "sender": "customer",
+                        "text": "안녕하세요. 레이어드컷 상담 가능할까요?",
+                        "time": "오늘 10:20",
+                    }
+                ],
+            }
+        )
+        return threads
+
+    def current_message_threads():
+        return seed_message_threads()
+
+    def find_message_thread(thread_id):
+        return next((thread for thread in current_message_threads() if thread.get("id") == thread_id), None)
+
+    def find_message_thread_by_artist(artist_id):
+        if not artist_id:
+            return None
+        return next(
+            (thread for thread in current_message_threads() if thread.get("artist_id") == artist_id),
+            None,
+        )
+
+    def open_message_thread(thread_id, back_target=None):
+        app_state["active_message_thread_id"] = thread_id
+        app_state["message_reply_draft"] = ""
+        app_state["message_back_target"] = back_target or app_state.get("current_page")
+        app_state["current_page"] = "message_detail"
+        render_current_page()
+
+    def start_customer_chat_with_artist(artist, back_target="message_artist_search"):
+        if is_artist_runtime() or is_artist_manage_mode():
+            show_snack("아티스트 모드에서는 고객 메시지를 먼저 작성할 수 없어요.", bgcolor="#B85C5C")
+            return
+        existing_thread = find_message_thread_by_artist(artist.get("id"))
+        if existing_thread:
+            open_message_thread(existing_thread.get("id"), back_target)
+            return
+        app_state["detail_artist"] = artist
+        app_state["message_draft"] = {
+            "artist_id": artist.get("id"),
+            "category": "스타일 상담",
+            "content": "",
+        }
+        app_state["message_back_target"] = back_target
+        show_write_artist_message_page()
+
+    def append_thread_message(thread, sender, text):
+        thread.setdefault("messages", []).append(
+            {
+                "sender": sender,
+                "text": text,
+                "time": datetime.now().strftime("%H:%M"),
+            }
+        )
+        thread["updated_at"] = "방금 전"
+        thread["status"] = "답변 완료" if sender == "artist" else "답장 필요"
+
+    def create_customer_message(artist, category, content):
+        threads = app_state.setdefault("message_threads", [])
+        existing_thread = find_message_thread_by_artist(artist.get("id"))
+        if existing_thread:
+            append_thread_message(existing_thread, "customer", content)
+            existing_thread["category"] = category or existing_thread.get("category", "스타일 상담")
+            if existing_thread in threads:
+                threads.remove(existing_thread)
+            threads.insert(0, existing_thread)
+            record_artist_notification(
+                "message",
+                "새 고객 메시지",
+                f'{existing_thread.get("customer_name", "고객")}님이 추가 메시지를 보냈어요.',
+                target_page="artist_messages",
+            )
+            return existing_thread
+
+        thread_id = f"msg_{len(threads) + 1}_{int(datetime.now().timestamp())}"
+        current_user = app_state.get("current_user") or {}
+        thread = {
+            "id": thread_id,
+            "artist_id": artist.get("id"),
+            "artist_name": artist.get("name", "아티스트"),
+            "artist_category": artist.get("category", "헤어"),
+            "customer_name": current_user.get("nickname", "FINDY 회원"),
+            "category": category or "스타일 상담",
+            "status": "답장 필요",
+            "updated_at": "방금 전",
+            "messages": [
+                {
+                    "sender": "customer",
+                    "text": content,
+                    "time": datetime.now().strftime("%H:%M"),
+                }
+            ],
+        }
+        threads.insert(0, thread)
+        record_artist_notification(
+            "message",
+            "새 고객 메시지",
+            f'{thread["customer_name"]}님이 {thread["category"]} 메시지를 보냈어요.',
+            target_page="artist_messages",
+        )
+        return thread
+
+    def show_completion_feedback_page():
+        clear_transient_ui()
+        close_overlays()
+        feedback = app_state.get("completion_feedback") or {
+            "title": "완료되었어요",
+            "message": "요청한 작업이 저장되었습니다.",
+            "next_label": "돌아가기",
+            "next_page": "home",
+            "selected_tab": app_state.get("selected_tab", 2),
+            "icon": "CHECK_CIRCLE",
+        }
+        selected_tab = feedback.get("selected_tab")
+        if selected_tab is not None:
+            app_state["selected_tab"] = selected_tab
+        app_state["current_page"] = "completion_feedback"
+
+        def go_next(e=None):
+            target = feedback.get("next_page") or "home"
+            app_state["completion_feedback"] = None
+            app_state["current_page"] = target
+            render_current_page()
+
+        body = ft.Column(
+            controls=[
+                page_header("완료", on_back=go_next),
+                ft.Container(height=44),
+                ft.Container(
+                    width=content_width(),
+                    padding=ft.padding.symmetric(horizontal=28, vertical=42),
+                    bgcolor="#FFFFFF",
+                    border_radius=RADIUS_XL,
+                    border=ft.border.all(1, BORDER_COLOR),
+                    content=ft.Column(
+                        controls=[
+                            ft.Container(
+                                width=70,
+                                height=70,
+                                border_radius=999,
+                                bgcolor=MAIN_COLOR_SOFT,
+                                alignment=ft.Alignment(0, 0),
+                                content=ft.Icon(app_icon(feedback.get("icon", "CHECK_CIRCLE")), size=34, color=MAIN_COLOR),
+                            ),
+                            ft.Text(feedback.get("title", "완료되었어요"), size=22, color=TEXT_COLOR, weight=ft.FontWeight.W_800, text_align=ft.TextAlign.CENTER),
+                            ft.Text(feedback.get("message", ""), size=13, color=SUBTEXT_COLOR, height=1.5, text_align=ft.TextAlign.CENTER),
+                            ft.Container(height=10),
+                            soft_button(feedback.get("next_label", "돌아가기"), MAIN_COLOR, "#FFFFFF", go_next, width=content_width() - 56),
+                        ],
+                        spacing=14,
+                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                    ),
+                ),
+                ft.Container(height=24),
+            ],
+            spacing=SPACE_SM,
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+        )
+        make_shell(body, app_state.get("selected_tab", 2))
+
+    def show_artist_approval_pending_page():
+        clear_transient_ui()
+        close_overlays()
+        app_state["current_page"] = "artist_approval_pending"
+        app_state["selected_tab"] = 4
+
+        def back_to_login(e=None):
+            app_state["current_page"] = "artist_login"
+            show_artist_login_page()
+
+        body = ft.Column(
+            controls=[
+                page_header("승인 대기", on_back=back_to_login),
+                ft.Container(height=34),
+                ft.Container(
+                    width=content_width(),
+                    padding=ft.padding.symmetric(horizontal=26, vertical=38),
+                    bgcolor="#FFFFFF",
+                    border_radius=RADIUS_XL,
+                    border=ft.border.all(1, BORDER_COLOR),
+                    content=ft.Column(
+                        controls=[
+                            app_logo_block(width=190, compact=True, show_slogan=False),
+                            ft.Text("아티스트 승인 대기 중", size=22, color=TEXT_COLOR, weight=ft.FontWeight.W_800, text_align=ft.TextAlign.CENTER),
+                            ft.Text(
+                                "명함, 인스타그램, 네이버 플레이스 정보를 확인한 뒤 아티스트 계정을 활성화해요.",
+                                size=13,
+                                color=SUBTEXT_COLOR,
+                                height=1.55,
+                                text_align=ft.TextAlign.CENTER,
+                            ),
+                            ft.Container(height=4),
+                            ft.Container(
+                                width=content_width() - 52,
+                                padding=SPACE_LG,
+                                bgcolor="#FFFFFF",
+                                border_radius=RADIUS_LG,
+                                border=ft.border.all(1, BORDER_COLOR),
+                                content=ft.Column(
+                                    controls=[
+                                        ft.Text("필요 서류", size=13, color=TEXT_COLOR, weight=ft.FontWeight.W_800),
+                                        ft.Text("명함 · 인스타그램 아이디 · 네이버 플레이스 등록 사진", size=12, color=SUBTEXT_COLOR),
+                                        ft.Text("승인 전에는 관리 기능을 사용할 수 없어요.", size=11, color=MAIN_COLOR_DARK),
+                                    ],
+                                    spacing=7,
+                                ),
+                            ),
+                            soft_button("로그인 화면으로", "#FFFFFF", MAIN_COLOR_DARK, back_to_login, border=ft.border.all(1, BORDER_COLOR), width=content_width() - 52),
+                        ],
+                        spacing=16,
+                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                    ),
+                ),
+                ft.Container(height=28),
+            ],
+            spacing=SPACE_SM,
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+        )
+        render_phone_frame(body, None)
 
     def black_image_box(width, height, border_radius=0):
         return ft.Container(
@@ -725,11 +1126,32 @@ async def main(page: ft.Page):
         schedule["services"] = list(artist_schedule.get("services", schedule.get("services") or []) or [])
         return schedule
 
+    def safe_int(value, default=0, minimum=None, maximum=None):
+        try:
+            result = int(value)
+        except (TypeError, ValueError):
+            result = default
+        if minimum is not None:
+            result = max(minimum, result)
+        if maximum is not None:
+            result = min(maximum, result)
+        return result
+
+    def safe_date_fromiso(value, default=None):
+        try:
+            return date.fromisoformat(value)
+        except (TypeError, ValueError):
+            return default
+
     def generate_reservation_slots(artist=None):
         schedule = get_artist_schedule(artist)
-        slot_minutes = max(10, int(schedule.get("slot_minutes", 30) or 30))
-        current_slot = datetime.strptime(schedule.get("start", "09:00"), "%H:%M")
-        slot_end = datetime.strptime(schedule.get("end", "22:00"), "%H:%M")
+        slot_minutes = safe_int(schedule.get("slot_minutes", 30), default=30, minimum=10)
+        try:
+            current_slot = datetime.strptime(schedule.get("start", "09:00"), "%H:%M")
+            slot_end = datetime.strptime(schedule.get("end", "22:00"), "%H:%M")
+        except (TypeError, ValueError):
+            current_slot = datetime.strptime(DEFAULT_ARTIST_SCHEDULE["start"], "%H:%M")
+            slot_end = datetime.strptime(DEFAULT_ARTIST_SCHEDULE["end"], "%H:%M")
         slots = []
         while current_slot <= slot_end:
             slots.append(current_slot.strftime("%H:%M"))
@@ -754,7 +1176,7 @@ async def main(page: ft.Page):
 
     def get_artist_booking_limit_date(artist):
         schedule = get_artist_schedule(artist)
-        booking_days = max(7, int(schedule.get("booking_days", 45) or 45))
+        booking_days = safe_int(schedule.get("booking_days", 45), default=45, minimum=7)
         return date.today() + timedelta(days=booking_days)
 
     def is_date_selectable_for_artist(artist, target_date):
@@ -918,10 +1340,12 @@ async def main(page: ft.Page):
 
     def build_reservation_item_from_form():
         form = get_reservation_form().copy()
+        current_user = app_state.get("current_user") or {}
         return {
             "id": f'r{len(app_state.get("reservation_history", [])) + 1}',
             "artist_id": form.get("artist_id"),
             "artist_name": form.get("artist_name", ""),
+            "customer_name": current_user.get("nickname", "FINDY 회원"),
             "job": form.get("job", ""),
             "category": form.get("category", ""),
             "service": form.get("service", "기본 시술"),
@@ -936,8 +1360,10 @@ async def main(page: ft.Page):
         try:
             with open(RESERVATION_STORAGE_PATH, "w", encoding="utf-8") as f:
                 json.dump(app_state.get("reservation_history", []), f, ensure_ascii=False, indent=2)
+            return True
         except Exception as e:
             print(f"Failed to save reservation history: {e}")
+            return False
 
     def load_reservation_history_from_file():
         if not os.path.exists(RESERVATION_STORAGE_PATH):
@@ -954,9 +1380,18 @@ async def main(page: ft.Page):
     def cancel_reservation(reservation_id):
         for item in app_state.get("reservation_history", []):
             if item.get("id") == reservation_id:
+                previous_status = item.get("status")
+                previous_cancelled_at = item.get("cancelled_at")
                 item["status"] = "예약 취소"
                 item["cancelled_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
-                save_reservation_history_to_file()
+                if not save_reservation_history_to_file():
+                    item["status"] = previous_status
+                    if previous_cancelled_at is None:
+                        item.pop("cancelled_at", None)
+                    else:
+                        item["cancelled_at"] = previous_cancelled_at
+                    show_snack("예약 취소 저장에 실패했어요. 다시 시도해주세요.", bgcolor="#B85C5C")
+                    return None
                 return item
         return None
 
@@ -991,7 +1426,21 @@ async def main(page: ft.Page):
         history = app_state.setdefault("reservation_history", [])
         history.append(reservation_item)
         app_state["last_completed_reservation"] = reservation_item
-        save_reservation_history_to_file()
+        if not save_reservation_history_to_file():
+            history.remove(reservation_item)
+            app_state["last_completed_reservation"] = None
+            show_snack("예약 저장에 실패했어요. 다시 시도해주세요.", bgcolor="#B85C5C")
+            return None
+        record_artist_notification(
+            "artist_reservation",
+            "새 예약이 체결되었어요",
+            (
+                f'{reservation_item.get("customer_name", "고객")} · '
+                f'{reservation_item.get("service", reservation_item.get("category", "시술"))} · '
+                f'{format_reservation_date_text(reservation_item.get("date"), reservation_item.get("time"))}'
+            ),
+            target_page="artist_reservations",
+        )
         return reservation_item
     # Initialize reservation history from file (after helpers are defined)
     try:
@@ -1076,20 +1525,47 @@ async def main(page: ft.Page):
         while history:
             previous_page = history.pop()
             if previous_page and previous_page != app_state.get("current_page"):
+                app_state["_suppress_next_history_record"] = True
                 app_state["current_page"] = previous_page
-                if previous_page == "home":
+                if previous_page == "category":
+                    app_state["selected_tab"] = 0
+                elif previous_page == "home":
                     app_state["selected_tab"] = 2
-                elif previous_page == "snap":
+                elif previous_page in {"snap", "snap_detail", "write_snap"}:
                     app_state["selected_tab"] = 1
-                elif previous_page == "video":
+                elif previous_page in {"video", "video_detail", "write_video"}:
                     app_state["selected_tab"] = 3
-                elif previous_page in {"my", "saved", "reservation_history", "cancelled_treatments", "placeholder_info"}:
+                elif previous_page in {
+                    "customer_messages",
+                    "artist_messages",
+                    "write_artist_message",
+                    "message_detail",
+                }:
+                    app_state["selected_tab"] = 5
+                elif previous_page in {
+                    "my",
+                    "saved",
+                    "reservation_history",
+                    "cancelled_treatments",
+                    "placeholder_info",
+                    "my_reviews",
+                    "my_content",
+                    "saved_content",
+                    "completed",
+                    "beauty_profile",
+                    "notice",
+                    "feedback",
+                    "support",
+                    "inquiry",
+                    "notifications",
+                }:
                     app_state["selected_tab"] = 4
                 elif str(previous_page).startswith("artist_"):
                     app_state["selected_tab"] = 4
                 render_current_page()
                 return
 
+        app_state["_suppress_next_history_record"] = True
         if is_artist_runtime():
             app_state["current_page"] = "artist_main"
             app_state["selected_tab"] = 4
@@ -1101,7 +1577,25 @@ async def main(page: ft.Page):
 
     def render_current_page():
         page_name = app_state.get("current_page", "home")
-        if page_name == "category":
+        if page_name == "opening":
+            show_opening_page()
+        elif page_name == "login":
+            show_login_page()
+        elif page_name == "signup":
+            show_signup_page("user")
+        elif page_name == "artist_login":
+            show_artist_login_page()
+        elif page_name == "artist_signup":
+            show_signup_page("artist")
+        elif page_name == "artist_approval_pending":
+            show_artist_approval_pending_page()
+        elif page_name == "completion_feedback":
+            show_completion_feedback_page()
+        elif page_name == "home_category_transition":
+            show_home_page()
+        elif page_name == "home":
+            show_home_page()
+        elif page_name == "category":
             show_category_page()
         elif page_name == "snap":
             show_snap_page()
@@ -1113,6 +1607,10 @@ async def main(page: ft.Page):
             show_my_page()
         elif page_name == "artist_main":
             show_artist_main_page()
+        elif page_name == "artist_profile_preview":
+            show_artist_profile_preview_page()
+        elif page_name == "artist_profile_post":
+            show_artist_profile_post_page()
         elif page_name == "artist_portfolio":
             show_artist_portfolio_page()
         elif page_name == "artist_portfolio_add":
@@ -1173,6 +1671,16 @@ async def main(page: ft.Page):
             show_support_page()
         elif page_name == "inquiry":
             show_inquiry_page()
+        elif page_name == "customer_messages":
+            show_customer_messages_page()
+        elif page_name == "artist_messages":
+            show_artist_messages_page()
+        elif page_name == "message_artist_search":
+            show_message_artist_search_page()
+        elif page_name == "write_artist_message":
+            show_write_artist_message_page()
+        elif page_name == "message_detail":
+            show_message_detail_page()
         elif page_name == "completed":
             show_completed_page()
         elif page_name == "beauty_profile":
@@ -1184,7 +1692,10 @@ async def main(page: ft.Page):
         elif page_name == "placeholder_info":
             show_placeholder_info_page()
         else:
-            show_home_page()
+            if is_artist_runtime() or is_artist_manage_mode():
+                show_artist_main_page()
+            else:
+                show_home_page()
 
     def go_category_page(e=None):
         clear_transient_ui()
@@ -1713,8 +2224,14 @@ async def main(page: ft.Page):
             app_state["search_results"] = build_category_browse_items(selected_category, "커뮤니티")
             app_state["category_browse_mode"] = True
             app_state["search_results_back_target"] = "category"
-            show_snack("커뮤니티 글이 등록되었어요.")
-            show_search_results_page()
+            open_completion_feedback(
+                "커뮤니티 글이 등록되었어요",
+                "작성한 글은 커뮤니티 목록에서 확인할 수 있어요.",
+                "커뮤니티 보기",
+                "search_results",
+                selected_tab=0,
+                icon_name="FORUM",
+            )
 
         body = ft.Column(
             controls=[
@@ -2447,9 +2964,15 @@ async def main(page: ft.Page):
             }
             cleanup_file_picker()
             app_state.setdefault("written_reviews", []).append(review)
-            show_snack("리뷰가 등록되었어요. 감사합니다!")
             app_state["review_target"] = None
-            show_reservation_history_page()
+            open_completion_feedback(
+                "리뷰가 등록되었어요",
+                "작성한 리뷰는 내 활동과 리뷰 목록에서 확인할 수 있어요.",
+                "예약내역 보기",
+                "reservation_history",
+                selected_tab=4,
+                icon_name="RATE_REVIEW",
+            )
 
         def go_back(e):
             cleanup_file_picker()
@@ -2616,6 +3139,7 @@ async def main(page: ft.Page):
     def make_simple_content_item(content_type, title, subtitle="", description="", badge=None, meta="", source=None):
         return {
             "type": content_type,
+            "id": source.get("id") if isinstance(source, dict) else None,
             "title": title or content_type,
             "subtitle": subtitle or content_type,
             "description": description or "",
@@ -2624,21 +3148,47 @@ async def main(page: ft.Page):
             "source": source,
         }
 
+    def content_identity(item):
+        if not isinstance(item, dict):
+            return str(item)
+        source = item.get("source")
+        if isinstance(source, dict) and source.get("id"):
+            return source.get("id")
+        return item.get("id") or f'{item.get("badge", "content")}:{item.get("title", "")}:{item.get("subtitle", "")}'
+
+    def is_content_hidden(item):
+        return content_identity(item) in app_state.get("hidden_content_ids", set())
+
     def video_key(video):
         return video.get("id") or f'{video.get("category", "")}:{video.get("title", "")}:{video.get("subtitle", "")}'
+
+    def video_duration_seconds(duration):
+        parts = str(duration or "0:00").strip().split(":")
+        try:
+            if len(parts) == 2:
+                return int(parts[0]) * 60 + int(parts[1])
+            if len(parts) == 3:
+                return int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
+            return int(float(parts[0]))
+        except (TypeError, ValueError):
+            return 0
+
+    def is_short_video(video):
+        seconds = video_duration_seconds(video.get("duration", "0:59"))
+        return 0 <= seconds <= 60
 
     def default_video_items():
         return [
             {"id": "video_hair_1", "title": "레이어드컷 완성 과정", "subtitle": "자연스럽게 층 내는 법 총정리", "badge": "SHORTS", "category": "헤어", "duration": "0:58", "views": "3.2만"},
-            {"id": "video_hair_2", "title": "빌드펌 시술 타임랩스", "subtitle": "굵은 웨이브 연출 풀영상", "badge": "REELS", "category": "헤어", "duration": "1:12", "views": "2.8만"},
+            {"id": "video_hair_2", "title": "빌드펌 시술 타임랩스", "subtitle": "굵은 웨이브 연출 하이라이트", "badge": "REELS", "category": "헤어", "duration": "0:59", "views": "2.8만"},
             {"id": "video_makeup_1", "title": "윤광 베이스 메이크업", "subtitle": "5분 완성 데일리 베이스", "badge": "SHORTS", "category": "메이크업", "duration": "0:52", "views": "4.1만"},
-            {"id": "video_makeup_2", "title": "웨딩 피치 메이크업 풀버전", "subtitle": "본식 당일 메이크업 과정", "badge": "TREND", "category": "메이크업", "duration": "2:30", "views": "5.6만"},
+            {"id": "video_makeup_2", "title": "웨딩 피치 메이크업", "subtitle": "본식 당일 메이크업 하이라이트", "badge": "TREND", "category": "메이크업", "duration": "0:57", "views": "5.6만"},
             {"id": "video_nail_1", "title": "글로시 핑크 네일 시술", "subtitle": "아이디어가 되는 네일 무드", "badge": "SHORTS", "category": "네일아트", "duration": "0:45", "views": "2.1만"},
-            {"id": "video_nail_2", "title": "파츠 아트 네일 디테일컷", "subtitle": "트렌드 파츠 배치 영상", "badge": "REELS", "category": "네일아트", "duration": "1:05", "views": "1.9만"},
-            {"id": "video_wedding_1", "title": "브라이드 무드 헤어메이크업", "subtitle": "본식 스타일링 하이라이트", "badge": "TREND", "category": "웨딩", "duration": "2:15", "views": "6.3만"},
-            {"id": "video_wedding_2", "title": "하객 스타일링 루틴", "subtitle": "결혼식 참석룩 완성하기", "badge": "SHORTS", "category": "웨딩", "duration": "1:08", "views": "3.7만"},
-            {"id": "video_photo_1", "title": "감성 프로필 포토 촬영 BTS", "subtitle": "자연광 촬영 세팅 공개", "badge": "REELS", "category": "포토", "duration": "1:40", "views": "2.5만"},
-            {"id": "video_photo_2", "title": "데일리 무드 셀프 촬영법", "subtitle": "폰으로 찍는 감성 포토 팁", "badge": "TREND", "category": "포토", "duration": "2:00", "views": "4.4만"},
+            {"id": "video_nail_2", "title": "파츠 아트 네일 디테일컷", "subtitle": "트렌드 파츠 배치 영상", "badge": "REELS", "category": "네일아트", "duration": "0:55", "views": "1.9만"},
+            {"id": "video_wedding_1", "title": "브라이드 무드 헤어메이크업", "subtitle": "본식 스타일링 하이라이트", "badge": "TREND", "category": "웨딩", "duration": "0:58", "views": "6.3만"},
+            {"id": "video_wedding_2", "title": "하객 스타일링 루틴", "subtitle": "결혼식 참석룩 완성하기", "badge": "SHORTS", "category": "웨딩", "duration": "0:54", "views": "3.7만"},
+            {"id": "video_photo_1", "title": "감성 프로필 포토 촬영 BTS", "subtitle": "자연광 촬영 세팅 공개", "badge": "REELS", "category": "포토", "duration": "0:56", "views": "2.5만"},
+            {"id": "video_photo_2", "title": "데일리 무드 셀프 촬영법", "subtitle": "폰으로 찍는 감성 포토 팁", "badge": "TREND", "category": "포토", "duration": "0:49", "views": "4.4만"},
         ]
 
     def get_all_video_items():
@@ -2647,7 +3197,7 @@ async def main(page: ft.Page):
             copied = item.copy()
             copied.setdefault("id", f"written_video_{idx}")
             written.append(copied)
-        return written + default_video_items()
+        return [item for item in written + default_video_items() if is_short_video(item)]
 
     def open_content_detail(item, back_page="my_content"):
         app_state["content_detail_item"] = item
@@ -2672,6 +3222,17 @@ async def main(page: ft.Page):
                 show_my_content_page()
 
         photos = item.get("photos") or []
+        content_id = content_identity(item)
+
+        def report_content(e=None):
+            app_state.setdefault("reported_content_ids", set()).add(content_id)
+            show_snack("신고가 접수되었어요. 운영팀이 확인할게요.")
+
+        def hide_content(e=None):
+            app_state.setdefault("hidden_content_ids", set()).add(content_id)
+            show_snack("이 글을 숨겼어요.")
+            go_back()
+
         content_controls = [
             page_header(item.get("badge") or "전체글", on_back=go_back),
             ft.Container(
@@ -2729,6 +3290,50 @@ async def main(page: ft.Page):
                     ),
                 )
             )
+        content_controls.append(
+            ft.Container(
+                width=content_width(),
+                content=ft.Row(
+                    controls=[
+                        ft.Container(
+                            expand=True,
+                            padding=ft.padding.symmetric(horizontal=14, vertical=12),
+                            bgcolor="#FFFFFF",
+                            border_radius=999,
+                            border=ft.border.all(1, BORDER_COLOR),
+                            ink=True,
+                            on_click=report_content,
+                            content=ft.Row(
+                                controls=[
+                                    ft.Icon(ft.Icons.FLAG_OUTLINED, size=16, color=SUBTEXT_COLOR),
+                                    ft.Text("신고", size=12, color=SUBTEXT_COLOR, weight=ft.FontWeight.W_700),
+                                ],
+                                spacing=6,
+                                alignment=ft.MainAxisAlignment.CENTER,
+                            ),
+                        ),
+                        ft.Container(
+                            expand=True,
+                            padding=ft.padding.symmetric(horizontal=14, vertical=12),
+                            bgcolor="#FFFFFF",
+                            border_radius=999,
+                            border=ft.border.all(1, BORDER_COLOR),
+                            ink=True,
+                            on_click=hide_content,
+                            content=ft.Row(
+                                controls=[
+                                    ft.Icon(ft.Icons.VISIBILITY_OFF_OUTLINED, size=16, color=SUBTEXT_COLOR),
+                                    ft.Text("숨김", size=12, color=SUBTEXT_COLOR, weight=ft.FontWeight.W_700),
+                                ],
+                                spacing=6,
+                                alignment=ft.MainAxisAlignment.CENTER,
+                            ),
+                        ),
+                    ],
+                    spacing=8,
+                ),
+            )
+        )
         content_controls.append(ft.Container(height=24))
         make_shell(
             ft.Column(controls=content_controls, spacing=SPACE_MD, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
@@ -2800,8 +3405,9 @@ async def main(page: ft.Page):
             page_header(f"내가 쓴 {content_type}", on_back=go_back_page),
             ft.Text(f"작성한 {content_type} 콘텐츠를 모아봤어요.", size=13, color=SUBTEXT_COLOR, width=content_width()),
         ]
-        if items:
-            controls.extend([browse_result_card(item, on_click=open_item(item)) for item in items])
+        visible_items = [item for item in items if not is_content_hidden(item)]
+        if visible_items:
+            controls.extend([browse_result_card(item, on_click=open_item(item)) for item in visible_items])
         else:
             write_target = {"스냅": show_write_snap_page, "비디오": show_write_video_page, "커뮤니티": show_write_community_page}.get(content_type, show_my_page)
             controls.append(
@@ -2869,8 +3475,9 @@ async def main(page: ft.Page):
             page_header(f"저장한 {content_type}", on_back=go_back_page),
             ft.Text(f"저장한 {content_type} 항목을 모아봤어요.", size=13, color=SUBTEXT_COLOR, width=content_width()),
         ]
-        if items:
-            controls.extend([browse_result_card(item, on_click=open_item(item)) for item in items])
+        visible_items = [item for item in items if not is_content_hidden(item)]
+        if visible_items:
+            controls.extend([browse_result_card(item, on_click=open_item(item)) for item in visible_items])
         else:
             controls.append(
                 ft.Container(
@@ -3347,6 +3954,12 @@ async def main(page: ft.Page):
                 "enabled": True,
             },
             {
+                "label": "메시지",
+                "icon_name": "CHAT_BUBBLE_OUTLINE",
+                "action": lambda e: (close_overlays(), show_customer_messages_page()),
+                "enabled": True,
+            },
+            {
                 "label": "고객센터",
                 "icon_name": "SUPPORT_AGENT",
                 "action": lambda e: (close_overlays(), show_support_page()),
@@ -3443,16 +4056,18 @@ async def main(page: ft.Page):
             [
                 nav_item("MENU", "MENU", "카테고리", 0, open_left_menu),
                 nav_item("PHOTO_LIBRARY_OUTLINED", "PHOTO_LIBRARY", "스냅", 1, go_snap_page),
-                nav_item("HOME_OUTLINED", "HOME", "홈", 2, go_home_page),
                 nav_item("SMART_DISPLAY_OUTLINED", "SMART_DISPLAY", "비디오", 3, go_video_page),
+                nav_item("HOME_OUTLINED", "HOME", "홈", 2, go_home_page),
+                nav_item("CHAT_BUBBLE_OUTLINE", "CHAT_BUBBLE", "메시지", 5, show_artist_messages_page),
                 nav_item("PERSON_OUTLINE", "PERSON", "관리", 4, show_artist_main_page),
             ]
             if is_artist_nav
             else [
                 nav_item("MENU", "MENU", "카테고리", 0, open_left_menu),
                 nav_item("PHOTO_LIBRARY_OUTLINED", "PHOTO_LIBRARY", "스냅", 1, go_snap_page),
-                nav_item("HOME_OUTLINED", "HOME", "홈", 2, go_home_page),
                 nav_item("SMART_DISPLAY_OUTLINED", "SMART_DISPLAY", "비디오", 3, go_video_page),
+                nav_item("HOME_OUTLINED", "HOME", "홈", 2, go_home_page),
+                nav_item("CHAT_BUBBLE_OUTLINE", "CHAT_BUBBLE", "메시지", 5, show_customer_messages_page),
                 nav_item("PERSON_OUTLINE", "PERSON", "내정보", 4, open_right_menu),
             ]
         )
@@ -3472,7 +4087,7 @@ async def main(page: ft.Page):
             ),
             content=ft.Row(
                 controls=nav_controls,
-                spacing=10,
+                spacing=6,
                 alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
@@ -3481,19 +4096,60 @@ async def main(page: ft.Page):
         current_page = app_state.get("current_page", "home")
         last_page = app_state.get("_last_rendered_page")
         page_changed = current_page != last_page
+        suppress_history_record = bool(app_state.pop("_suppress_next_history_record", False))
+        auth_transition_pages = {"login", "signup", "artist_login", "artist_signup", "opening"}
+        auth_destination_pages = {"home", "artist_main"}
         if page_changed:
-            if last_page and last_page != current_page and not (last_page == "login" and current_page == "home"):
+            if (
+                not suppress_history_record
+                and last_page
+                and last_page != current_page
+                and not (last_page in auth_transition_pages and current_page in auth_destination_pages)
+            ):
                 history = app_state.setdefault("page_history", [])
                 if not history or history[-1] != last_page:
                     history.append(last_page)
             app_state["_last_rendered_page"] = current_page
         preserve_scroll_pages = {
             "category",
+            "search",
+            "search_results",
             "reservation",
             "reservation_confirm",
             "reservation_complete",
             "my",
+            "saved",
+            "detail",
+            "review",
+            "write_review",
+            "snap",
+            "snap_detail",
+            "write_snap",
+            "write_community",
+            "video",
+            "video_detail",
+            "write_video",
+            "my_content",
+            "saved_content",
+            "content_detail",
+            "reservation_history",
+            "cancelled_treatments",
+            "my_reviews",
+            "completed",
+            "customer_messages",
+            "artist_messages",
+            "message_artist_search",
+            "write_artist_message",
+            "message_detail",
+            "beauty_profile",
+            "notice",
+            "feedback",
+            "support",
+            "inquiry",
+            "notifications",
+            "placeholder_info",
             "artist_main",
+            "artist_profile_preview",
             "artist_portfolio",
             "artist_portfolio_add",
             "artist_profile",
@@ -3508,14 +4164,7 @@ async def main(page: ft.Page):
         nav_spacer = ft.Container(height=nav_safe_bottom)
 
         if current_page in preserve_scroll_pages:
-            if current_page == "my":
-                scroll_offset_key = "my_scroll_offset"
-            elif current_page == "category":
-                scroll_offset_key = "category_scroll_offset"
-            elif current_page.startswith("artist_"):
-                scroll_offset_key = f"{current_page}_scroll_offset"
-            else:
-                scroll_offset_key = "reservation_scroll_offset"
+            scroll_offset_key = f"{current_page}_scroll_offset"
 
             def remember_scroll(e):
                 try:
@@ -3630,7 +4279,7 @@ async def main(page: ft.Page):
 
         if current_page in preserve_scroll_pages and scroll_view is not None:
             async def restore_scroll_position():
-                await asyncio.sleep(0.01)
+                await asyncio.sleep(0.01 if page_changed else 0)
                 try:
                     await scroll_view.scroll_to(
                         offset=app_state.get(scroll_offset_key, 0),
@@ -3953,6 +4602,41 @@ async def main(page: ft.Page):
             else:
                 show_search_results_page()
 
+        def inquiry_click(e):
+            e.stop_propagation = True
+            start_customer_chat_with_artist(artist, "search_results")
+
+        action_controls = [
+            ft.Container(
+                on_click=save_click,
+                ink=True,
+                padding=ft.padding.symmetric(horizontal=12, vertical=8),
+                bgcolor=CHIP_BG,
+                border_radius=4,
+                content=ft.Text("저장됨" if saved else "저장", size=12, color=TEXT_COLOR),
+            )
+        ]
+        if not (is_artist_runtime() or is_artist_manage_mode()):
+            action_controls.append(
+                ft.Container(
+                    on_click=inquiry_click,
+                    ink=True,
+                    padding=ft.padding.symmetric(horizontal=12, vertical=8),
+                    bgcolor="#FFFFFF",
+                    border=ft.border.all(1, BORDER_COLOR),
+                    border_radius=4,
+                    content=ft.Text("메시지", size=12, color=MAIN_COLOR, weight=ft.FontWeight.W_700),
+                )
+            )
+        action_controls.append(
+            ft.Container(
+                padding=ft.padding.symmetric(horizontal=12, vertical=8),
+                bgcolor=MAIN_COLOR,
+                border_radius=4,
+                content=ft.Text("상세보기", size=12, color="white"),
+            )
+        )
+
         return ft.Container(
             width=content_width(),
             bgcolor="#FFFFFF",
@@ -4029,22 +4713,7 @@ async def main(page: ft.Page):
                         wrap=True,
                     ),
                     ft.Row(
-                        controls=[
-                            ft.Container(
-                                on_click=save_click,
-                                ink=True,
-                                padding=ft.padding.symmetric(horizontal=12, vertical=8),
-                                bgcolor=CHIP_BG,
-                                border_radius=4,
-                                content=ft.Text("저장됨" if saved else "저장", size=12, color=TEXT_COLOR),
-                            ),
-                            ft.Container(
-                                padding=ft.padding.symmetric(horizontal=12, vertical=8),
-                                bgcolor=MAIN_COLOR,
-                                border_radius=4,
-                                content=ft.Text("상세보기", size=12, color="white"),
-                            ),
-                        ],
+                        controls=action_controls,
                         spacing=SPACE_MD,
                     ),
                 ],
@@ -4619,7 +5288,17 @@ async def main(page: ft.Page):
                     "role": "artist" if is_artist else "user",
                 }
                 show_snack(f"{provider}로 {role_label} 가입을 진행해요.")
-                show_artist_main_page() if is_artist else show_home_page()
+                if is_artist:
+                    app_state["artist_approval_status"] = "pending"
+                    record_artist_notification(
+                        "artist_approval",
+                        "아티스트 승인 대기 중",
+                        "제출한 정보 확인 후 활동 권한이 열려요.",
+                        "artist_approval_pending",
+                    )
+                    show_artist_approval_pending_page()
+                else:
+                    show_home_page()
             return handler
 
         def open_artist_signup(e):
@@ -4727,6 +5406,7 @@ async def main(page: ft.Page):
                     "nickname": "FINDY 아티스트",
                     "role": "artist",
                 }
+                app_state["artist_approval_status"] = "approved"
                 show_snack("아티스트 계정으로 로그인했어요.")
                 show_artist_main_page()
             return handler
@@ -4909,8 +5589,60 @@ async def main(page: ft.Page):
         result = sorted(unique.values(), key=lambda x: x["timestamp"], reverse=True)
         return result
 
+    def artist_notification_items():
+        now_dt = datetime.now()
+        notices = list(app_state.get("artist_notifications", []))
+        if not notices:
+            notices = [
+                {
+                    "id": "artist_seed_reservation",
+                    "kind": "artist_reservation",
+                    "title": "새 예약이 체결되었어요",
+                    "body": "김수아 · 레이어드컷 상담 · 오늘 11:00",
+                    "timestamp": now_dt - timedelta(minutes=18),
+                    "target_page": "artist_reservations",
+                },
+                {
+                    "id": "artist_seed_review",
+                    "kind": "artist_review",
+                    "title": "새 리뷰가 도착했어요",
+                    "body": "원하던 분위기를 정확하게 잡아줘서 만족했어요.",
+                    "timestamp": now_dt - timedelta(hours=2),
+                    "target_page": "artist_reviews",
+                },
+                {
+                    "id": "artist_seed_inquiry",
+                    "kind": "message",
+                    "title": "고객 메시지가 도착했어요",
+                    "body": "예약 전 상담 가능 여부를 확인해주세요.",
+                    "timestamp": now_dt - timedelta(hours=5),
+                    "target_page": "artist_messages",
+                },
+            ]
+        if app_state.get("artist_approval_status") == "pending":
+            notices.insert(
+                0,
+                {
+                    "id": "artist_approval_pending",
+                    "kind": "artist_approval",
+                    "title": "아티스트 승인 대기 중",
+                    "body": "제출한 정보 확인 후 활동 권한이 열려요.",
+                    "timestamp": now_dt,
+                    "target_page": "artist_approval_pending",
+                },
+            )
+        unique = {}
+        for notice in notices:
+            unique[notice["id"]] = notice
+        return sorted(unique.values(), key=lambda x: x.get("timestamp") or now_dt, reverse=True)
+
+    def current_notification_items():
+        if is_artist_runtime() or is_artist_manage_mode():
+            return artist_notification_items()
+        return reservation_notification_items()
+
     def unread_notification_count():
-        items = reservation_notification_items()
+        items = current_notification_items()
         read_at = app_state.get("notification_read_at")
         if not read_at:
             return len(items)
@@ -4919,7 +5651,7 @@ async def main(page: ft.Page):
     def open_notifications_page(e=None):
         close_overlays()
         app_state["notification_read_at"] = datetime.now()
-        app_state["selected_tab"] = 2
+        app_state["selected_tab"] = 4 if (is_artist_runtime() or is_artist_manage_mode()) else 2
         app_state["current_page"] = "notifications"
         show_notification_page()
 
@@ -5058,7 +5790,7 @@ async def main(page: ft.Page):
 
     def notification_card(item):
         kind = item.get("kind")
-        accent = MAIN_COLOR if kind in {"upcoming", "confirmed", "review_request"} else "#B85C5C"
+        accent = "#B85C5C" if kind == "cancelled" else MAIN_COLOR
         bg = "#FFFFFF" if kind != "cancelled" else "#FFF7F5"
         if kind == "upcoming":
             icon_name = "NOTIFICATIONS_ACTIVE"
@@ -5066,11 +5798,25 @@ async def main(page: ft.Page):
             icon_name = "CHECK_CIRCLE"
         elif kind == "review_request":
             icon_name = "RATE_REVIEW"
+        elif kind == "artist_reservation":
+            icon_name = "EVENT_AVAILABLE"
+        elif kind == "artist_review":
+            icon_name = "RATE_REVIEW"
+        elif kind in ("artist_inquiry", "message", "artist_message"):
+            icon_name = "CHAT_BUBBLE_OUTLINE"
+        elif kind == "artist_approval":
+            icon_name = "VERIFIED"
         else:
             icon_name = "EVENT_BUSY"
 
         def open_notice_target(e=None):
-            if kind == "review_request" and item.get("item"):
+            target_page = item.get("target_page")
+            if target_page:
+                app_state["current_page"] = target_page
+                if target_page.startswith("artist_") or target_page == "support":
+                    app_state["selected_tab"] = 4
+                render_current_page()
+            elif kind == "review_request" and item.get("item"):
                 if is_artist_manage_mode():
                     show_snack("아티스트 계정에서는 리뷰를 작성할 수 없어요.", bgcolor="#B85C5C")
                     return
@@ -5705,8 +6451,14 @@ async def main(page: ft.Page):
             )
             draft["title"] = ""
             draft["content"] = ""
-            show_snack("문의가 접수되었어요.")
-            show_inquiry_page()
+            open_completion_feedback(
+                "문의가 접수되었어요",
+                "문의 내역에서 처리 상태를 확인할 수 있어요.",
+                "문의 내역 보기",
+                "inquiry",
+                selected_tab=4,
+                icon_name="SUPPORT_AGENT",
+            )
 
         category_controls = [
             ft.Container(
@@ -5804,13 +6556,624 @@ async def main(page: ft.Page):
 
         make_shell(body, app_state["selected_tab"])
 
+    def message_thread_card(thread, mode="customer"):
+        messages = thread.get("messages") or []
+        last_message = messages[-1] if messages else {"text": "아직 메시지가 없어요.", "time": ""}
+        title = thread.get("artist_name", "아티스트") if mode == "customer" else thread.get("customer_name", "고객")
+        meta = f'{thread.get("category", "메시지")} · {thread.get("updated_at", "")}'
+        status = thread.get("status", "진행 중")
+
+        return ft.Container(
+            width=content_width(),
+            padding=SPACE_LG,
+            bgcolor="#FFFFFF",
+            border_radius=RADIUS_XL,
+            border=ft.border.all(1, BORDER_COLOR),
+            on_click=lambda e, thread_id=thread.get("id"): open_message_thread(
+                thread_id,
+                "artist_messages" if mode == "artist" else "customer_messages",
+            ),
+            ink=True,
+            content=ft.Row(
+                controls=[
+                    ft.Container(
+                        width=48,
+                        height=48,
+                        border_radius=16,
+                        bgcolor=CHIP_BG,
+                        alignment=ft.Alignment(0, 0),
+                        content=ft.Icon(app_icon("CHAT_BUBBLE_OUTLINE"), color=MAIN_COLOR, size=24),
+                    ),
+                    ft.Column(
+                        controls=[
+                            ft.Row(
+                                controls=[
+                                    ft.Text(title, size=17, color=TEXT_COLOR, weight=ft.FontWeight.W_800, expand=True),
+                                    ft.Container(
+                                        padding=ft.padding.symmetric(horizontal=10, vertical=5),
+                                        bgcolor=MAIN_COLOR if status == "답장 필요" else CHIP_BG,
+                                        border_radius=999,
+                                        content=ft.Text(
+                                            status,
+                                            size=10,
+                                            color="#FFFFFF" if status == "답장 필요" else MAIN_COLOR,
+                                            weight=ft.FontWeight.W_700,
+                                        ),
+                                    ),
+                                ],
+                                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                            ),
+                            ft.Text(meta, size=11, color=SUBTEXT_COLOR),
+                            ft.Text(
+                                last_message.get("text", ""),
+                                size=12,
+                                color=SUBTEXT_COLOR,
+                                max_lines=2,
+                                overflow=ft.TextOverflow.ELLIPSIS,
+                            ),
+                        ],
+                        spacing=5,
+                        expand=True,
+                    ),
+                    ft.Icon(app_icon("CHEVRON_RIGHT"), size=22, color=SUBTEXT_COLOR),
+                ],
+                spacing=12,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
+        )
+
+    def message_header(title, on_back=None, on_search=None):
+        return ft.Row(
+            width=content_width(),
+            controls=[
+                ft.Container(
+                    width=52,
+                    height=52,
+                    border_radius=26,
+                    bgcolor="#FFFFFF",
+                    border=ft.border.all(1, BORDER_COLOR),
+                    alignment=ft.Alignment(0, 0),
+                    on_click=on_back,
+                    ink=True,
+                    content=ft.Icon(app_icon("CHEVRON_LEFT", "ARROW_BACK_IOS_NEW"), size=28, color=TEXT_COLOR),
+                )
+                if on_back
+                else ft.Container(width=52),
+                ft.Text(title, size=30, color=TEXT_COLOR, weight=ft.FontWeight.W_900, expand=True),
+                ft.Container(
+                    width=48,
+                    height=48,
+                    border_radius=24,
+                    bgcolor="#FFFFFF",
+                    border=ft.border.all(1, BORDER_COLOR),
+                    alignment=ft.Alignment(0, 0),
+                    on_click=on_search,
+                    ink=True,
+                    content=ft.Icon(app_icon("SEARCH"), size=24, color=MAIN_COLOR),
+                )
+                if on_search
+                else ft.Container(width=48),
+            ],
+            spacing=10,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+        )
+
+    def message_artist_search_card(artist):
+        existing_thread = find_message_thread_by_artist(artist.get("id"))
+        button_label = "채팅 열기" if existing_thread else "채팅 시작"
+        return ft.Container(
+            width=content_width(),
+            padding=SPACE_LG,
+            bgcolor="#FFFFFF",
+            border_radius=RADIUS_XL,
+            border=ft.border.all(1, BORDER_COLOR),
+            ink=True,
+            on_click=lambda e, item=artist: start_customer_chat_with_artist(item, "message_artist_search"),
+            content=ft.Row(
+                controls=[
+                    ft.Container(width=60, height=60, border_radius=18, bgcolor="#000000"),
+                    ft.Column(
+                        controls=[
+                            ft.Text(artist.get("name", "아티스트"), size=18, weight=ft.FontWeight.W_900, color=TEXT_COLOR),
+                            ft.Text(f'{artist.get("category", "뷰티")} · {artist.get("job", "")}', size=12, color=SUBTEXT_COLOR),
+                            ft.Text(
+                                artist.get("style", artist.get("intro", "")),
+                                size=12,
+                                color=SUBTEXT_COLOR,
+                                max_lines=1,
+                                overflow=ft.TextOverflow.ELLIPSIS,
+                            ),
+                        ],
+                        spacing=4,
+                        expand=True,
+                    ),
+                    ft.Container(
+                        padding=ft.padding.symmetric(horizontal=12, vertical=8),
+                        bgcolor=MAIN_COLOR if not existing_thread else CHIP_BG,
+                        border_radius=999,
+                        content=ft.Text(
+                            button_label,
+                            size=11,
+                            color="#FFFFFF" if not existing_thread else MAIN_COLOR,
+                            weight=ft.FontWeight.W_800,
+                        ),
+                    ),
+                ],
+                spacing=12,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
+        )
+
+    def show_message_artist_search_page():
+        clear_transient_ui()
+        close_overlays()
+        if is_artist_runtime() or is_artist_manage_mode():
+            show_snack("아티스트 모드에서는 고객 메시지를 먼저 작성할 수 없어요.", bgcolor="#B85C5C")
+            show_artist_messages_page()
+            return
+
+        app_state["selected_tab"] = 5
+        app_state["current_page"] = "message_artist_search"
+        query_value = app_state.get("message_artist_query", "")
+
+        query_field = ft.TextField(
+            width=content_width() - 82,
+            value=query_value,
+            hint_text="이름, 분야, 스타일을 검색해보세요",
+            border_radius=18,
+            bgcolor="#FFFFFF",
+            border_color=BORDER_COLOR,
+            focused_border_color=MAIN_COLOR,
+            cursor_color=MAIN_COLOR,
+            prefix_icon=app_icon("SEARCH"),
+            content_padding=16,
+            on_change=lambda e: app_state.__setitem__("message_artist_query", e.control.value or ""),
+            on_submit=lambda e: show_message_artist_search_page(),
+        )
+
+        def apply_search(e=None):
+            app_state["message_artist_query"] = query_field.value or ""
+            show_message_artist_search_page()
+
+        query = (query_value or "").strip().lower()
+
+        def matches_artist(artist):
+            if not query:
+                return True
+            fields = [
+                artist.get("name", ""),
+                artist.get("category", ""),
+                artist.get("job", ""),
+                artist.get("style", ""),
+                artist.get("reason", ""),
+                artist.get("intro", ""),
+                " ".join(artist.get("tags", [])),
+            ]
+            return query in " ".join(fields).lower()
+
+        artists = [artist for artist in base_artists if matches_artist(artist)]
+        artist_cards = [message_artist_search_card(artist) for artist in artists]
+        if not artist_cards:
+            artist_cards = [
+                ft.Container(
+                    width=content_width(),
+                    padding=ft.padding.symmetric(horizontal=18, vertical=30),
+                    bgcolor="#FFFFFF",
+                    border_radius=RADIUS_XL,
+                    border=ft.border.all(1, BORDER_COLOR),
+                    content=ft.Column(
+                        controls=[
+                            ft.Icon(app_icon("SEARCH"), size=36, color=BORDER_COLOR),
+                            ft.Text("검색 결과가 없어요.", size=16, color=TEXT_COLOR, weight=ft.FontWeight.W_800),
+                            ft.Text("다른 이름이나 스타일 키워드로 다시 검색해보세요.", size=12, color=SUBTEXT_COLOR),
+                        ],
+                        spacing=10,
+                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                    ),
+                )
+            ]
+
+        body = ft.Column(
+            controls=[
+                message_header("아티스트 검색", on_back=lambda e: show_customer_messages_page()),
+                ft.Row(
+                    width=content_width(),
+                    controls=[
+                        query_field,
+                        ft.Container(
+                            width=72,
+                            height=54,
+                            border_radius=18,
+                            bgcolor=MAIN_COLOR,
+                            alignment=ft.Alignment(0, 0),
+                            on_click=apply_search,
+                            ink=True,
+                            content=ft.Text("검색", size=13, color="#FFFFFF", weight=ft.FontWeight.W_800),
+                        ),
+                    ],
+                    spacing=10,
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                ),
+                section_title("아티스트", "채팅을 시작할 아티스트를 선택하세요."),
+                *artist_cards,
+                ft.Container(height=24),
+            ],
+            spacing=SPACE_MD,
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+        )
+        make_shell(body, app_state["selected_tab"])
+
+    def show_customer_messages_page():
+        clear_transient_ui()
+        close_overlays()
+        app_state["selected_tab"] = 5
+        app_state["current_page"] = "customer_messages"
+        threads = current_message_threads()
+
+        cards = [message_thread_card(thread, "customer") for thread in threads]
+        if not cards:
+            cards = [
+                ft.Container(
+                    width=content_width(),
+                    padding=ft.padding.symmetric(horizontal=18, vertical=30),
+                    bgcolor="#FFFFFF",
+                    border_radius=RADIUS_XL,
+                    border=ft.border.all(1, BORDER_COLOR),
+                    content=ft.Column(
+                        controls=[
+                            ft.Icon(app_icon("CHAT_BUBBLE_OUTLINE"), size=38, color=BORDER_COLOR),
+                            ft.Text("아직 채팅이 없어요.", size=16, color=TEXT_COLOR, weight=ft.FontWeight.W_700),
+                            ft.Text("오른쪽 상단 검색으로 아티스트를 찾아 채팅을 시작하세요.", size=12, color=SUBTEXT_COLOR, text_align=ft.TextAlign.CENTER),
+                        ],
+                        spacing=10,
+                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                    ),
+                )
+            ]
+
+        body = ft.Column(
+            controls=[
+                message_header("메시지", on_back=go_back_page, on_search=lambda e: show_message_artist_search_page()),
+                ft.Text("예약과 별도로 궁금한 점을 아티스트에게 물어볼 수 있어요.", size=13, color=SUBTEXT_COLOR, width=content_width()),
+                *cards,
+                ft.Container(height=24),
+            ],
+            spacing=SPACE_MD,
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+        )
+        make_shell(body, app_state["selected_tab"])
+
+    def show_artist_messages_page():
+        clear_transient_ui()
+        close_overlays()
+        app_state["selected_tab"] = 5
+        app_state["current_page"] = "artist_messages"
+        threads = current_message_threads()
+
+        cards = [message_thread_card(thread, "artist") for thread in threads]
+        if not cards:
+            cards = [
+                ft.Container(
+                    width=content_width(),
+                    padding=ft.padding.symmetric(horizontal=18, vertical=30),
+                    bgcolor="#FFFFFF",
+                    border_radius=RADIUS_XL,
+                    border=ft.border.all(1, BORDER_COLOR),
+                    content=ft.Column(
+                        controls=[
+                            ft.Icon(app_icon("CHAT_BUBBLE_OUTLINE"), size=38, color=BORDER_COLOR),
+                            ft.Text("새 고객 메시지가 없어요.", size=16, color=TEXT_COLOR, weight=ft.FontWeight.W_700),
+                            ft.Text("고객이 먼저 보낸 메시지만 이곳에 표시돼요.", size=12, color=SUBTEXT_COLOR, text_align=ft.TextAlign.CENTER),
+                        ],
+                        spacing=10,
+                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                    ),
+                )
+            ]
+
+        body = ft.Column(
+            controls=[
+                message_header("메시지", on_back=go_back_page),
+                ft.Text("고객이 먼저 보낸 메시지에 답장할 수 있어요. 예약 관리는 별도 예약 관리에서 진행해요.", size=13, color=SUBTEXT_COLOR, width=content_width()),
+                *cards,
+                ft.Container(height=24),
+            ],
+            spacing=SPACE_MD,
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+        )
+        make_shell(body, app_state["selected_tab"])
+
+    def show_write_artist_message_page():
+        clear_transient_ui()
+        close_overlays()
+        if is_artist_runtime() or is_artist_manage_mode():
+            show_snack("아티스트 모드에서는 고객 메시지를 먼저 작성할 수 없어요.", bgcolor="#B85C5C")
+            show_artist_messages_page()
+            return
+
+        app_state["selected_tab"] = 5
+        app_state["current_page"] = "write_artist_message"
+        draft = app_state.setdefault("message_draft", {"artist_id": None, "category": "스타일 상담", "content": ""})
+        artist = find_artist_by_id(draft.get("artist_id")) or app_state.get("detail_artist") or base_artists[0]
+        categories = ["스타일 상담", "가격 문의", "예약 전 상담", "기타"]
+
+        def go_write_back(e=None):
+            target = app_state.get("message_back_target")
+            if target == "message_artist_search":
+                show_message_artist_search_page()
+            elif target == "search_results":
+                show_search_results_page()
+            elif target == "detail":
+                show_detail_page()
+            else:
+                show_customer_messages_page()
+
+        def select_category(category):
+            def handler(e):
+                draft["category"] = category
+                show_write_artist_message_page()
+            return handler
+
+        content_field = ft.TextField(
+            width=content_width(),
+            value=draft.get("content", ""),
+            hint_text="궁금한 점을 적어주세요. 예약은 별도 예약 화면에서 진행돼요.",
+            multiline=True,
+            min_lines=6,
+            max_lines=9,
+            border_radius=18,
+            bgcolor="#FFFFFF",
+            border_color=BORDER_COLOR,
+            focused_border_color=MAIN_COLOR,
+            cursor_color=MAIN_COLOR,
+            content_padding=16,
+            on_change=lambda e: draft.__setitem__("content", e.control.value or ""),
+        )
+
+        def send_message(e):
+            content = (draft.get("content") or "").strip()
+            if not content:
+                show_snack("메시지 내용을 입력해주세요.", bgcolor="#B85C5C")
+                return
+            thread = create_customer_message(artist, draft.get("category", "스타일 상담"), content)
+            draft["artist_id"] = None
+            draft["category"] = "스타일 상담"
+            draft["content"] = ""
+            app_state["active_message_thread_id"] = thread.get("id")
+            app_state["message_back_target"] = "customer_messages"
+            show_snack("메시지가 전송되었어요.")
+            show_message_detail_page()
+
+        chip_controls = [
+            ft.Container(
+                padding=ft.padding.symmetric(horizontal=14, vertical=10),
+                bgcolor=MAIN_COLOR if draft.get("category") == category else "#FFFFFF",
+                border_radius=999,
+                border=ft.border.all(1, MAIN_COLOR if draft.get("category") == category else BORDER_COLOR),
+                on_click=select_category(category),
+                ink=True,
+                content=ft.Text(
+                    category,
+                    size=12,
+                    color="#FFFFFF" if draft.get("category") == category else TEXT_COLOR,
+                    weight=ft.FontWeight.W_700,
+                ),
+            )
+            for category in categories
+        ]
+
+        body = ft.Column(
+            controls=[
+                page_header("메시지 작성", on_back=go_write_back),
+                ft.Container(
+                    width=content_width(),
+                    padding=SPACE_LG,
+                    bgcolor="#FFFFFF",
+                    border_radius=RADIUS_XL,
+                    border=ft.border.all(1, BORDER_COLOR),
+                    content=ft.Column(
+                        controls=[
+                            ft.Text(artist.get("name", "아티스트"), size=19, weight=ft.FontWeight.W_800, color=TEXT_COLOR),
+                            ft.Text(f'{artist.get("category", "헤어")} · {artist.get("job", "")}', size=12, color=SUBTEXT_COLOR),
+                            ft.Container(height=6),
+                            ft.Text("예약과 메시지는 따로 관리돼요.", size=12, color=MAIN_COLOR, weight=ft.FontWeight.W_700),
+                        ],
+                        spacing=5,
+                    ),
+                ),
+                ft.Container(
+                    width=content_width(),
+                    padding=SPACE_LG,
+                    bgcolor="#FFFFFF",
+                    border_radius=RADIUS_XL,
+                    border=ft.border.all(1, BORDER_COLOR),
+                    content=ft.Column(
+                        controls=[
+                            ft.Text("메시지 유형", size=13, weight=ft.FontWeight.W_800, color=TEXT_COLOR),
+                            ft.Row(controls=chip_controls, wrap=True, spacing=8, run_spacing=8),
+                            ft.Container(height=8),
+                            ft.Text("메시지 내용", size=13, weight=ft.FontWeight.W_800, color=TEXT_COLOR),
+                            content_field,
+                        ],
+                        spacing=10,
+                    ),
+                ),
+                soft_button("메시지 보내기", MAIN_COLOR, "white", send_message),
+                ft.Container(height=24),
+            ],
+            spacing=SPACE_MD,
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+        )
+        make_shell(body, app_state["selected_tab"])
+
+    def show_message_detail_page():
+        clear_transient_ui()
+        close_overlays()
+        app_state["selected_tab"] = 5
+        app_state["current_page"] = "message_detail"
+        thread = find_message_thread(app_state.get("active_message_thread_id"))
+        if not thread:
+            if is_artist_runtime() or is_artist_manage_mode():
+                show_artist_messages_page()
+            else:
+                show_customer_messages_page()
+            return
+
+        is_artist = is_artist_runtime() or is_artist_manage_mode()
+
+        def go_message_back(e=None):
+            target = app_state.get("message_back_target")
+            if target == "detail":
+                show_detail_page()
+            elif target == "search_results":
+                show_search_results_page()
+            elif target == "message_artist_search":
+                show_message_artist_search_page()
+            elif is_artist or target == "artist_messages":
+                show_artist_messages_page()
+            else:
+                show_customer_messages_page()
+
+        def message_bubble(message):
+            own = (is_artist and message.get("sender") == "artist") or ((not is_artist) and message.get("sender") == "customer")
+            sender_label = "아티스트" if message.get("sender") == "artist" else thread.get("customer_name", "고객")
+            return ft.Row(
+                width=content_width(),
+                alignment=ft.MainAxisAlignment.END if own else ft.MainAxisAlignment.START,
+                controls=[
+                    ft.Container(
+                        width=int(content_width() * 0.78),
+                        padding=ft.padding.symmetric(horizontal=14, vertical=12),
+                        bgcolor=MAIN_COLOR if own else "#FFFFFF",
+                        border_radius=18,
+                        border=ft.border.all(1, MAIN_COLOR if own else BORDER_COLOR),
+                        content=ft.Column(
+                            controls=[
+                                ft.Text(
+                                    f'{sender_label} · {message.get("time", "")}',
+                                    size=10,
+                                    color=ft.Colors.with_opacity(0.82, "#FFFFFF") if own else SUBTEXT_COLOR,
+                                ),
+                                ft.Text(
+                                    message.get("text", ""),
+                                    size=13,
+                                    color="#FFFFFF" if own else TEXT_COLOR,
+                                ),
+                            ],
+                            spacing=6,
+                        ),
+                    )
+                ],
+            )
+
+        reply_field = ft.TextField(
+            width=content_width(),
+            value=app_state.get("message_reply_draft", ""),
+            hint_text="고객에게 답장할 내용을 입력해주세요." if is_artist else "추가 메시지를 입력해주세요.",
+            multiline=True,
+            min_lines=3,
+            max_lines=5,
+            border_radius=18,
+            bgcolor="#FFFFFF",
+            border_color=BORDER_COLOR,
+            focused_border_color=MAIN_COLOR,
+            cursor_color=MAIN_COLOR,
+            content_padding=16,
+            on_change=lambda e: app_state.__setitem__("message_reply_draft", e.control.value or ""),
+        )
+
+        def send_reply(e):
+            text = (app_state.get("message_reply_draft") or "").strip()
+            if not text:
+                show_snack("메시지 내용을 입력해주세요.", bgcolor="#B85C5C")
+                return
+            append_thread_message(thread, "artist" if is_artist else "customer", text)
+            if is_artist:
+                snack_text = "고객에게 메시지가 전송되었어요."
+            else:
+                record_artist_notification(
+                    "message",
+                    "새 고객 메시지",
+                    f'{thread.get("customer_name", "고객")}님이 추가 메시지를 보냈어요.',
+                    target_page="artist_messages",
+                )
+                snack_text = "아티스트에게 메시지가 전송되었어요."
+            app_state["message_reply_draft"] = ""
+            show_snack(snack_text)
+            show_message_detail_page()
+
+        body = ft.Column(
+            controls=[
+                page_header("메시지 상세", on_back=go_message_back),
+                ft.Container(
+                    width=content_width(),
+                    padding=SPACE_LG,
+                    bgcolor="#FFFFFF",
+                    border_radius=RADIUS_XL,
+                    border=ft.border.all(1, BORDER_COLOR),
+                    content=ft.Column(
+                        controls=[
+                            ft.Row(
+                                controls=[
+                                    ft.Column(
+                                        controls=[
+                                            ft.Text(
+                                                thread.get("customer_name", "고객") if is_artist else thread.get("artist_name", "아티스트"),
+                                                size=18,
+                                                color=TEXT_COLOR,
+                                                weight=ft.FontWeight.W_800,
+                                            ),
+                                            ft.Text(f'{thread.get("category", "메시지")} · {thread.get("status", "진행 중")}', size=12, color=SUBTEXT_COLOR),
+                                        ],
+                                        spacing=4,
+                                        expand=True,
+                                    ),
+                                    ft.Container(
+                                        padding=ft.padding.symmetric(horizontal=10, vertical=5),
+                                        bgcolor=CHIP_BG,
+                                        border_radius=999,
+                                        content=ft.Text("예약과 별도", size=10, color=MAIN_COLOR, weight=ft.FontWeight.W_700),
+                                    ),
+                                ],
+                                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                            ),
+                            ft.Text("이 메시지는 예약 확정이나 변경 요청이 아니며, 단순 상담 메시지로만 관리돼요.", size=11, color=SUBTEXT_COLOR),
+                        ],
+                        spacing=8,
+                    ),
+                ),
+                ft.Column(controls=[message_bubble(message) for message in thread.get("messages", [])], spacing=10),
+                ft.Container(
+                    width=content_width(),
+                    padding=SPACE_LG,
+                    bgcolor="#FFFFFF",
+                    border_radius=RADIUS_XL,
+                    border=ft.border.all(1, BORDER_COLOR),
+                    content=ft.Column(
+                        controls=[
+                            ft.Text("답장" if is_artist else "추가 메시지", size=13, weight=ft.FontWeight.W_800, color=TEXT_COLOR),
+                            reply_field,
+                            soft_button("메시지 보내기", MAIN_COLOR, "white", send_reply, width=content_width() - 32),
+                        ],
+                        spacing=10,
+                    ),
+                ),
+                ft.Container(height=24),
+            ],
+            spacing=SPACE_MD,
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+        )
+        make_shell(body, app_state["selected_tab"])
+
     def show_notification_page():
         clear_transient_ui()
         close_overlays()
-        app_state["selected_tab"] = 2
+        is_artist_notice = is_artist_runtime() or is_artist_manage_mode()
+        app_state["selected_tab"] = 4 if is_artist_notice else 2
         app_state["current_page"] = "notifications"
         app_state["notification_read_at"] = datetime.now()
-        items = reservation_notification_items()
+        items = current_notification_items()
+        intro_text = "예약 체결, 리뷰, 메시지 알림을 한곳에서 확인해요." if is_artist_notice else "다가오는 예약과 상태 변경 알림을 모아봤어요."
 
         notice_list = [notification_card(item) for item in items]
         if not notice_list:
@@ -5837,7 +7200,7 @@ async def main(page: ft.Page):
                     border=ft.border.all(1, BORDER_COLOR),
                     content=ft.Column(
                         controls=[
-                            ft.Text("다가오는 예약과 상태 변경 알림을 모아봤어요.", size=12, color=SUBTEXT_COLOR),
+                            ft.Text(intro_text, size=12, color=SUBTEXT_COLOR),
                         ],
                         spacing=10,
                     ),
@@ -5903,7 +7266,7 @@ async def main(page: ft.Page):
                                     ),
                                 ),
                                 ft.Text(category_name, size=22, weight=ft.FontWeight.BOLD, color=TEXT_COLOR),
-                                ft.Text("원하는 스타일을 검색할 수 있게 준비 중이에요.", size=12, color=SUBTEXT_COLOR, text_align=ft.TextAlign.CENTER),
+                                ft.Text("검색 결과가 없어요. 다른 키워드로 다시 찾아보세요.", size=12, color=SUBTEXT_COLOR, text_align=ft.TextAlign.CENTER),
                                 ft.ProgressRing(width=30, height=30, color=MAIN_COLOR, stroke_width=3),
                             ],
                             spacing=12,
@@ -7006,7 +8369,7 @@ async def main(page: ft.Page):
         if not options:
             body = ft.Column(
                 controls=[
-                    page_header("스냅 작성", on_back=lambda e: show_snap_page()),
+                    page_header("스냅 작성", on_back=safe_go_back),
                     ft.Container(
                         width=content_width(),
                         padding=SPACE_XL,
@@ -7082,12 +8445,18 @@ async def main(page: ft.Page):
             }
             app_state.setdefault("written_snaps", []).insert(0, snap)
             app_state["snap_filter"] = snap["category"]
-            show_snack("스냅이 등록되었어요.")
-            show_snap_page()
+            open_completion_feedback(
+                "스냅이 등록되었어요",
+                "작성한 스냅은 스냅 화면에서 확인할 수 있어요.",
+                "스냅 보기",
+                "snap",
+                selected_tab=1,
+                icon_name="PHOTO_LIBRARY",
+            )
 
         body = ft.Column(
             controls=[
-                page_header("스냅 작성", on_back=lambda e: show_snap_page()),
+                page_header("스냅 작성", on_back=safe_go_back),
                 artist_panel,
                 ft.Container(
                     width=content_width(),
@@ -7482,7 +8851,7 @@ async def main(page: ft.Page):
 
         body = ft.Column(
             controls=[
-                page_header("비디오", on_back=show_video_page),
+                page_header("비디오", on_back=safe_go_back),
                 ft.Container(
                     width=content_width(),
                     height=260,
@@ -7560,79 +8929,90 @@ async def main(page: ft.Page):
         selected_cat = app_state.get("video_category_filter", "전체")
 
         all_videos = get_all_video_items()
-
         filtered = all_videos if selected_cat == "전체" else [v for v in all_videos if v["category"] == selected_cat]
+        if not filtered:
+            filtered = all_videos
+            selected_cat = "전체"
+            app_state["video_category_filter"] = "전체"
+
+        active_index = max(0, min(app_state.get("active_video_index", 0), len(filtered) - 1))
+        app_state["active_video_index"] = active_index
+        active_video = filtered[active_index]
+        active_key = video_key(active_video)
+        liked_ids = app_state.setdefault("video_liked_keys", set())
+        saved_ids = app_state.setdefault("video_saved_keys", set())
 
         def choose_cat(cat):
             def handler(e):
                 app_state["video_category_filter"] = cat
+                app_state["active_video_index"] = 0
                 show_video_page()
             return handler
 
-        def video_card(v):
+        def move_video(delta):
+            def handler(e):
+                next_index = active_index + delta
+                if next_index < 0 or next_index >= len(filtered):
+                    show_snack("표시할 영상이 더 없어요.")
+                    return
+                app_state["active_video_index"] = next_index
+                show_video_page()
+            return handler
+
+        def toggle_video_like(e):
+            if active_key in liked_ids:
+                liked_ids.discard(active_key)
+            else:
+                liked_ids.add(active_key)
+            show_video_page()
+
+        def toggle_video_save(e):
+            if active_key in saved_ids:
+                saved_ids.discard(active_key)
+            else:
+                saved_ids.add(active_key)
+            show_video_page()
+
+        comment_field = ft.TextField(
+            width=content_width(),
+            hint_text="댓글을 입력해주세요.",
+            border_color=BORDER_COLOR,
+            focused_border_color=MAIN_COLOR,
+            bgcolor="#FFFFFF",
+            border_radius=RADIUS_MD,
+            text_style=ft.TextStyle(size=13, color=TEXT_COLOR),
+            hint_style=ft.TextStyle(size=13, color=SUBTEXT_COLOR),
+        )
+        comment_count = {"value": int(active_video.get("comments", 0) or 0)}
+
+        def submit_video_comment(e):
+            if not (comment_field.value or "").strip():
+                show_snack("댓글을 입력해주세요.", bgcolor="#B85C5C")
+                return
+            comment_count["value"] += 1
+            active_video["comments"] = comment_count["value"]
+            comment_field.value = ""
+            show_snack("댓글이 등록되었어요.")
+            show_video_page()
+
+        def video_action_button(icon_name, label, on_click, active=False, width=106):
             return ft.Container(
-                width=content_width(),
-                height=186,
-                border_radius=28,
-                bgcolor=CARD_COLOR,
-                border=ft.border.all(1, ft.Colors.with_opacity(0.76, BORDER_COLOR)),
-                padding=SPACE_LG,
-                shadow=ft.BoxShadow(
-                    spread_radius=0,
-                    blur_radius=20,
-                    color="#0D8B6B4F",
-                    offset=ft.Offset(0, 9),
-                ),
-                on_click=lambda e, selected_video=v: show_video_detail_page(selected_video),
+                width=width,
+                height=42,
+                bgcolor=MAIN_COLOR if active else "#FFFFFF",
+                border=ft.border.all(1, MAIN_COLOR if active else BORDER_COLOR),
+                border_radius=999,
+                on_click=on_click,
                 ink=True,
-                content=ft.Stack(
+                alignment=ft.Alignment(0, 0),
+                content=ft.Row(
                     controls=[
-                        ft.Container(
-                            alignment=ft.Alignment(0, 0),
-                            content=ft.Icon(ft.Icons.PLAY_CIRCLE_FILL_ROUNDED, size=54, color=MAIN_COLOR),
-                        ),
-                        ft.Container(
-                            left=0,
-                            top=0,
-                            content=ft.Row(
-                                controls=[
-                                    ft.Container(
-                                        padding=ft.padding.symmetric(horizontal=10, vertical=5),
-                                        border_radius=999,
-                                        bgcolor=CHIP_BG,
-                                        border=ft.border.all(1, BORDER_COLOR),
-                                        content=ft.Text(v["badge"], size=10, weight=ft.FontWeight.BOLD, color=TEXT_COLOR),
-                                    ),
-                                    ft.Container(
-                                        padding=ft.padding.symmetric(horizontal=10, vertical=5),
-                                        border_radius=999,
-                                        bgcolor=CARD_COLOR,
-                                        border=ft.border.all(1, BORDER_COLOR),
-                                        content=ft.Text(v["category"], size=10, color=MAIN_COLOR),
-                                    ),
-                                ],
-                                spacing=6,
-                            ),
-                        ),
-                        ft.Container(
-                            left=0,
-                            right=0,
-                            bottom=0,
-                            content=ft.Column(
-                                controls=[
-                                    ft.Text(v["title"], size=15, weight=ft.FontWeight.BOLD, color=TEXT_COLOR),
-                                    ft.Row(
-                                        controls=[
-                                            ft.Text(v["subtitle"], size=12, color=SUBTEXT_COLOR, expand=True),
-                                            ft.Text(f"{v['duration']}  조회 {v['views']}", size=11, color=SUBTEXT_COLOR),
-                                        ],
-                                        alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                                    ),
-                                ],
-                                spacing=4,
-                            ),
-                        ),
-                    ]
+                        ft.Icon(app_icon(icon_name), size=16, color="#FFFFFF" if active else MAIN_COLOR),
+                        ft.Text(label, size=13, color="#FFFFFF" if active else MAIN_COLOR_DARK, weight=ft.FontWeight.W_700),
+                    ],
+                    spacing=6,
+                    alignment=ft.MainAxisAlignment.CENTER,
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
                 ),
             )
 
@@ -7681,9 +9061,114 @@ async def main(page: ft.Page):
             ),
         )
 
+        video_stage_height = 520
+        video_stage = ft.Container(
+            width=content_width(),
+            height=video_stage_height,
+            border_radius=34,
+            clip_behavior=ft.ClipBehavior.HARD_EDGE,
+            bgcolor="#000000",
+            content=ft.Stack(
+                controls=[
+                    black_image_box(content_width(), video_stage_height),
+                    ft.Container(
+                        alignment=ft.Alignment(0, 0),
+                        content=ft.Icon(ft.Icons.PLAY_CIRCLE_FILL_ROUNDED, size=74, color=MAIN_COLOR),
+                    ),
+                    ft.Container(
+                        left=18,
+                        right=18,
+                        bottom=22,
+                        content=ft.Column(
+                            controls=[
+                                ft.Row(
+                                    controls=[
+                                        ft.Container(
+                                            padding=ft.padding.symmetric(horizontal=10, vertical=5),
+                                            bgcolor=ft.Colors.with_opacity(0.86, "#FFFFFF"),
+                                            border_radius=999,
+                                            content=ft.Text(active_video.get("category", "비디오"), size=11, color=MAIN_COLOR_DARK, weight=ft.FontWeight.W_800),
+                                        ),
+                                        ft.Container(
+                                            padding=ft.padding.symmetric(horizontal=10, vertical=5),
+                                            bgcolor=ft.Colors.with_opacity(0.86, "#FFFFFF"),
+                                            border_radius=999,
+                                            content=ft.Text(active_video.get("duration", "0:59"), size=11, color=TEXT_COLOR, weight=ft.FontWeight.W_800),
+                                        ),
+                                    ],
+                                    spacing=8,
+                                ),
+                                ft.Text(active_video.get("title", "비디오"), size=21, color="#FFFFFF", weight=ft.FontWeight.W_800),
+                                ft.Text(active_video.get("subtitle", ""), size=13, color=ft.Colors.with_opacity(0.84, "#FFFFFF")),
+                                ft.Text(f'{active_video.get("badge", "SHORTS")} · 조회 {active_video.get("views", "0")} · 최대 1분', size=12, color=ft.Colors.with_opacity(0.78, "#FFFFFF"), weight=ft.FontWeight.W_600),
+                            ],
+                            spacing=7,
+                        ),
+                    ),
+                ],
+            ),
+        )
+
+        video_meta_card = ft.Container(
+            width=content_width(),
+            padding=SPACE_LG,
+            bgcolor="#FFFFFF",
+            border_radius=RADIUS_LG,
+            border=ft.border.all(1, BORDER_COLOR),
+            content=ft.Column(
+                controls=[
+                    ft.Row(
+                        controls=[
+                            ft.Text(f"{active_index + 1}/{len(filtered)}", size=12, color=SUBTEXT_COLOR, weight=ft.FontWeight.W_700),
+                            ft.Container(expand=True),
+                            ft.Container(
+                                padding=ft.padding.symmetric(horizontal=10, vertical=6),
+                                bgcolor=MAIN_COLOR_SOFT,
+                                border_radius=999,
+                                content=ft.Text("1분 이내 영상", size=11, color=MAIN_COLOR_DARK, weight=ft.FontWeight.W_700),
+                            ),
+                        ],
+                    ),
+                    ft.Row(
+                        controls=[
+                            video_action_button("CHEVRON_LEFT", "이전", move_video(-1), width=86),
+                            video_action_button("FAVORITE_BORDER", "좋아요", toggle_video_like, active=active_key in liked_ids),
+                            video_action_button("BOOKMARK_BORDER", "저장", toggle_video_save, active=active_key in saved_ids),
+                            video_action_button("CHEVRON_RIGHT", "다음", move_video(1), width=86),
+                        ],
+                        spacing=7,
+                        alignment=ft.MainAxisAlignment.CENTER,
+                    ),
+                ],
+                spacing=14,
+            ),
+        )
+
+        comment_card = ft.Container(
+            width=content_width(),
+            padding=SPACE_LG,
+            bgcolor="#FFFFFF",
+            border_radius=RADIUS_LG,
+            border=ft.border.all(1, BORDER_COLOR),
+            content=ft.Column(
+                controls=[
+                    ft.Row(
+                        controls=[
+                            ft.Text("댓글", size=14, weight=ft.FontWeight.W_700, color=TEXT_COLOR),
+                            ft.Container(expand=True),
+                            ft.Text(f"{comment_count['value']}개", size=12, color=SUBTEXT_COLOR, weight=ft.FontWeight.W_700),
+                        ],
+                    ),
+                    comment_field,
+                    soft_button("댓글 등록", MAIN_COLOR, "white", submit_video_comment, width=content_width() - 44),
+                ],
+                spacing=10,
+            ),
+        )
+
         body = ft.Column(
             controls=[
-                tab_page_intro("비디오", "짧고 감도 높은 스타일 영상을 모아봤어요."),
+                tab_page_intro("비디오", "1분 이내 숏폼 영상으로 스타일 흐름을 바로 확인해요."),
                 ft.Container(height=10),
                 write_video_button,
                 ft.Container(
@@ -7691,8 +9176,9 @@ async def main(page: ft.Page):
                     clip_behavior=ft.ClipBehavior.HARD_EDGE,
                     content=cat_chips,
                 ),
-                ft.Container(height=8),
-                *[video_card(v) for v in filtered],
+                video_stage,
+                video_meta_card,
+                comment_card,
                 ft.Container(height=18),
             ],
             spacing=SPACE_MD,
@@ -7793,6 +9279,11 @@ async def main(page: ft.Page):
             if not selected_video_path[0]:
                 show_snack("영상을 선택해주세요.", bgcolor="#B85C5C")
                 return
+            allowed_video_exts = (".mp4", ".mov", ".m4v", ".webm")
+            picked_path = str(selected_video_path[0] or "").lower()
+            if not picked_path.endswith(allowed_video_exts):
+                show_snack("MP4, MOV, M4V, WEBM 영상만 등록할 수 있어요.", bgcolor="#B85C5C")
+                return
             if not title:
                 show_snack("영상 제목을 입력해주세요.", bgcolor="#B85C5C")
                 return
@@ -7801,14 +9292,20 @@ async def main(page: ft.Page):
                 "subtitle": subtitle or "업로드한 스타일 영상",
                 "badge": "UPLOAD",
                 "category": selected_category[0],
-                "duration": "0:00",
+                "duration": "0:59",
                 "views": "0",
                 "video_path": selected_video_path[0],
             })
             app_state["video_category_filter"] = selected_category[0]
             cleanup_file_picker()
-            show_snack("영상이 등록되었어요.")
-            show_video_page()
+            open_completion_feedback(
+                "비디오가 등록되었어요",
+                "작성한 영상은 비디오 화면에서 확인할 수 있어요.",
+                "비디오 보기",
+                "video",
+                selected_tab=3,
+                icon_name="PLAY_CIRCLE",
+            )
 
         body = ft.Column(
             controls=[
@@ -7822,7 +9319,7 @@ async def main(page: ft.Page):
                     content=ft.Column(
                         controls=[
                             ft.Text("영상 파일", size=13, weight=ft.FontWeight.W_600, color=TEXT_COLOR),
-                            ft.Text("MP4, MOV, M4V, WEBM 영상만 선택할 수 있어요.", size=11, color=SUBTEXT_COLOR),
+                            ft.Text("MP4, MOV, M4V, WEBM 형식의 1분 이내 영상만 등록할 수 있어요.", size=11, color=SUBTEXT_COLOR),
                             ft.Container(height=8),
                             ft.Container(
                                 width=content_width(),
@@ -8323,7 +9820,15 @@ async def main(page: ft.Page):
             )
 
         if not filtered_results:
-            empty_text = "조건에 맞는 아티스트가 없어요." if is_artist_mode else ("등록된 목록을 준비 중이에요." if browse_mode else "조건에 맞는 추천 결과를 준비 중이에요.")
+            if is_artist_mode:
+                empty_title = "조건에 맞는 아티스트가 없어요"
+                empty_desc = "카테고리나 검색어를 조금 바꿔서 다시 확인해보세요."
+            elif browse_mode:
+                empty_title = "아직 등록된 목록이 없어요"
+                empty_desc = "FINDY에서 확인할 수 있는 콘텐츠를 차근차근 채우고 있어요."
+            else:
+                empty_title = "조건에 맞는 추천 결과가 없어요"
+                empty_desc = "원하는 무드, 시술명, 지역을 조금 다르게 검색해보세요."
             cards.append(
                 ft.Container(
                     width=content_width(),
@@ -8331,7 +9836,22 @@ async def main(page: ft.Page):
                     bgcolor="#FFFFFF",
                     border_radius=RADIUS_LG,
                     border=ft.border.all(1, BORDER_COLOR),
-                    content=ft.Text(empty_text, size=13, color=SUBTEXT_COLOR),
+                    content=ft.Column(
+                        controls=[
+                            ft.Container(
+                                width=48,
+                                height=48,
+                                border_radius=16,
+                                bgcolor=CHIP_BG,
+                                alignment=ft.Alignment(0, 0),
+                                content=ft.Icon(app_icon("SEARCH", "EXPLORE"), size=22, color=MAIN_COLOR),
+                            ),
+                            ft.Text(empty_title, size=16, weight=ft.FontWeight.W_800, color=TEXT_COLOR),
+                            ft.Text(empty_desc, size=12, color=SUBTEXT_COLOR, text_align=ft.TextAlign.CENTER),
+                        ],
+                        spacing=10,
+                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                    ),
                 )
             )
         else:
@@ -8761,18 +10281,33 @@ async def main(page: ft.Page):
         clear_transient_ui()
         app_state["selected_tab"] = 4
         app_state["current_page"] = "artist_main"
-        profile = app_state["artist_profile"]
-        portfolio_items = app_state.get("artist_portfolio_items", [])
+        profile = get_artist_profile()
+        portfolio_items = get_artist_portfolio_items()
         reviews = [item for item in REVIEW_ITEMS if review_item_category(item) == profile.get("category", "헤어")]
         reservations = upcoming_reservations(limit=3)
+        profile_public = bool(profile.get("public", app_state.get("artist_profile_public", True)))
+        app_state["artist_profile_public"] = profile_public
+        profile["public"] = profile_public
+
+        public_status_text = ft.Text(
+            "공개" if profile_public else "비공개",
+            size=10,
+            color=MAIN_COLOR,
+            weight=ft.FontWeight.W_700,
+        )
+
+        def toggle_artist_profile_public(e):
+            is_public = bool(e.control.value)
+            app_state["artist_profile_public"] = is_public
+            profile["public"] = is_public
+            public_status_text.value = "공개" if is_public else "비공개"
+            public_status_text.update()
+            show_snack("프로필을 공개로 변경했어요." if is_public else "프로필을 비공개로 변경했어요.")
 
         public_switch = ft.Switch(
-            value=app_state.get("artist_profile_public", True),
+            value=profile_public,
             active_color=MAIN_COLOR,
-            on_change=lambda e: (
-                app_state.__setitem__("artist_profile_public", bool(e.control.value)),
-                show_snack("프로필 공개 상태를 변경했어요."),
-            ),
+            on_change=toggle_artist_profile_public,
         )
 
         profile_card = ft.Container(
@@ -8800,7 +10335,7 @@ async def main(page: ft.Page):
                                 padding=ft.padding.symmetric(horizontal=10, vertical=6),
                                 bgcolor=MAIN_COLOR_SOFT,
                                 border_radius=999,
-                                content=ft.Text("공개" if app_state.get("artist_profile_public", True) else "비공개", size=10, color=MAIN_COLOR, weight=ft.FontWeight.W_700),
+                                content=public_status_text,
                             ),
                         ],
                         spacing=12,
@@ -9088,6 +10623,7 @@ async def main(page: ft.Page):
             "노출 신뢰도와 예약 전환에 필요한 정보를 관리해요.",
             [
                 completion,
+                artist_action_card("PERSON_OUTLINE", "프로필 미리보기", "고객에게 보이는 프로필 화면을 확인해요.", lambda e: show_artist_profile_preview_page()),
                 artist_action_card("PERSON_OUTLINE", "프로필 관리", "주요 정보는 컨펌 후 반영하고 소개/링크를 관리해요.", lambda e: show_artist_profile_page()),
                 artist_action_card("PHOTO_LIBRARY_OUTLINED", "포트폴리오 관리", "사진, 대표작, 태그와 공개 상태를 관리해요.", lambda e: show_artist_portfolio_page()),
                 artist_action_card("LIST_ALT", "가격 메뉴 관리", "시술명, 소요 시간, 가격과 예약 가능 여부를 관리해요.", lambda e: show_artist_price_menu_page()),
@@ -9146,6 +10682,7 @@ async def main(page: ft.Page):
                         spacing=4,
                     ),
                 ),
+                artist_action_card("CHAT_BUBBLE_OUTLINE", "고객 메시지", "고객이 보낸 메시지를 확인하고 답장해요.", lambda e: show_artist_messages_page()),
                 artist_action_card("SUPPORT_AGENT", "고객센터", "1:1 문의와 문의 내역을 확인해요.", lambda e: show_support_page()),
             ],
             spacing=SPACE_SM,
@@ -9167,6 +10704,557 @@ async def main(page: ft.Page):
                 ft.Container(height=24),
             ],
             spacing=SPACE_SM,
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+        )
+
+        make_shell(body, app_state["selected_tab"])
+
+    def show_artist_profile_preview_page(e=None):
+        clear_transient_ui()
+        app_state["current_page"] = "artist_profile_preview"
+        app_state["selected_tab"] = 4
+
+        profile = get_artist_profile()
+        portfolio_items = get_artist_portfolio_items()
+        reviews = [
+            item for item in REVIEW_ITEMS
+            if review_item_category(item) == profile.get("category", "헤어")
+        ]
+        public = bool(profile.get("public", app_state.get("artist_profile_public", True)))
+        mood_tags = [
+            tag.strip()
+            for tag in str(profile.get("mood", "감성 · 트렌디 · 내추럴")).replace(",", "·").split("·")
+            if tag.strip()
+        ]
+        if not mood_tags:
+            mood_tags = ["감성", "트렌디", "내추럴"]
+
+        def profile_stat(value, label):
+            return ft.Column(
+                controls=[
+                    ft.Text(str(value), size=18, color=TEXT_COLOR, weight=ft.FontWeight.W_800, text_align=ft.TextAlign.CENTER),
+                    ft.Text(label, size=10, color=TEXT_COLOR, weight=ft.FontWeight.W_700, text_align=ft.TextAlign.CENTER),
+                ],
+                spacing=0,
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                expand=True,
+            )
+
+        def mood_chip(label):
+            return ft.Container(
+                padding=ft.padding.symmetric(horizontal=10, vertical=6),
+                bgcolor=MAIN_COLOR_SOFT,
+                border_radius=999,
+                content=ft.Text(f"#{label}", size=10, color=MAIN_COLOR_DARK, weight=ft.FontWeight.W_700),
+            )
+
+        def profile_action(label, action, filled=False):
+            return ft.Container(
+                expand=True,
+                height=40,
+                border_radius=RADIUS_MD,
+                bgcolor=MAIN_COLOR_DARK if filled else "#FFFFFF",
+                border=ft.border.all(1, MAIN_COLOR_DARK if filled else BORDER_COLOR),
+                alignment=ft.Alignment(0, 0),
+                ink=True,
+                on_click=action,
+                content=ft.Text(
+                    label,
+                    size=12,
+                    color="#FFFFFF" if filled else TEXT_COLOR,
+                    weight=ft.FontWeight.W_800,
+                    text_align=ft.TextAlign.CENTER,
+                ),
+            )
+
+        def highlight_item(label, icon_name, action=None):
+            return ft.Container(
+                width=72,
+                ink=True,
+                on_click=action or (lambda e: show_snack("준비 중인 항목이에요.")),
+                content=ft.Column(
+                    controls=[
+                        ft.Container(
+                            width=58,
+                            height=58,
+                            border_radius=999,
+                            border=ft.border.all(2, BORDER_COLOR),
+                            bgcolor="#FFFFFF",
+                            alignment=ft.Alignment(0, 0),
+                            content=ft.Icon(app_icon(icon_name), size=24, color=MAIN_COLOR_DARK),
+                        ),
+                        ft.Text(label, size=10, color=TEXT_COLOR, weight=ft.FontWeight.W_700, text_align=ft.TextAlign.CENTER),
+                    ],
+                    spacing=3,
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                ),
+            )
+
+        def tab_button(icon_name, active=False, action=None):
+            return ft.Container(
+                expand=True,
+                height=42,
+                alignment=ft.Alignment(0, 0),
+                ink=True,
+                border=ft.border.only(bottom=ft.BorderSide(2, TEXT_COLOR if active else "#FFFFFF")),
+                on_click=action or (lambda e: show_snack("준비 중인 보기 방식이에요.")),
+                content=ft.Icon(app_icon(icon_name), size=22, color=TEXT_COLOR if active else SUBTEXT_COLOR),
+            )
+
+        def open_portfolio_post(index):
+            app_state["artist_profile_post_index"] = index
+            show_artist_profile_post_page()
+
+        def portfolio_tile(item, index, tile_size):
+            views = item.get("views") or f"{max(8, (index + 1) * 13)}"
+            return ft.Container(
+                width=tile_size,
+                height=tile_size,
+                bgcolor="#FFFFFF",
+                clip_behavior=ft.ClipBehavior.HARD_EDGE,
+                ink=True,
+                on_click=lambda e, i=index: open_portfolio_post(i),
+                content=ft.Stack(
+                    controls=[
+                        black_image_box(tile_size, tile_size, 0),
+                        ft.Container(
+                            right=6,
+                            top=6,
+                            padding=ft.padding.all(4),
+                            border_radius=999,
+                            bgcolor="#CC000000",
+                            content=ft.Icon(app_icon("FILTER_NONE"), size=12, color="#FFFFFF"),
+                        ),
+                        ft.Container(
+                            left=6,
+                            bottom=6,
+                            padding=ft.padding.symmetric(horizontal=6, vertical=3),
+                            border_radius=999,
+                            bgcolor="#CC000000",
+                            content=ft.Row(
+                                controls=[
+                                    ft.Icon(app_icon("VISIBILITY_OUTLINED"), size=11, color="#FFFFFF"),
+                                    ft.Text(str(views), size=10, color="#FFFFFF", weight=ft.FontWeight.W_800),
+                                ],
+                                spacing=3,
+                            ),
+                        ),
+                    ],
+                ),
+            )
+
+        def review_preview_card(item):
+            name = review_item_name(item)
+            body = review_item_body(item, "원하던 분위기를 정확하게 잡아줘서 만족했어요.")
+            category = review_item_category(item, profile.get("category", "헤어"))
+            return ft.Container(
+                width=content_width(),
+                padding=SPACE_MD,
+                bgcolor="#FFFFFF",
+                border_radius=RADIUS_LG,
+                border=ft.border.all(1, BORDER_COLOR),
+                content=ft.Column(
+                    controls=[
+                        ft.Row(
+                            controls=[
+                                ft.Container(
+                                    width=38,
+                                    height=38,
+                                    border_radius=999,
+                                    bgcolor=CHIP_BG,
+                                    border=ft.border.all(1, BORDER_COLOR),
+                                    alignment=ft.Alignment(0, 0),
+                                    content=ft.Text(name[:1], size=14, color=MAIN_COLOR_DARK, weight=ft.FontWeight.W_800),
+                                ),
+                                ft.Column(
+                                    controls=[
+                                        ft.Text(name, size=13, color=TEXT_COLOR, weight=ft.FontWeight.W_800),
+                                        ft.Text(category, size=10, color=SUBTEXT_COLOR),
+                                    ],
+                                    spacing=2,
+                                    expand=True,
+                                ),
+                                ft.Text("★★★★★", size=11, color="#E5B34F", weight=ft.FontWeight.W_700),
+                            ],
+                            spacing=10,
+                            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                        ),
+                        ft.Text(body, size=12, color=SUBTEXT_COLOR, height=1.45, max_lines=2, overflow=ft.TextOverflow.ELLIPSIS),
+                    ],
+                    spacing=10,
+                ),
+                ink=True,
+                on_click=lambda e: show_artist_review_manage_page(),
+            )
+
+        tile_size = max(88, int((content_width() - 4) / 3))
+        portfolio_grid_rows = []
+        preview_items = portfolio_items[:9]
+        for index in range(0, len(preview_items), 3):
+            row_items = preview_items[index:index + 3]
+            row_controls = [portfolio_tile(item, index + offset, tile_size) for offset, item in enumerate(row_items)]
+            while len(row_controls) < 3:
+                row_controls.append(ft.Container(width=tile_size, height=tile_size, opacity=0))
+            portfolio_grid_rows.append(
+                ft.Row(
+                    width=content_width(),
+                    controls=row_controls,
+                    spacing=2,
+                    alignment=ft.MainAxisAlignment.START,
+                )
+            )
+
+        portfolio_section_controls = portfolio_grid_rows or [
+            ft.Container(
+                width=content_width(),
+                padding=SPACE_LG,
+                border_radius=RADIUS_LG,
+                border=ft.border.all(1, BORDER_COLOR),
+                bgcolor="#FFFFFF",
+                content=ft.Column(
+                    controls=[
+                        ft.Icon(app_icon("PHOTO_LIBRARY_OUTLINED"), size=28, color=BORDER_COLOR),
+                        ft.Text("아직 공개 포트폴리오가 없어요", size=14, color=TEXT_COLOR, weight=ft.FontWeight.W_800, text_align=ft.TextAlign.CENTER),
+                        ft.Text("포트폴리오 관리에서 대표 작업을 추가해보세요.", size=11, color=SUBTEXT_COLOR, text_align=ft.TextAlign.CENTER),
+                    ],
+                    spacing=8,
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                ),
+            )
+        ]
+
+        body = ft.Column(
+            controls=[
+                page_header("아티스트 프로필", on_back=safe_go_back),
+                ft.Container(
+                    width=content_width(),
+                    padding=SPACE_MD,
+                    bgcolor="#FFFFFF",
+                    content=ft.Column(
+                        controls=[
+                            ft.Row(
+                                controls=[
+                                    ft.Container(
+                                        width=86,
+                                        content=ft.Column(
+                                            controls=[
+                                                ft.Container(
+                                                    width=78,
+                                                    height=78,
+                                                    border_radius=999,
+                                                    border=ft.border.all(1, BORDER_COLOR),
+                                                    clip_behavior=ft.ClipBehavior.HARD_EDGE,
+                                                    content=black_image_box(78, 78, 999),
+                                                ),
+                                                ft.Container(
+                                                    width=30,
+                                                    height=30,
+                                                    margin=ft.margin.only(left=52, top=-30),
+                                                    border_radius=999,
+                                                    bgcolor=TEXT_COLOR,
+                                                    border=ft.border.all(2, "#FFFFFF"),
+                                                    alignment=ft.Alignment(0, 0),
+                                                    content=ft.Icon(app_icon("ADD"), size=18, color="#FFFFFF"),
+                                                ),
+                                            ],
+                                            spacing=0,
+                                        ),
+                                    ),
+                                    ft.Column(
+                                        controls=[
+                                            ft.Text(profile.get("name", "OO 아티스트"), size=13, color=TEXT_COLOR, weight=ft.FontWeight.W_800),
+                                            ft.Row(
+                                                controls=[
+                                                    profile_stat(len(portfolio_items), "게시물"),
+                                                    profile_stat(len(reviews), "리뷰"),
+                                                    profile_stat(max(0, len(portfolio_items) * 37 + len(reviews) * 6), "저장"),
+                                                ],
+                                                spacing=8,
+                                            ),
+                                        ],
+                                        spacing=10,
+                                        expand=True,
+                                    ),
+                                ],
+                                spacing=16,
+                                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                            ),
+                            ft.Column(
+                                controls=[
+                                    ft.Text(profile.get("shop", "OO 샵"), size=13, color=TEXT_COLOR, weight=ft.FontWeight.W_800),
+                                    ft.Text(
+                                        f'{profile.get("field", "헤어 디자이너")} · {profile.get("region", "강남")}',
+                                        size=11,
+                                        color=SUBTEXT_COLOR,
+                                    ),
+                                    ft.Text(profile.get("career", "분위기에 맞는 스타일을 제안해요."), size=12, color=TEXT_COLOR, height=1.35),
+                                    ft.Text(profile.get("instagram", "@findy_artist"), size=12, color=MAIN_COLOR_DARK, weight=ft.FontWeight.W_800),
+                                    ft.Row(controls=[mood_chip(tag) for tag in mood_tags[:4]], spacing=6, wrap=True),
+                                ],
+                                spacing=5,
+                            ),
+                            ft.Row(
+                                controls=[
+                                    profile_action("프로필 편집", lambda e: show_artist_profile_page()),
+                                    profile_action("프로필 공유", lambda e: show_snack("프로필 공유 링크가 복사됐어요.")),
+                                ],
+                                spacing=10,
+                            ),
+                            ft.Row(
+                                controls=[
+                                    highlight_item("New", "ADD", lambda e: show_artist_portfolio_add_page()),
+                                    highlight_item("대표", "STAR_OUTLINE", lambda e: show_artist_portfolio_page()),
+                                    highlight_item("리뷰", "RATE_REVIEW_OUTLINED", lambda e: show_artist_review_manage_page()),
+                                ],
+                                spacing=12,
+                            ),
+                            ft.Row(
+                                width=content_width(),
+                                controls=[
+                                    tab_button("GRID_VIEW", active=True),
+                                    tab_button("SMART_DISPLAY_OUTLINED"),
+                                    tab_button("AUTORENEW"),
+                                    tab_button("PERSON_OUTLINE"),
+                                ],
+                                spacing=0,
+                            ),
+                        ],
+                        spacing=16,
+                    ),
+                ),
+                *portfolio_section_controls,
+                section_title("최근 리뷰", "프로필에서 보이는 고객 반응이에요.", on_click=lambda e: show_artist_review_manage_page()),
+                *(review_preview_card(item) for item in reviews[:3]),
+                ft.Container(height=24),
+            ],
+            spacing=SPACE_MD,
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+        )
+
+        make_shell(body, app_state["selected_tab"])
+
+    def show_artist_profile_post_page(e=None):
+        clear_transient_ui()
+        app_state["current_page"] = "artist_profile_post"
+        app_state["selected_tab"] = 4
+
+        profile = get_artist_profile()
+        items = get_artist_portfolio_items()
+        if not items:
+            items = [
+                {
+                    "id": "sample-portfolio",
+                    "title": "레이어드컷 + 볼륨펌",
+                    "category": profile.get("category", "헤어"),
+                    "style": "감성",
+                    "price": "12만원대",
+                    "description": "자연스럽게 흐르는 층과 부드러운 볼륨을 살린 스타일",
+                }
+            ]
+
+        index = int(app_state.get("artist_profile_post_index", 0) or 0)
+        index = max(0, min(index, len(items) - 1))
+        item = items[index]
+        post_key = str(item.get("id") or item.get("title") or index)
+        liked_key = f"artist_profile_post_liked_{post_key}"
+        saved_key = f"artist_profile_post_saved_{post_key}"
+        comments_key = f"artist_profile_post_comments_{post_key}"
+        comments = app_state.setdefault(comments_key, ["자연스럽게 이어지는 컬러 흐름이 예뻐요."])
+
+        def post_action(icon_name, label, active, action):
+            return ft.Container(
+                padding=ft.padding.symmetric(horizontal=10, vertical=8),
+                border_radius=999,
+                ink=True,
+                on_click=action,
+                content=ft.Row(
+                    controls=[
+                        ft.Icon(app_icon(icon_name), size=22, color=MAIN_COLOR_DARK if active else TEXT_COLOR),
+                        ft.Text(label, size=11, color=MAIN_COLOR_DARK if active else TEXT_COLOR, weight=ft.FontWeight.W_800),
+                    ],
+                    spacing=5,
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                ),
+            )
+
+        def toggle_like(e):
+            app_state[liked_key] = not bool(app_state.get(liked_key, False))
+            show_artist_profile_post_page()
+
+        def toggle_save(e):
+            app_state[saved_key] = not bool(app_state.get(saved_key, False))
+            show_artist_profile_post_page()
+
+        def open_other_post(target_index):
+            app_state["artist_profile_post_index"] = target_index
+            show_artist_profile_post_page()
+
+        comment_field = ft.TextField(
+            hint_text="댓글을 입력해주세요.",
+            border_color=BORDER_COLOR,
+            focused_border_color=MAIN_COLOR_DARK,
+            border_radius=RADIUS_MD,
+            text_size=12,
+            color=TEXT_COLOR,
+            hint_style=ft.TextStyle(size=12, color=SUBTEXT_COLOR),
+            multiline=False,
+            expand=True,
+        )
+
+        def submit_comment(e):
+            text = (comment_field.value or "").strip()
+            if not text:
+                show_snack("댓글을 입력해주세요.")
+                return
+            comments.append(text)
+            show_artist_profile_post_page()
+
+        other_tiles = []
+        for tile_index, tile_item in enumerate(items[:6]):
+            other_tiles.append(
+                ft.Container(
+                    width=78,
+                    height=78,
+                    border_radius=RADIUS_SM,
+                    clip_behavior=ft.ClipBehavior.HARD_EDGE,
+                    ink=True,
+                    on_click=lambda e, i=tile_index: open_other_post(i),
+                    border=ft.border.all(2 if tile_index == index else 0, MAIN_COLOR_DARK if tile_index == index else "#FFFFFF"),
+                    content=black_image_box(78, 78, RADIUS_SM),
+                )
+            )
+
+        body = ft.Column(
+            controls=[
+                page_header("게시물", on_back=lambda e: show_artist_profile_preview_page()),
+                ft.Container(
+                    width=content_width(),
+                    bgcolor="#FFFFFF",
+                    content=ft.Column(
+                        controls=[
+                            ft.Row(
+                                controls=[
+                                    ft.Container(
+                                        width=40,
+                                        height=40,
+                                        border_radius=999,
+                                        border=ft.border.all(1, BORDER_COLOR),
+                                        clip_behavior=ft.ClipBehavior.HARD_EDGE,
+                                        content=black_image_box(40, 40, 999),
+                                    ),
+                                    ft.Column(
+                                        controls=[
+                                            ft.Text(profile.get("name", "OO 아티스트"), size=14, color=TEXT_COLOR, weight=ft.FontWeight.W_800),
+                                            ft.Text(profile.get("shop", "OO 샵"), size=10, color=SUBTEXT_COLOR),
+                                        ],
+                                        spacing=2,
+                                        expand=True,
+                                    ),
+                                    ft.Icon(app_icon("MORE_HORIZ"), size=22, color=TEXT_COLOR),
+                                ],
+                                spacing=10,
+                                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                            ),
+                            ft.Container(
+                                width=content_width(),
+                                height=min(430, int(content_width() * 1.18)),
+                                border_radius=RADIUS_MD,
+                                clip_behavior=ft.ClipBehavior.HARD_EDGE,
+                                content=ft.Stack(
+                                    controls=[
+                                        black_image_box(content_width(), min(430, int(content_width() * 1.18)), RADIUS_MD),
+                                        ft.Container(
+                                            right=12,
+                                            top=12,
+                                            padding=ft.padding.symmetric(horizontal=10, vertical=6),
+                                            border_radius=999,
+                                            bgcolor="#AA000000",
+                                            content=ft.Text("1/3", size=12, color="#FFFFFF", weight=ft.FontWeight.W_800),
+                                        ),
+                                    ],
+                                ),
+                            ),
+                            ft.Row(
+                                controls=[
+                                    post_action("FAVORITE" if app_state.get(liked_key) else "FAVORITE_BORDER", "좋아요", bool(app_state.get(liked_key)), toggle_like),
+                                    post_action("CHAT_BUBBLE_OUTLINE", f"댓글 {len(comments)}", False, lambda e: None),
+                                    post_action("SEND_OUTLINED", "공유", False, lambda e: show_snack("게시물 공유 링크가 복사됐어요.")),
+                                    ft.Container(expand=True),
+                                    post_action("BOOKMARK" if app_state.get(saved_key) else "BOOKMARK_BORDER", "저장", bool(app_state.get(saved_key)), toggle_save),
+                                ],
+                                spacing=2,
+                                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                            ),
+                            ft.Column(
+                                controls=[
+                                    ft.Text(item.get("title") or item.get("name") or "포트폴리오", size=18, color=TEXT_COLOR, weight=ft.FontWeight.W_800),
+                                    ft.Text(
+                                        f'{item.get("category", profile.get("category", "헤어"))} · {item.get("style", "감성")} · {item.get("price", "상담 후 안내")}',
+                                        size=12,
+                                        color=MAIN_COLOR_DARK,
+                                        weight=ft.FontWeight.W_700,
+                                    ),
+                                    ft.Text(item.get("description", "고객 분위기에 맞춰 자연스럽게 완성한 스타일입니다."), size=13, color=TEXT_COLOR, height=1.45),
+                                ],
+                                spacing=6,
+                            ),
+                            ft.Container(height=1, bgcolor=BORDER_COLOR),
+                            ft.Column(
+                                controls=[
+                                    ft.Text("댓글", size=14, color=TEXT_COLOR, weight=ft.FontWeight.W_800),
+                                    *[
+                                        ft.Row(
+                                            controls=[
+                                                ft.Container(
+                                                    width=28,
+                                                    height=28,
+                                                    border_radius=999,
+                                                    bgcolor=CHIP_BG,
+                                                    alignment=ft.Alignment(0, 0),
+                                                    content=ft.Text("고", size=10, color=MAIN_COLOR_DARK, weight=ft.FontWeight.W_800),
+                                                ),
+                                                ft.Text(comment, size=12, color=TEXT_COLOR, expand=True),
+                                            ],
+                                            spacing=8,
+                                        )
+                                        for comment in comments[-3:]
+                                    ],
+                                    ft.Row(
+                                        controls=[
+                                            comment_field,
+                                            ft.Container(
+                                                width=62,
+                                                height=48,
+                                                border_radius=RADIUS_MD,
+                                                bgcolor=MAIN_COLOR_DARK,
+                                                alignment=ft.Alignment(0, 0),
+                                                ink=True,
+                                                on_click=submit_comment,
+                                                content=ft.Text("등록", size=12, color="#FFFFFF", weight=ft.FontWeight.W_800),
+                                            ),
+                                        ],
+                                        spacing=8,
+                                    ),
+                                ],
+                                spacing=10,
+                            ),
+                            ft.Container(
+                                visible=bool(other_tiles),
+                                content=ft.Column(
+                                    controls=[
+                                        ft.Text("다른 포트폴리오", size=14, color=TEXT_COLOR, weight=ft.FontWeight.W_800),
+                                        ft.Row(controls=other_tiles, spacing=6, scroll=ft.ScrollMode.HIDDEN),
+                                    ],
+                                    spacing=10,
+                                ),
+                            ),
+                        ],
+                        spacing=14,
+                    ),
+                ),
+                ft.Container(height=24),
+            ],
+            spacing=SPACE_MD,
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
         )
 
@@ -9689,7 +11777,7 @@ async def main(page: ft.Page):
         )
 
         controls = [
-            page_header("트렌드 분석", on_back=show_home_page),
+            page_header("트렌드 분석", on_back=safe_go_back),
             ft.Container(
                 width=content_width(),
                 content=ft.Text(
@@ -9733,9 +11821,23 @@ async def main(page: ft.Page):
         )
         make_shell(body, app_state["selected_tab"])
 
+    def artist_price_menu_by_id(menu_id):
+        return get_artist_price_menu_by_id(menu_id)
+
     def portfolio_item_card(item, index):
+        linked_menu = artist_price_menu_by_id(item.get("menu_id"))
+        display_title = (linked_menu or {}).get("name") or item.get("title", "시술명")
+        display_category = (linked_menu or {}).get("category") or item.get("category", "-")
+        display_duration = (linked_menu or {}).get("duration") or item.get("duration", "")
+        display_price = (linked_menu or {}).get("price") or item.get("price", "상담 후 안내")
+        display_description = item.get("description") or (linked_menu or {}).get("description") or ""
+        meta_parts = [display_category]
+        if display_duration:
+            meta_parts.append(display_duration)
+        meta_parts.extend([item.get("style", "-"), display_price])
+
         def set_representative(e):
-            for target in app_state["artist_portfolio_items"]:
+            for target in get_artist_portfolio_items():
                 target["representative"] = target["id"] == item["id"]
             show_snack("대표 포트폴리오를 변경했어요.")
             show_artist_portfolio_page()
@@ -9746,7 +11848,7 @@ async def main(page: ft.Page):
 
         def move_item(delta):
             def handler(e):
-                items = app_state["artist_portfolio_items"]
+                items = get_artist_portfolio_items()
                 next_index = index + delta
                 if 0 <= next_index < len(items):
                     items[index], items[next_index] = items[next_index], items[index]
@@ -9754,7 +11856,7 @@ async def main(page: ft.Page):
             return handler
 
         def delete_item(e):
-            app_state["artist_portfolio_items"] = [target for target in app_state["artist_portfolio_items"] if target["id"] != item["id"]]
+            app_state["artist_portfolio_items"] = [target for target in get_artist_portfolio_items() if target["id"] != item["id"]]
             show_snack("포트폴리오를 삭제했어요.")
             show_artist_portfolio_page()
 
@@ -9771,9 +11873,26 @@ async def main(page: ft.Page):
                             ft.Container(width=72, height=72, border_radius=18, bgcolor="#000000"),
                             ft.Column(
                                 controls=[
-                                    ft.Text(item["title"], size=15, weight=ft.FontWeight.W_700, color=TEXT_COLOR),
-                                    ft.Text(f'{item["category"]} · {item["style"]} · {item["price"]}', size=11, color=SUBTEXT_COLOR),
-                                    ft.Text(item["description"], size=11, color=SUBTEXT_COLOR, max_lines=2, overflow=ft.TextOverflow.ELLIPSIS),
+                                    ft.Text(display_title, size=15, weight=ft.FontWeight.W_700, color=TEXT_COLOR),
+                                    ft.Text(" · ".join(meta_parts), size=11, color=SUBTEXT_COLOR),
+                                    ft.Row(
+                                        controls=[
+                                            ft.Container(
+                                                padding=ft.padding.symmetric(horizontal=8, vertical=4),
+                                                bgcolor=MAIN_COLOR_SOFT,
+                                                border_radius=999,
+                                                border=ft.border.all(1, BORDER_COLOR),
+                                                content=ft.Text(
+                                                    "가격 메뉴 연결됨" if linked_menu else "메뉴 연결 필요",
+                                                    size=9,
+                                                    color=MAIN_COLOR_DARK,
+                                                    weight=ft.FontWeight.W_700,
+                                                ),
+                                            ),
+                                        ],
+                                        spacing=4,
+                                    ),
+                                    ft.Text(display_description, size=11, color=SUBTEXT_COLOR, max_lines=2, overflow=ft.TextOverflow.ELLIPSIS),
                                 ],
                                 spacing=4,
                                 expand=True,
@@ -9806,10 +11925,10 @@ async def main(page: ft.Page):
             app_state["current_page"] = "artist_portfolio_add"
             show_artist_portfolio_add_page()
 
-        items = app_state.get("artist_portfolio_items", [])
+        items = get_artist_portfolio_items()
         controls = [
-            page_header("포트폴리오 관리", on_back=show_artist_main_page),
-            ft.Text("사진 업로드, 삭제, 순서 변경, 대표 이미지와 공개 상태를 관리해요.", size=12, color=SUBTEXT_COLOR, width=content_width()),
+            page_header("포트폴리오 관리", on_back=safe_go_back),
+            ft.Text("가격 메뉴를 먼저 만들고, 포트폴리오에서 해당 메뉴를 연결해 노출해요.", size=12, color=SUBTEXT_COLOR, width=content_width()),
             soft_button("포트폴리오 추가", MAIN_COLOR, "#FFFFFF", add_portfolio, width=content_width()),
         ]
         controls.extend([portfolio_item_card(item, index) for index, item in enumerate(items)])
@@ -9823,10 +11942,12 @@ async def main(page: ft.Page):
         app_state["current_page"] = "artist_portfolio_add"
         app_state["selected_tab"] = 4
 
-        selected_category = ["헤어"]
         selected_style = ["감성"]
         selected_photo = [False]
-        category_chips = []
+        menu_items = get_artist_price_menus()
+        selectable_menu_items = get_artist_price_menus(available_only=True) or menu_items
+        selected_menu_id = [selectable_menu_items[0].get("id") if selectable_menu_items else None]
+        menu_option_controls = []
         style_chips = []
 
         def portfolio_field(label, hint, multiline=False):
@@ -9852,11 +11973,7 @@ async def main(page: ft.Page):
                 spacing=8,
             )
 
-        title_group = portfolio_field("시술명", "예: 레이어드컷 + 볼륨펌")
-        price_group = portfolio_field("가격 또는 가격대", "예: 12만원대 / 상담 후 안내")
         description_group = portfolio_field("설명 문구", "스타일 특징, 추천 얼굴형, 유지 팁을 짧게 적어주세요.", multiline=True)
-        title_field = title_group.controls[1]
-        price_field = price_group.controls[1]
         description_field = description_group.controls[1]
 
         public_switch = ft.Switch(value=True, active_color=MAIN_COLOR)
@@ -9937,33 +12054,149 @@ async def main(page: ft.Page):
                 ),
             )
 
+        def refresh_menu_options():
+            for option in menu_option_controls:
+                active = selected_menu_id[0] == option["id"]
+                option["box"].bgcolor = MAIN_COLOR_SOFT if active else "#FFFFFF"
+                option["box"].border = ft.border.all(1.4 if active else 1, MAIN_COLOR if active else BORDER_COLOR)
+                option["title"].color = MAIN_COLOR_DARK if active else TEXT_COLOR
+                option["title"].weight = ft.FontWeight.W_800 if active else ft.FontWeight.W_700
+                option["check"].visible = active
+                try:
+                    option["box"].update()
+                except Exception:
+                    pass
+
+        def choose_menu(menu_id):
+            def handler(e):
+                selected_menu_id[0] = menu_id
+                refresh_menu_options()
+            return handler
+
+        def menu_option(item):
+            active = selected_menu_id[0] == item.get("id")
+            title_text = ft.Text(
+                item.get("name", "시술명"),
+                size=13,
+                color=MAIN_COLOR_DARK if active else TEXT_COLOR,
+                weight=ft.FontWeight.W_800 if active else ft.FontWeight.W_700,
+            )
+            check_icon = ft.Icon(
+                app_icon("CHECK_CIRCLE", "CHECK_CIRCLE"),
+                size=18,
+                color=MAIN_COLOR,
+                visible=active,
+            )
+            box = ft.Container(
+                padding=ft.padding.symmetric(horizontal=14, vertical=12),
+                bgcolor=MAIN_COLOR_SOFT if active else "#FFFFFF",
+                border_radius=18,
+                border=ft.border.all(1.4 if active else 1, MAIN_COLOR if active else BORDER_COLOR),
+                ink=True,
+                on_click=choose_menu(item.get("id")),
+                content=ft.Row(
+                    controls=[
+                        ft.Column(
+                            controls=[
+                                title_text,
+                                ft.Text(
+                                    f'{item.get("category", "-")} · {item.get("duration", "-")} · {item.get("price", "-")}',
+                                    size=10,
+                                    color=SUBTEXT_COLOR,
+                                ),
+                            ],
+                            spacing=3,
+                            expand=True,
+                        ),
+                        check_icon,
+                    ],
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                ),
+            )
+            menu_option_controls.append({"id": item.get("id"), "box": box, "title": title_text, "check": check_icon})
+            return box
+
+        def price_menu_selection_section():
+            if not selectable_menu_items:
+                return ft.Container(
+                    width=content_width(),
+                    padding=SPACE_LG,
+                    bgcolor="#FFFFFF",
+                    border_radius=RADIUS_LG,
+                    border=ft.border.all(1, BORDER_COLOR),
+                    content=ft.Column(
+                        controls=[
+                            ft.Text("연결할 가격 메뉴가 없어요", size=14, color=TEXT_COLOR, weight=ft.FontWeight.W_800),
+                            ft.Text("포트폴리오는 가격 메뉴를 먼저 만든 뒤 연결해서 등록해요.", size=11, color=SUBTEXT_COLOR),
+                            soft_button(
+                                "가격 메뉴 만들기",
+                                MAIN_COLOR,
+                                "#FFFFFF",
+                                lambda e: show_artist_price_menu_page(),
+                                width=content_width() - 44,
+                            ),
+                        ],
+                        spacing=10,
+                    ),
+                )
+
+            return ft.Container(
+                width=content_width(),
+                padding=SPACE_LG,
+                bgcolor="#FFFFFF",
+                border_radius=RADIUS_LG,
+                border=ft.border.all(1, BORDER_COLOR),
+                content=ft.Column(
+                    controls=[
+                        ft.Text("연결할 가격 메뉴", size=12, color=TEXT_COLOR, weight=ft.FontWeight.W_700),
+                        ft.Text("먼저 등록한 시술 메뉴를 선택하면 시술명, 카테고리, 가격이 포트폴리오와 연결돼요.", size=10, color=SUBTEXT_COLOR),
+                        *[menu_option(item) for item in selectable_menu_items],
+                    ],
+                    spacing=8,
+                ),
+            )
+
         def save_portfolio(e):
-            title = (title_field.value or "").strip()
-            if not title:
-                show_snack("시술명을 입력해주세요.", bgcolor="#B85C5C")
+            linked_menu = artist_price_menu_by_id(selected_menu_id[0])
+            if not linked_menu:
+                show_snack("가격 메뉴를 먼저 선택해주세요.", bgcolor="#B85C5C")
                 return
 
-            items = app_state["artist_portfolio_items"]
+            items = get_artist_portfolio_items()
             if representative_switch.value:
                 for target in items:
                     target["representative"] = False
 
             items.insert(0, {
                 "id": f"portfolio_{len(items) + 1}",
-                "title": title,
-                "category": selected_category[0],
+                "menu_id": linked_menu.get("id"),
+                "title": linked_menu.get("name", "시술명"),
+                "category": linked_menu.get("category", "-"),
                 "style": selected_style[0],
-                "price": (price_field.value or "").strip() or "상담 후 안내",
-                "description": (description_field.value or "").strip() or "사진과 설명을 추가해 대표 스타일을 완성해보세요.",
+                "duration": linked_menu.get("duration", ""),
+                "price": linked_menu.get("price", "상담 후 안내"),
+                "description": (description_field.value or "").strip() or linked_menu.get("description") or "사진과 설명을 추가해 대표 스타일을 완성해보세요.",
                 "public": bool(public_switch.value),
                 "representative": bool(representative_switch.value),
                 "has_photo": bool(selected_photo[0]),
             })
-            show_snack("포트폴리오를 추가했어요.")
-            show_artist_portfolio_page()
+            record_artist_notification(
+                "completion",
+                "포트폴리오가 등록되었어요",
+                f"{linked_menu.get('name', '시술명')} · 공개 상태를 확인하세요.",
+                "artist_portfolio",
+            )
+            open_completion_feedback(
+                "포트폴리오가 등록되었어요",
+                "가격 메뉴와 포트폴리오 목록에 반영했어요.",
+                "포트폴리오 관리로",
+                "artist_portfolio",
+                selected_tab=4,
+                icon_name="IMAGE",
+            )
 
         controls = [
-            page_header("포트폴리오 추가", on_back=lambda e: show_artist_portfolio_page()),
+            page_header("포트폴리오 추가", on_back=safe_go_back),
             ft.Container(
                 width=content_width(),
                 padding=SPACE_LG,
@@ -9987,10 +12220,8 @@ async def main(page: ft.Page):
                     vertical_alignment=ft.CrossAxisAlignment.CENTER,
                 ),
             ),
-            tag_section("카테고리 태그", ["헤어", "네일아트", "메이크업", "반영구", "웨딩", "포토"], category_chips, selected_category),
+            price_menu_selection_section(),
             tag_section("스타일 태그", ["감성", "트렌디", "내추럴", "고급스러운", "세련", "러블리"], style_chips, selected_style),
-            title_group,
-            price_group,
             description_group,
             ft.Container(
                 width=content_width(),
@@ -10030,7 +12261,7 @@ async def main(page: ft.Page):
         clear_transient_ui()
         app_state["current_page"] = "artist_profile"
         app_state["selected_tab"] = 4
-        profile = app_state["artist_profile"]
+        profile = get_artist_profile()
 
         def locked_profile_card(label, value):
             return ft.Container(
@@ -10139,14 +12370,14 @@ async def main(page: ft.Page):
         )
 
         def save_profile(e):
-            profile["career"] = (career_field.value or "").strip() or "경력과 소개 문구를 준비 중이에요."
+            profile["career"] = (career_field.value or "").strip() or "경력과 소개 문구를 입력해보세요."
             profile["instagram"] = (instagram_field.value or "").strip() or "@findy_artist"
             profile["hours"] = (hours_field.value or "").strip() or "상담 후 안내"
             app_state["artist_consulting_enabled"] = bool(consultation.value)
             show_snack("소개, 링크, 영업시간을 저장했어요.")
 
         controls = [
-            page_header("프로필 관리", on_back=show_artist_main_page),
+            page_header("프로필 관리", on_back=safe_go_back),
             ft.Container(
                 width=content_width(),
                 padding=SPACE_LG,
@@ -10215,9 +12446,10 @@ async def main(page: ft.Page):
                 return "내일"
             return weekdays[target_date.weekday()]
 
-        month_offset = app_state.get("artist_reservation_month_offset", 0)
+        month_offset = safe_int(app_state.get("artist_reservation_month_offset", 0), default=0, minimum=0)
+        app_state["artist_reservation_month_offset"] = month_offset
         month_anchor = add_months(today.replace(day=1), month_offset)
-        selected_date_obj = date.fromisoformat(selected_date)
+        selected_date_obj = safe_date_fromiso(selected_date, today)
         if selected_date_obj.year != month_anchor.year or selected_date_obj.month != month_anchor.month:
             selected_date_obj = today if today.year == month_anchor.year and today.month == month_anchor.month else month_anchor
             selected_date = selected_date_obj.isoformat()
@@ -10323,6 +12555,16 @@ async def main(page: ft.Page):
             item_key = reservation_key(item)
             return reservation_memos[item_key] if item_key in reservation_memos else item.get("memo", "")
 
+        def record_customer_request(item, request_type, message):
+            app_state.setdefault("artist_customer_requests", []).insert(0, {
+                "type": request_type,
+                "customer": item["customer"],
+                "service": item["service"],
+                "date": item["date"],
+                "time": item["time"],
+                "message": message,
+            })
+
         def current_selected_date():
             return app_state.get("artist_reservation_date", selected_date)
 
@@ -10330,10 +12572,7 @@ async def main(page: ft.Page):
             return app_state.get("artist_reservation_filter", selected_filter)
 
         def current_selected_date_obj():
-            try:
-                return date.fromisoformat(current_selected_date())
-            except Exception:
-                return today
+            return safe_date_fromiso(current_selected_date(), today)
 
         def filtered_items():
             active_date = current_selected_date()
@@ -10368,7 +12607,7 @@ async def main(page: ft.Page):
 
         def change_month(delta):
             def handle(e):
-                next_offset = app_state.get("artist_reservation_month_offset", 0) + delta
+                next_offset = max(0, safe_int(app_state.get("artist_reservation_month_offset", 0), default=0) + delta)
                 next_month = add_months(today.replace(day=1), next_offset)
                 app_state["artist_reservation_month_offset"] = next_offset
                 app_state["artist_reservation_date"] = (today if today.year == next_month.year and today.month == next_month.month else next_month).isoformat()
@@ -10584,6 +12823,7 @@ async def main(page: ft.Page):
             def send_action(message):
                 def handle(e):
                     reservation_actions[item_key] = message
+                    record_customer_request(item, message, message)
                     request_text_value.value = message
                     request_status_box.visible = True
                     request_status_box.update()
@@ -10617,6 +12857,7 @@ async def main(page: ft.Page):
                 message_label = "변경 요청 메시지" if request_kind["value"] == "change" else "취소 요청 메시지"
                 snack_text = "변경 요청" if request_kind["value"] == "change" else "취소 요청"
                 reservation_actions[item_key] = f"{message_label}\n{message_body}"
+                record_customer_request(item, message_label, message_body)
                 request_text_value.value = f"{message_label}\n{message_body}"
                 request_status_box.visible = True
                 request_editor_box.visible = False
@@ -10942,7 +13183,7 @@ async def main(page: ft.Page):
         upcoming_total = len([item for item in reservation_items if item["status"] == "예정"])
 
         controls = [
-            page_header("예약 관리", on_back=show_artist_main_page),
+            page_header("예약 관리", on_back=safe_go_back),
             ft.Row(
                 controls=[
                     summary_card("오늘 예약", f"{len(today_items)}건", "오늘 일정"),
@@ -11095,7 +13336,7 @@ async def main(page: ft.Page):
         save_active_slots()
         body = ft.Column(
             controls=[
-                page_header("예약시간 관리", on_back=show_artist_profile_page),
+                page_header("예약시간 관리", on_back=safe_go_back),
                 ft.Container(
                     width=content_width(),
                     padding=SPACE_LG,
@@ -11154,8 +13395,8 @@ async def main(page: ft.Page):
         app_state["current_page"] = "artist_price_menu"
         app_state["selected_tab"] = 4
 
-        menu_items = app_state.setdefault("artist_price_menu_items", [])
-        selected_category = [app_state.get("artist_profile", {}).get("category", "헤어")]
+        menu_items = get_artist_price_menus()
+        selected_category = [get_artist_profile().get("category", "헤어")]
         category_chip_controls = []
 
         def menu_text_field(label, hint, *, multiline=False):
@@ -11237,7 +13478,7 @@ async def main(page: ft.Page):
                 "category": selected_category[0],
                 "duration": (duration_field.value or "").strip() or "상담 후 안내",
                 "price": (price_field.value or "").strip() or "상담 후 안내",
-                "description": (desc_field.value or "").strip() or "상세 설명을 준비 중이에요.",
+                "description": (desc_field.value or "").strip() or "상세 설명을 입력해보세요.",
                 "available": bool(available_switch.value),
             })
             show_snack("가격 메뉴를 추가했어요.")
@@ -11342,7 +13583,7 @@ async def main(page: ft.Page):
         )
 
         controls = [
-            page_header("가격 메뉴 관리", on_back=show_artist_main_page),
+            page_header("가격 메뉴 관리", on_back=safe_go_back),
             ft.Container(
                 width=content_width(),
                 content=ft.Text("고객에게 노출될 시술명, 소요 시간, 가격, 예약 가능 여부를 정리해요.", size=12, color=SUBTEXT_COLOR),
@@ -11363,10 +13604,10 @@ async def main(page: ft.Page):
         clear_transient_ui()
         app_state["current_page"] = "artist_reviews"
         app_state["selected_tab"] = 4
-        profile = app_state["artist_profile"]
+        profile = get_artist_profile()
         reviews = [item for item in REVIEW_ITEMS if review_item_category(item) == profile.get("category", "헤어")]
         controls = [
-            page_header("리뷰 관리", on_back=show_artist_main_page),
+            page_header("리뷰 관리", on_back=safe_go_back),
             ft.Container(
                 width=content_width(),
                 padding=SPACE_LG,
@@ -11644,7 +13885,8 @@ async def main(page: ft.Page):
         selected_time = form.get("time")
         selected_service = form.get("service")
 
-        month_offset = max(0, app_state.get("reservation_month_offset", 0))
+        month_offset = safe_int(app_state.get("reservation_month_offset", 0), default=0, minimum=0)
+        app_state["reservation_month_offset"] = month_offset
         month_anchor = (date.today().replace(day=1) + timedelta(days=32 * month_offset)).replace(day=1)
         year = month_anchor.year
         month = month_anchor.month
@@ -12093,47 +14335,289 @@ async def main(page: ft.Page):
             show_snack(f'{artist["name"]} 예약 화면으로 이동해요.')
             show_reservation_page()
 
+        def message_click(e):
+            start_customer_chat_with_artist(artist, "detail")
+
         saved = is_saved(artist["id"])
+        review_count = max(1, len([item for item in REVIEW_ITEMS if review_item_category(item) == artist.get("category")]))
+        portfolio_media = [
+            {"type": "photo", "title": f"{artist['style']} 대표컷", "tag": artist["category"]},
+            {"type": "photo", "title": artist["reason"], "tag": artist["tags"][0] if artist.get("tags") else artist["category"]},
+            {"type": "video", "title": f"{artist['category']} 시술 과정", "tag": "영상"},
+            {"type": "photo", "title": artist["intro"], "tag": artist["tags"][1] if len(artist.get("tags", [])) > 1 else "포트폴리오"},
+            {"type": "photo", "title": f"{artist['name']} 무드컷", "tag": "무드"},
+            {"type": "video", "title": "비포 애프터", "tag": "영상"},
+            {"type": "photo", "title": "디테일 컷", "tag": "디테일"},
+            {"type": "photo", "title": "고객 후기 스타일", "tag": "리뷰"},
+            {"type": "photo", "title": "추천 스타일", "tag": "추천"},
+        ]
+
+        def stat_block(label, value):
+            return ft.Container(
+                expand=True,
+                padding=ft.padding.symmetric(vertical=12),
+                border_radius=RADIUS_MD,
+                border=ft.border.all(1, BORDER_COLOR),
+                bgcolor="#FFFFFF",
+                content=ft.Column(
+                    controls=[
+                        ft.Text(str(value), size=18, color=TEXT_COLOR, weight=ft.FontWeight.W_800, text_align=ft.TextAlign.CENTER),
+                        ft.Text(label, size=11, color=SUBTEXT_COLOR, text_align=ft.TextAlign.CENTER),
+                    ],
+                    spacing=3,
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                ),
+            )
+
+        save_icon = ft.Icon(
+            ft.Icons.BOOKMARK if saved else ft.Icons.BOOKMARK_BORDER,
+            size=23,
+            color=MAIN_COLOR if saved else SUBTEXT_COLOR,
+        )
+        save_button = ft.Container(
+            width=54,
+            height=48,
+            border_radius=RADIUS_MD,
+            bgcolor="#FFFFFF",
+            border=ft.border.all(1, MAIN_COLOR if saved else BORDER_COLOR),
+            alignment=ft.Alignment(0, 0),
+            ink=True,
+            content=save_icon,
+        )
+
+        def save_click_local(e):
+            toggle_saved(artist["id"])
+            current = is_saved(artist["id"])
+            save_icon.name = ft.Icons.BOOKMARK if current else ft.Icons.BOOKMARK_BORDER
+            save_icon.color = MAIN_COLOR if current else SUBTEXT_COLOR
+            save_button.border = ft.border.all(1, MAIN_COLOR if current else BORDER_COLOR)
+            save_button.update()
+
+        portfolio_filter = app_state.get("detail_portfolio_filter", "전체")
+        if portfolio_filter not in {"전체", "사진", "영상"}:
+            portfolio_filter = "전체"
+            app_state["detail_portfolio_filter"] = portfolio_filter
+
+        filter_row = ft.Row(spacing=8, scroll=ft.ScrollMode.HIDDEN)
+        portfolio_grid = ft.Column(spacing=8, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+
+        def selected_media(filter_name):
+            if filter_name == "사진":
+                return [item for item in portfolio_media if item["type"] == "photo"]
+            if filter_name == "영상":
+                return [item for item in portfolio_media if item["type"] == "video"]
+            return portfolio_media
+
+        def portfolio_tile(media, tile_w):
+            is_video = media["type"] == "video"
+            return ft.Container(
+                width=tile_w,
+                height=tile_w,
+                border_radius=RADIUS_MD,
+                clip_behavior=ft.ClipBehavior.HARD_EDGE,
+                bgcolor="#000000",
+                content=ft.Stack(
+                    controls=[
+                        black_image_box(tile_w, tile_w, RADIUS_MD),
+                        ft.Container(
+                            left=7,
+                            top=7,
+                            padding=ft.padding.symmetric(horizontal=7, vertical=4),
+                            bgcolor=ft.Colors.with_opacity(0.82, "#FFFFFF"),
+                            border_radius=999,
+                            content=ft.Text(media["tag"], size=9, color=TEXT_COLOR, weight=ft.FontWeight.W_600, max_lines=1),
+                        ),
+                        ft.Container(
+                            right=8,
+                            top=8,
+                            visible=is_video,
+                            content=ft.Icon(ft.Icons.PLAY_CIRCLE_FILLED_ROUNDED, size=20, color="#FFFFFF"),
+                        ),
+                        ft.Container(
+                            left=0,
+                            right=0,
+                            bottom=0,
+                            padding=ft.padding.symmetric(horizontal=8, vertical=8),
+                            bgcolor=ft.Colors.with_opacity(0.62, "#000000"),
+                            content=ft.Text(
+                                media["title"],
+                                size=10,
+                                color="#FFFFFF",
+                                weight=ft.FontWeight.W_600,
+                                max_lines=2,
+                                overflow=ft.TextOverflow.ELLIPSIS,
+                            ),
+                        ),
+                    ],
+                ),
+            )
+
+        def build_grid_controls(filter_name):
+            items = selected_media(filter_name)
+            tile_w = int((content_width() - 16) / 3)
+            rows = []
+            for index in range(0, len(items), 3):
+                row_items = items[index:index + 3]
+                controls = [portfolio_tile(item, tile_w) for item in row_items]
+                while len(controls) < 3:
+                    controls.append(ft.Container(width=tile_w, height=tile_w, opacity=0))
+                rows.append(
+                    ft.Row(
+                        width=content_width(),
+                        controls=controls,
+                        spacing=8,
+                        alignment=ft.MainAxisAlignment.START,
+                    )
+                )
+            return rows
+
+        def portfolio_filter_chip(label):
+            active = app_state.get("detail_portfolio_filter", "전체") == label
+
+            def on_tap(e, selected=label):
+                app_state["detail_portfolio_filter"] = selected
+                filter_row.controls = [portfolio_filter_chip(name) for name in ["전체", "사진", "영상"]]
+                portfolio_grid.controls = build_grid_controls(selected)
+                filter_row.update()
+                portfolio_grid.update()
+
+            return ft.Container(
+                padding=ft.padding.symmetric(horizontal=14, vertical=8),
+                bgcolor=MAIN_COLOR if active else "#FFFFFF",
+                border_radius=999,
+                border=ft.border.all(1, MAIN_COLOR if active else BORDER_COLOR),
+                on_click=on_tap,
+                ink=True,
+                content=ft.Text(
+                    label,
+                    size=12,
+                    color="#FFFFFF" if active else TEXT_COLOR,
+                    weight=ft.FontWeight.W_700 if active else ft.FontWeight.W_500,
+                ),
+            )
+
+        filter_row.controls = [portfolio_filter_chip(name) for name in ["전체", "사진", "영상"]]
+        portfolio_grid.controls = build_grid_controls(portfolio_filter)
 
         content = ft.Column(
             controls=[
-                page_header("상세보기", on_back=go_back),
+                page_header("아티스트 프로필", on_back=go_back),
                 ft.Container(
                     width=content_width(),
-                    height=200,
+                    padding=SPACE_LG,
+                    bgcolor="#FFFFFF",
                     border_radius=RADIUS_XL,
-                    clip_behavior=ft.ClipBehavior.HARD_EDGE,
-                    content=ft.Stack(
+                    border=ft.border.all(1, BORDER_COLOR),
+                    shadow=ft.BoxShadow(spread_radius=0, blur_radius=12, color="#10000000", offset=ft.Offset(0, 4)),
+                    content=ft.Column(
                         controls=[
-                            black_image_box(content_width(), 200),
-                            ft.Container(
-                                left=16,
-                                bottom=16,
-                                padding=ft.padding.symmetric(horizontal=12, vertical=6),
-                                bgcolor=ft.Colors.with_opacity(0.82, "#FFFFFF"),
-                                border_radius=999,
-                                content=ft.Text(artist["category"], size=12, color=TEXT_COLOR, weight=ft.FontWeight.W_600),
-                            ),
-                            ft.Container(
-                                right=16,
-                                top=16,
-                                content=ft.GestureDetector(
-                                    on_tap=save_click,
-                                    content=ft.Container(
-                                        width=38,
-                                        height=38,
-                                        border_radius=999,
-                                        bgcolor=ft.Colors.with_opacity(0.88, "#FFFFFF"),
-                                        alignment=ft.Alignment(0, 0),
-                                        content=ft.Icon(
-                                            ft.Icons.BOOKMARK if saved else ft.Icons.BOOKMARK_BORDER,
-                                            size=20,
-                                            color=MAIN_COLOR if saved else SUBTEXT_COLOR,
-                                        ),
+                            ft.Row(
+                                controls=[
+                                    black_image_box(78, 78, RADIUS_MD),
+                                    ft.Column(
+                                        controls=[
+                                            ft.Row(
+                                                controls=[
+                                                    ft.Text(artist["name"], size=20, weight=ft.FontWeight.W_800, color=TEXT_COLOR, expand=True),
+                                                    ft.Container(
+                                                        padding=ft.padding.symmetric(horizontal=10, vertical=6),
+                                                        bgcolor=MAIN_COLOR_SOFT,
+                                                        border_radius=999,
+                                                        content=ft.Text(artist["category"], size=11, color=MAIN_COLOR_DARK, weight=ft.FontWeight.W_700),
+                                                    ),
+                                                ],
+                                                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                                            ),
+                                            ft.Text(f"{artist['job']} · {artist.get('distance', '')} · {artist.get('price', '')}", size=12, color=SUBTEXT_COLOR),
+                                            ft.Text(artist["style"], size=13, color=TEXT_COLOR, weight=ft.FontWeight.W_700),
+                                        ],
+                                        spacing=5,
+                                        expand=True,
                                     ),
-                                ),
+                                ],
+                                spacing=14,
+                                vertical_alignment=ft.CrossAxisAlignment.START,
                             ),
-                        ]
+                            ft.Text(artist["intro"], size=13, color=SUBTEXT_COLOR, height=1.45),
+                            ft.Row(
+                                controls=[
+                                    stat_block("포트폴리오", len(portfolio_media)),
+                                    stat_block("리뷰", review_count),
+                                    stat_block("평점", artist["rating"]),
+                                ],
+                                spacing=8,
+                            ),
+                            ft.Row(
+                                controls=[
+                                    ft.Container(
+                                        padding=ft.padding.symmetric(horizontal=11, vertical=7),
+                                        bgcolor=MAIN_COLOR_SOFT,
+                                        border_radius=999,
+                                        content=ft.Text(f"#{tag}", size=11, color=MAIN_COLOR_DARK, weight=ft.FontWeight.W_600),
+                                    )
+                                    for tag in artist.get("tags", [])
+                                ],
+                                spacing=6,
+                                wrap=True,
+                            ),
+                            ft.Row(
+                                width=content_width() - SPACE_LG * 2,
+                                controls=[
+                                    ft.Container(on_click=save_click_local, content=save_button),
+                                    ft.Container(
+                                        width=92,
+                                        height=48,
+                                        border_radius=RADIUS_MD,
+                                        bgcolor="#FFFFFF",
+                                        border=ft.border.all(1, BORDER_COLOR),
+                                        alignment=ft.Alignment(0, 0),
+                                        on_click=message_click,
+                                        ink=True,
+                                        content=ft.Text("메시지", size=13, color=MAIN_COLOR_DARK, weight=ft.FontWeight.W_700),
+                                    ),
+                                    ft.Container(
+                                        expand=True,
+                                        height=48,
+                                        border_radius=RADIUS_MD,
+                                        bgcolor=MAIN_COLOR,
+                                        alignment=ft.Alignment(0, 0),
+                                        on_click=reserve_click,
+                                        ink=True,
+                                        content=ft.Text("예약하기", size=13, color="#FFFFFF", weight=ft.FontWeight.W_800),
+                                    ),
+                                ],
+                                spacing=8,
+                            ),
+                        ],
+                        spacing=14,
+                    ),
+                ),
+                ft.Container(height=14),
+                ft.Container(
+                    width=content_width(),
+                    padding=SPACE_LG,
+                    bgcolor="#FFFFFF",
+                    border_radius=RADIUS_XL,
+                    border=ft.border.all(1, BORDER_COLOR),
+                    content=ft.Column(
+                        controls=[
+                            ft.Row(
+                                controls=[
+                                    ft.Column(
+                                        controls=[
+                                            ft.Text("포트폴리오", size=18, color=TEXT_COLOR, weight=ft.FontWeight.W_800),
+                                            ft.Text("사진과 영상으로 아티스트의 스타일을 확인해보세요.", size=12, color=SUBTEXT_COLOR),
+                                        ],
+                                        spacing=3,
+                                        expand=True,
+                                    ),
+                                    filter_row,
+                                ],
+                                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                            ),
+                            portfolio_grid,
+                        ],
+                        spacing=14,
                     ),
                 ),
                 ft.Container(height=12),
@@ -12143,91 +14627,19 @@ async def main(page: ft.Page):
                     bgcolor="#FFFFFF",
                     border_radius=RADIUS_XL,
                     border=ft.border.all(1, BORDER_COLOR),
-                    shadow=ft.BoxShadow(spread_radius=0, blur_radius=12, color="#12000000", offset=ft.Offset(0, 4)),
                     content=ft.Column(
                         controls=[
                             ft.Row(
                                 controls=[
-                                    ft.Column(
-                                        controls=[
-                                            ft.Text(artist["name"], size=22, weight=ft.FontWeight.BOLD, color=TEXT_COLOR),
-                                            ft.Text(artist["job"], size=13, color=SUBTEXT_COLOR),
-                                        ],
-                                        spacing=3,
-                                        expand=True,
-                                    ),
-                                    ft.Column(
-                                        controls=[
-                                            ft.Text(f"⭐ {artist['rating']}", size=15, weight=ft.FontWeight.BOLD, color=TEXT_COLOR),
-                                            ft.Text(f"{artist['distance']}  {artist['price']}", size=11, color=SUBTEXT_COLOR),
-                                        ],
-                                        spacing=3,
-                                        horizontal_alignment=ft.CrossAxisAlignment.END,
-                                    ),
+                                    ft.Text("실제 리뷰", size=17, color=TEXT_COLOR, weight=ft.FontWeight.W_800, expand=True),
+                                    ft.Text(f"⭐ {artist['rating']}", size=13, color=MAIN_COLOR_DARK, weight=ft.FontWeight.W_700),
                                 ],
-                                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                                vertical_alignment=ft.CrossAxisAlignment.START,
+                                vertical_alignment=ft.CrossAxisAlignment.CENTER,
                             ),
-                            ft.Container(height=4),
-                            ft.Container(height=1, bgcolor=BORDER_COLOR),
-                            ft.Container(height=10),
-                            ft.Text(artist["style"], size=14, weight=ft.FontWeight.BOLD, color=TEXT_COLOR),
-                            ft.Text(artist["intro"], size=13, color=SUBTEXT_COLOR),
-                            ft.Container(height=8),
-                            ft.Row(
-                                controls=[
-                                    ft.Container(
-                                        padding=ft.padding.symmetric(horizontal=12, vertical=7),
-                                        bgcolor=MAIN_COLOR_SOFT,
-                                        border_radius=999,
-                                        content=ft.Text(f"#{tag}", size=12, color=MAIN_COLOR, weight=ft.FontWeight.W_500),
-                                    )
-                                    for tag in artist["tags"]
-                                ],
-                                spacing=6,
-                                wrap=True,
-                            ),
-                            ft.Container(height=10),
-                            ft.Container(height=1, bgcolor=BORDER_COLOR),
-                            ft.Container(height=10),
-                            review_card("FINDY 사용자", artist["category"], artist["reason"]),
+                            review_card("FINDY 사용자", artist["category"], artist["reason"], rating=int(round(float(artist.get("rating", 5))))),
                         ],
-                        spacing=SPACE_SM,
+                        spacing=10,
                     ),
-                ),
-                ft.Container(height=12),
-                ft.Row(
-                    controls=[
-                        ft.GestureDetector(
-                            on_tap=save_click,
-                            content=ft.Container(
-                                width=56,
-                                height=56,
-                                border_radius=RADIUS_MD,
-                                bgcolor="#FFFFFF",
-                                border=ft.border.all(1, MAIN_COLOR if saved else BORDER_COLOR),
-                                alignment=ft.Alignment(0, 0),
-                                content=ft.Icon(
-                                    ft.Icons.BOOKMARK if saved else ft.Icons.BOOKMARK_BORDER,
-                                    size=22,
-                                    color=MAIN_COLOR if saved else SUBTEXT_COLOR,
-                                ),
-                            ),
-                        ),
-                        ft.GestureDetector(
-                            on_tap=reserve_click,
-                            content=ft.Container(
-                                expand=True,
-                                height=56,
-                                border_radius=RADIUS_MD,
-                                bgcolor=MAIN_COLOR,
-                                alignment=ft.Alignment(0, 0),
-                                content=ft.Text("예약하기", size=15, color="white", weight=ft.FontWeight.BOLD),
-                            ),
-                        ),
-                    ],
-                    width=content_width(),
-                    spacing=10,
                 ),
                 ft.Container(height=24),
             ],

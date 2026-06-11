@@ -1,6 +1,8 @@
 import os
+import re
 import sys
 import py_compile
+from html.parser import HTMLParser
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -68,6 +70,37 @@ asset_files = [
     "generate_placeholders.py",
 ]
 
+release_files = [
+    "README.md",
+    "requirements.txt",
+    "md/README.md",
+    "md/RELEASE_CHECKLIST.md",
+    "md/QA_CHECKLIST.md",
+    "md/NEXT_STEPS.md",
+    "artist/README.md",
+]
+
+text_checks = [
+    ("FINDY_customer.py", 'os.environ["FINDY_APP_MODE"] = "customer"'),
+    ("FINDY_artist.py", 'os.environ["FINDY_APP_MODE"] = "artist"'),
+    ("FINDY.py", "def show_login_page"),
+    ("FINDY.py", "def show_home_page"),
+    ("FINDY.py", "def show_category_page"),
+    ("FINDY.py", "def show_snap_page"),
+    ("FINDY.py", "def show_video_page"),
+    ("FINDY.py", "def show_my_page"),
+    ("FINDY.py", "def show_artist_main_page"),
+    ("FINDY.py", "def show_artist_portfolio_page"),
+    ("FINDY.py", "def show_artist_portfolio_add_page"),
+    ("FINDY.py", "def show_artist_profile_page"),
+    ("FINDY.py", "def show_artist_reservation_manage_page"),
+    ("FINDY.py", "def show_artist_review_manage_page"),
+    ("FINDY.py", "def show_artist_price_menu_page"),
+    ("components/layout.py", 'MAIN_COLOR = "#8B6B4F"'),
+    ("components/layout.py", 'BORDER_COLOR = "#E6D7C8"'),
+    ("components/layout.py", 'CARD_COLOR = "#FFFFFF"'),
+]
+
 font_groups = [
     ("assets/Pretendard-Regular.ttf", "assets/Pretendard-Bold.ttf"),
     ("assets/Pretendard/Pretendard-Regular.ttf", "assets/Pretendard/Pretendard-Bold.ttf"),
@@ -80,7 +113,42 @@ for rel in asset_files:
     if not os.path.exists(os.path.join(BASE_DIR, rel)):
         missing.append(rel)
 
-if missing or compile_errors:
+for rel in release_files:
+    if not os.path.exists(os.path.join(BASE_DIR, rel)):
+        missing.append(rel)
+
+text_check_errors = []
+for rel, expected in text_checks:
+    path = os.path.join(BASE_DIR, rel)
+    if not os.path.exists(path):
+        continue
+    with open(path, "r", encoding="utf-8") as f:
+        content = f.read()
+    if expected not in content:
+        text_check_errors.append(f"{rel}: missing `{expected}`")
+
+findy_path = os.path.join(BASE_DIR, "FINDY.py")
+if os.path.exists(findy_path):
+    with open(findy_path, "r", encoding="utf-8") as f:
+        findy_source = f.read()
+    assigned_pages = set(re.findall(r'app_state\["current_page"\]\s*=\s*"([^"]+)"', findy_source))
+    rendered_pages = set(re.findall(r'page_name\s*==\s*"([^"]+)"', findy_source))
+    missing_render_routes = sorted(assigned_pages - rendered_pages)
+    if missing_render_routes:
+        text_check_errors.append(f"FINDY.py: current_page values missing render routes: {', '.join(missing_render_routes)}")
+
+web_index = os.path.join(BASE_DIR, "web", "index.html")
+if os.path.exists(web_index):
+    try:
+        parser = HTMLParser()
+        with open(web_index, "r", encoding="utf-8") as f:
+            parser.feed(f.read())
+    except Exception as e:
+        compile_errors.append(f"web/index.html: {e}")
+else:
+    missing.append("web/index.html")
+
+if missing or compile_errors or text_check_errors:
     if missing:
         print("FAILED - Missing:")
         for item in missing:
@@ -89,7 +157,11 @@ if missing or compile_errors:
         print("FAILED - Compile errors:")
         for item in compile_errors:
             print(f"  - {item}")
+    if text_check_errors:
+        print("FAILED - Text checks:")
+        for item in text_check_errors:
+            print(f"  - {item}")
     sys.exit(1)
 
-print("OK: compile and asset checks passed")
+print("OK: compile, asset, route, brand, and web checks passed")
 sys.exit(0)

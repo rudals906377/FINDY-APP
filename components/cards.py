@@ -312,6 +312,14 @@ def review_card(name, category, review, width, photos=None, rating=5):
                             ],
                             spacing=1,
                         ),
+                        ft.Row(
+                            controls=[
+                                ft.Icon(ft.Icons.VERIFIED_ROUNDED, size=12, color=MAIN_COLOR),
+                                ft.Text("예약 기반 리뷰", size=10, color=MAIN_COLOR, weight=ft.FontWeight.W_600),
+                            ],
+                            spacing=3,
+                            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                        ),
                     ],
                     spacing=3,
                     expand=True,

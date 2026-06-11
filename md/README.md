@@ -71,16 +71,17 @@ page.clean() -> page.add(...) -> page.update()
 
 ## 디자인 기준
 
-브랜드 톤은 미니멀 화이트와 베이지 포인트를 기준으로 합니다.
+브랜드 톤은 미니멀 화이트와 절제된 브라운 포인트를 기준으로 합니다.
 
-- Logo: `RGB(164, 120, 100)` / `#A47864`
-- Point: `#8B6B4F`
-- Line: `#E6D7C8`
-- Soft: `#F5EEE7`
-- Background: `#FFFFFF`
+- Logo / Point: `#8B6B4F`
+- Line / Divider / Card border: `#E6D7C8`
+- Background / Card: `#FFFFFF`
+- Strong text: `#1F1A17`
+- Body text: `#2B2420`
+- Sub text: `#786A62`
 - Font: Pretendard
 
-로고와 브랜드 이미지는 반드시 기존 이미지 에셋을 사용합니다. `FINDY` 워드마크, 쌍안경 심볼, 오프닝 로고처럼 브랜드 형태가 중요한 요소는 텍스트로 직접 그리거나 유사하게 재현하지 않습니다. 필요한 경우 `assets/164,120,100`의 완성본을 기준으로 앱용은 `assets/app_logo`에 복사해 사용합니다.
+로고와 브랜드 이미지는 반드시 기존 이미지 에셋을 사용합니다. `FINDY` 워드마크, 쌍안경 심볼, 오프닝 로고처럼 브랜드 형태가 중요한 요소는 텍스트로 직접 그리거나 유사하게 재현하지 않습니다. 필요한 경우 완성본 로고를 기준으로 앱용은 `assets/app_logo`에 복사해 사용합니다.
 
 웹사이트는 FINDY 앱 출시 전 사용자를 모으는 랜딩/커뮤니티 성격이 강합니다. 첫 화면에서는 검색과 카테고리를 중심에 두고, 이후 리뷰와 커뮤니티 참여로 자연스럽게 이어지게 구성합니다.
 
@@ -107,7 +108,9 @@ page.clean() -> page.add(...) -> page.update()
 앱 또는 웹 변경 후 가능한 검증을 실행합니다.
 
 ```bash
-python3 smoke_test.py
+PYTHONPYCACHEPREFIX=/private/tmp/findy_pycache python3 -m py_compile FINDY.py FINDY_customer.py FINDY_artist.py
+PYTHONPYCACHEPREFIX=/private/tmp/findy_pycache python3 smoke_test.py
+git diff --check
 ```
 
 웹 문서 변경 시에는 아래도 함께 확인합니다.
@@ -136,3 +139,4 @@ node -e "const fs=require('fs'); const html=fs.readFileSync('web/index.html','ut
 - 사용자 변경사항을 임의로 되돌리지 않습니다.
 - 불필요한 파일 삭제는 요청이 있을 때만 합니다.
 - 삭제 전에는 남길 파일이 정상적으로 만들어졌는지 먼저 확인합니다.
+- 버튼, 칩, 토글, 날짜 선택으로 화면이 튀거나 깜빡이면 UI 회귀로 판단합니다.
