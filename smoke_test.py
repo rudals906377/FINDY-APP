@@ -16,6 +16,7 @@ if not os.environ.get("PYTHONPYCACHEPREFIX"):
 
 files = [
     "FINDY.py",
+    "FINDY_2.py",
     "FINDY_customer.py",
     "FINDY_artist.py",
     "components/layout.py",
@@ -24,6 +25,7 @@ files = [
     "data/artists.py",
     "data/categories.py",
     "data/reviews.py",
+    "data/review_safety.py",
     "data/snaps.py",
     "core/app_state.py",
     "core/router.py",
@@ -96,6 +98,8 @@ text_checks = [
     ("FINDY.py", "def show_artist_reservation_manage_page"),
     ("FINDY.py", "def show_artist_review_manage_page"),
     ("FINDY.py", "def show_artist_price_menu_page"),
+    ("FINDY_2.py", "def show_community_board_page"),
+    ("FINDY_2.py", "def default_community_posts"),
     ("components/layout.py", 'MAIN_COLOR = "#8B6B4F"'),
     ("components/layout.py", 'BORDER_COLOR = "#E6D7C8"'),
     ("components/layout.py", 'CARD_COLOR = "#FFFFFF"'),

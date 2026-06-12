@@ -26,6 +26,12 @@ python3 FINDY_artist.py
 python3 FINDY.py
 ```
 
+커뮤니티형 배포 후보:
+
+```bash
+python3 FINDY_2.py
+```
+
 웹사이트:
 
 ```text
@@ -54,6 +60,7 @@ git diff --check
 
 ```text
 FINDY.py             # 공통 앱 진입점과 현재 주요 화면 구현
+FINDY_2.py           # FINDY를 복사해 만든 커뮤니티형 배포 후보
 FINDY_customer.py    # 고객 모드 실행 래퍼
 FINDY_artist.py      # 아티스트 모드 실행 래퍼
 smoke_test.py        # 컴파일 및 필수 에셋 체크
@@ -61,6 +68,7 @@ assets/              # 앱 로고, 소셜 로그인 이미지, 폰트, 가이드
 components/          # 공통 UI 컴포넌트
 core/                # 상태와 라우터
 data/                # 더미 데이터
+data/review_safety.py # 리뷰 위험어 감지, 개인정보 마스킹, 신고/상태 헬퍼
 pages/               # 일부 모듈화된 페이지
 services/            # 예약/아티스트 서비스 로직
 web/                 # FINDY 웹사이트
