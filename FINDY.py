@@ -321,6 +321,12 @@ async def main(page: ft.Page):
         "written_videos": [],
         "video_liked_keys": set(),
         "video_saved_keys": set(),
+        "video_followed_creators": set(),
+        "video_reposted_keys": set(),
+        "video_shared_keys": set(),
+        "video_paused_keys": set(),
+        "video_more_open": False,
+        "video_comments_open": False,
         "video_category_filter": "전체",
         "video_detail_item": None,
         "my_content_type": "리뷰",
@@ -8925,11 +8931,20 @@ async def main(page: ft.Page):
         app_state["selected_tab"] = 3
         app_state["current_page"] = "video"
 
-        video_categories = ["전체", "헤어", "메이크업", "네일아트", "웨딩", "포토"]
+        video_categories = ["전체", "헤어", "네일아트", "메이크업", "반영구", "웨딩", "포토"]
         selected_cat = app_state.get("video_category_filter", "전체")
 
+        def normalize_video_filter(label):
+            normalized = normalize_overlay_category_name(label)
+            return "반영구" if normalized == "반영구시술" else normalized
+
         all_videos = get_all_video_items()
-        filtered = all_videos if selected_cat == "전체" else [v for v in all_videos if v["category"] == selected_cat]
+        normalized_video_filter = normalize_video_filter(selected_cat)
+        filtered = (
+            all_videos
+            if normalized_video_filter == "전체"
+            else [v for v in all_videos if normalize_video_filter(v.get("category")) == normalized_video_filter]
+        )
         if not filtered:
             filtered = all_videos
             selected_cat = "전체"
@@ -8941,11 +8956,19 @@ async def main(page: ft.Page):
         active_key = video_key(active_video)
         liked_ids = app_state.setdefault("video_liked_keys", set())
         saved_ids = app_state.setdefault("video_saved_keys", set())
+        followed_creators = app_state.setdefault("video_followed_creators", set())
+        reposted_ids = app_state.setdefault("video_reposted_keys", set())
+        shared_ids = app_state.setdefault("video_shared_keys", set())
+        paused_ids = app_state.setdefault("video_paused_keys", set())
+        drag_state = {"dy": 0}
+        app_state.setdefault("video_more_open", False)
 
         def choose_cat(cat):
             def handler(e):
                 app_state["video_category_filter"] = cat
                 app_state["active_video_index"] = 0
+                app_state["video_comments_open"] = False
+                app_state["video_more_open"] = False
                 show_video_page()
             return handler
 
@@ -8956,6 +8979,8 @@ async def main(page: ft.Page):
                     show_snack("표시할 영상이 더 없어요.")
                     return
                 app_state["active_video_index"] = next_index
+                app_state["video_comments_open"] = False
+                app_state["video_more_open"] = False
                 show_video_page()
             return handler
 
@@ -8973,216 +8998,525 @@ async def main(page: ft.Page):
                 saved_ids.add(active_key)
             show_video_page()
 
-        comment_field = ft.TextField(
-            width=content_width(),
-            hint_text="댓글을 입력해주세요.",
-            border_color=BORDER_COLOR,
-            focused_border_color=MAIN_COLOR,
-            bgcolor="#FFFFFF",
-            border_radius=RADIUS_MD,
-            text_style=ft.TextStyle(size=13, color=TEXT_COLOR),
-            hint_style=ft.TextStyle(size=13, color=SUBTEXT_COLOR),
-        )
-        comment_count = {"value": int(active_video.get("comments", 0) or 0)}
-
-        def submit_video_comment(e):
-            if not (comment_field.value or "").strip():
-                show_snack("댓글을 입력해주세요.", bgcolor="#B85C5C")
-                return
-            comment_count["value"] += 1
-            active_video["comments"] = comment_count["value"]
-            comment_field.value = ""
-            show_snack("댓글이 등록되었어요.")
+        def toggle_video_repost(e=None):
+            if active_key in reposted_ids:
+                reposted_ids.discard(active_key)
+                show_snack("리포스트를 취소했어요.")
+            else:
+                reposted_ids.add(active_key)
+                show_snack("내 활동에 리포스트했어요.")
             show_video_page()
 
-        def video_action_button(icon_name, label, on_click, active=False, width=106):
+        def share_video(e=None):
+            shared_ids.add(active_key)
+            show_snack("공유 링크가 준비되었어요.")
+            show_video_page()
+
+        def toggle_video_more(e=None):
+            app_state["video_more_open"] = not app_state.get("video_more_open", False)
+            show_video_page()
+
+        def close_video_more(e=None):
+            app_state["video_more_open"] = False
+            show_video_page()
+
+        def toggle_video_play(e=None):
+            if active_key in paused_ids:
+                paused_ids.discard(active_key)
+                show_snack("비디오를 재생해요.")
+            else:
+                paused_ids.add(active_key)
+                show_snack("비디오를 일시정지했어요.")
+            show_video_page()
+
+        comment_count = {"value": int(active_video.get("comments", 0) or 0)}
+        video_comments_store = app_state.setdefault("video_comments", {})
+        if active_key not in video_comments_store:
+            video_comments_store[active_key] = [
+                {"author": "findy_tip", "time": "4시간", "text": "이 팁 바로 써먹을 수 있겠어요.", "likes": "405", "replies": 3},
+                {"author": "beauty_note", "time": "7시간", "text": "분위기랑 설명이 깔끔해서 보기 편해요.", "likes": "1,003", "replies": 1},
+                {"author": "daily_user", "time": "10분", "text": "이 스타일 저장해둘게요.", "likes": "1", "replies": 0},
+                {"author": "style_log", "time": "7시간", "text": "다음에는 제품 정보도 같이 알려주세요.", "likes": "90", "replies": 0},
+            ]
+        active_comments = video_comments_store[active_key]
+        comment_count["value"] = max(comment_count["value"], len(active_comments))
+        active_video["comments"] = comment_count["value"]
+        comment_field = ft.TextField(
+            width=full_phone_width() - 150,
+            height=44,
+            hint_text="회원님의 생각을 남겨보세요.",
+            border=ft.InputBorder.NONE,
+            bgcolor=ft.Colors.with_opacity(0.13, "#F5EDE5"),
+            border_radius=999,
+            content_padding=ft.padding.symmetric(horizontal=16, vertical=9),
+            text_style=ft.TextStyle(size=13, color="#FFFFFF", weight=ft.FontWeight.W_700),
+            hint_style=ft.TextStyle(size=13, color=ft.Colors.with_opacity(0.68, "#F5EDE5")),
+        )
+
+        def open_video_comments(e=None):
+            app_state["video_comments_open"] = True
+            app_state["video_more_open"] = False
+            show_video_page()
+
+        def close_video_comments(e=None):
+            app_state["video_comments_open"] = False
+            show_video_page()
+
+        def submit_reel_comment(e=None):
+            text = (comment_field.value or "").strip()
+            if not text:
+                show_snack("댓글을 입력해주세요.", bgcolor="#B85C5C")
+                return
+            user = app_state.get("current_user") or {}
+            active_comments.insert(0, {
+                "author": user.get("nickname") or "FINDY 회원",
+                "time": "방금 전",
+                "text": text,
+                "likes": "0",
+                "replies": 0,
+            })
+            active_video["comments"] = len(active_comments)
+            app_state["video_comments_open"] = True
+            show_video_page()
+
+        def on_video_drag_start(e):
+            drag_state["dy"] = 0
+
+        def on_video_drag_update(e):
+            drag_state["dy"] += getattr(e, "delta_y", 0) or 0
+
+        def on_video_drag_end(e):
+            dy = drag_state.get("dy", 0)
+            velocity = getattr(e, "velocity_y", 0) or getattr(e, "primary_velocity", 0) or 0
+            if dy < -52 or velocity < -700:
+                move_video(1)(e)
+            elif dy > 52 or velocity > 700:
+                move_video(-1)(e)
+            drag_state["dy"] = 0
+
+        def metric_label(value, fallback="0"):
+            return str(value if value not in (None, "") else fallback)
+
+        def creator_name(video):
+            return video.get("creatorName") or video.get("profileName") or video.get("nickname") or f'{video.get("category", "FINDY")}러'
+
+        def video_profile_avatar(name):
             return ft.Container(
-                width=width,
-                height=42,
-                bgcolor=MAIN_COLOR if active else "#FFFFFF",
-                border=ft.border.all(1, MAIN_COLOR if active else BORDER_COLOR),
-                border_radius=999,
+                width=38,
+                height=38,
+                border_radius=19,
+                bgcolor=ft.Colors.with_opacity(0.92, "#FFFFFF"),
+                border=ft.border.all(1, ft.Colors.with_opacity(0.62, "#FFFFFF")),
+                alignment=ft.Alignment(0, 0),
+                content=ft.Text((name or "F")[0], size=15, color=MAIN_COLOR_DARK, weight=ft.FontWeight.W_900),
+            )
+
+        active_creator = creator_name(active_video)
+
+        def open_video_profile(e=None):
+            show_snack(f"{active_creator}님의 프로필은 다음 단계에서 연결할게요.")
+
+        def toggle_follow_creator(e=None):
+            if active_creator in followed_creators:
+                followed_creators.discard(active_creator)
+                show_snack("팔로우를 취소했어요.")
+            else:
+                followed_creators.add(active_creator)
+                show_snack(f"{active_creator}님을 팔로우했어요.")
+            show_video_page()
+
+        def reels_action(icon_name, count, on_click=None, active=False):
+            return ft.Container(
+                width=58,
+                height=76,
                 on_click=on_click,
                 ink=True,
+                content=ft.Column(
+                    controls=[
+                        ft.Container(
+                            width=46,
+                            height=46,
+                            border_radius=23,
+                            bgcolor=ft.Colors.with_opacity(0.92, "#F4EEE8") if active else ft.Colors.with_opacity(0.18, "#FFFFFF"),
+                            border=ft.border.all(1, ft.Colors.with_opacity(0.70, MAIN_COLOR if active else "#FFFFFF")),
+                            alignment=ft.Alignment(0, 0),
+                            content=ft.Icon(app_icon(icon_name), size=27, color=MAIN_COLOR_DARK if active else "#FFFFFF"),
+                        ),
+                        ft.Text(metric_label(count), size=11, color="#F7F2EC", weight=ft.FontWeight.W_900, text_align=ft.TextAlign.CENTER),
+                    ],
+                    spacing=3,
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                    alignment=ft.MainAxisAlignment.CENTER,
+                ),
+            )
+
+        def comment_avatar(author):
+            return ft.Container(
+                width=38,
+                height=38,
+                border_radius=19,
+                bgcolor=ft.Colors.with_opacity(0.90, "#FFFFFF"),
                 alignment=ft.Alignment(0, 0),
+                content=ft.Text((author or "F")[0].upper(), size=13, color=MAIN_COLOR_DARK, weight=ft.FontWeight.W_900),
+            )
+
+        def video_comment_row(comment):
+            replies = int(comment.get("replies", 0) or 0)
+            return ft.Container(
+                padding=ft.padding.symmetric(horizontal=16, vertical=8),
                 content=ft.Row(
                     controls=[
-                        ft.Icon(app_icon(icon_name), size=16, color="#FFFFFF" if active else MAIN_COLOR),
-                        ft.Text(label, size=13, color="#FFFFFF" if active else MAIN_COLOR_DARK, weight=ft.FontWeight.W_700),
+                        comment_avatar(comment.get("author")),
+                        ft.Column(
+                            controls=[
+                                ft.Text(f'{comment.get("author", "FINDY 회원")} {comment.get("time", "")}', size=11, color=ft.Colors.with_opacity(0.74, "#FFFFFF"), weight=ft.FontWeight.W_800),
+                                ft.Text(comment.get("text", ""), size=13, color="#FFFFFF", max_lines=2, overflow=ft.TextOverflow.ELLIPSIS),
+                                ft.Text("답글 달기", size=10, color=ft.Colors.with_opacity(0.58, "#FFFFFF"), weight=ft.FontWeight.W_700),
+                                ft.Container(
+                                    padding=ft.padding.only(left=22, top=3),
+                                    visible=replies > 0,
+                                    content=ft.Text(f"답글 {replies}개 보기", size=10, color=ft.Colors.with_opacity(0.48, "#FFFFFF"), weight=ft.FontWeight.W_800),
+                                ),
+                            ],
+                            spacing=4,
+                            expand=True,
+                        ),
+                        ft.Column(
+                            controls=[
+                                ft.Icon(app_icon("FAVORITE_BORDER"), size=23, color=ft.Colors.with_opacity(0.78, "#FFFFFF")),
+                                ft.Text(str(comment.get("likes", "0")), size=10, color=ft.Colors.with_opacity(0.70, "#FFFFFF"), weight=ft.FontWeight.W_800),
+                            ],
+                            spacing=3,
+                            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                        ),
                     ],
-                    spacing=6,
-                    alignment=ft.MainAxisAlignment.CENTER,
+                    spacing=10,
+                    vertical_alignment=ft.CrossAxisAlignment.START,
+                ),
+            )
+
+        def video_comments_panel():
+            return ft.Container(
+                left=0,
+                right=0,
+                bottom=0,
+                height=390,
+                bgcolor="#15110E",
+                border_radius=ft.border_radius.only(top_left=26, top_right=26),
+                border=ft.border.only(top=ft.BorderSide(1, ft.Colors.with_opacity(0.32, MAIN_COLOR))),
+                shadow=ft.BoxShadow(blur_radius=22, color="#77000000", offset=ft.Offset(0, -8)),
+                content=ft.Column(
+                    controls=[
+                        ft.Container(width=44, height=3, bgcolor=ft.Colors.with_opacity(0.58, MAIN_COLOR), border_radius=999, margin=ft.margin.only(top=12, bottom=6), alignment=ft.Alignment(0, 0)),
+                        ft.Row(
+                            controls=[
+                                ft.Text(f"댓글 {len(active_comments)}", size=15, color="#F7F2EC", weight=ft.FontWeight.W_900, expand=True),
+                                ft.Container(width=32, height=32, border_radius=16, bgcolor=ft.Colors.with_opacity(0.12, "#FFFFFF"), alignment=ft.Alignment(0, 0), on_click=close_video_comments, ink=True, content=ft.Icon(app_icon("CLOSE"), size=20, color="#F7F2EC")),
+                            ],
+                            spacing=8,
+                        ),
+                        ft.Container(
+                            height=244,
+                            content=ft.ListView(
+                                controls=[video_comment_row(comment) for comment in active_comments],
+                                spacing=0,
+                                padding=0,
+                            ),
+                        ),
+                        ft.Container(height=1, bgcolor=ft.Colors.with_opacity(0.08, "#FFFFFF")),
+                        ft.Row(
+                            controls=[
+                                video_profile_avatar((app_state.get("current_user") or {}).get("nickname", "F")),
+                                comment_field,
+                                ft.Container(width=36, height=36, border_radius=18, bgcolor=MAIN_COLOR, alignment=ft.Alignment(0, 0), on_click=submit_reel_comment, ink=True, content=ft.Icon(app_icon("SEND"), size=20, color="#FFFFFF")),
+                            ],
+                            spacing=8,
+                            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                        ),
+                    ],
+                    spacing=9,
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                ),
+                padding=ft.padding.symmetric(horizontal=16),
+            )
+
+        def video_background():
+            video_path = active_video.get("video_path") or active_video.get("path") or active_video.get("src")
+            is_paused = active_key in paused_ids
+            if video_path:
+                return ft.Video(
+                    playlist=[ft.VideoMedia(resource=video_path)],
+                    width=full_phone_width(),
+                    height=PHONE_HEIGHT,
+                    autoplay=not is_paused,
+                    show_controls=False,
+                    muted=False,
+                    fit=ft.ImageFit.COVER,
+                    playlist_mode=ft.PlaylistMode.LOOP,
+                    fill_color="#0B0705",
+                )
+            return ft.Stack(
+                controls=[
+                    ft.Container(
+                        width=full_phone_width(),
+                        height=PHONE_HEIGHT,
+                        bgcolor="#090604",
+                        content=ft.Stack(
+                            controls=[
+                                ft.Container(left=-40, top=90, width=220, height=220, border_radius=110, bgcolor=ft.Colors.with_opacity(0.12, MAIN_COLOR)),
+                                ft.Container(right=-52, bottom=180, width=260, height=260, border_radius=130, bgcolor=ft.Colors.with_opacity(0.10, "#F4EEE8")),
+                                ft.Container(alignment=ft.Alignment(0, -0.26), content=ft.Text(active_video.get("category", "FINDY"), size=48, color=ft.Colors.with_opacity(0.14, "#F4EEE8"), weight=ft.FontWeight.W_900)),
+                            ],
+                        ),
+                    ),
+                    ft.Container(
+                        alignment=ft.Alignment(0, 0),
+                        content=ft.Container(
+                            width=92,
+                            height=92,
+                            border_radius=46,
+                            bgcolor=ft.Colors.with_opacity(0.92, "#F4EEE8"),
+                            alignment=ft.Alignment(0, 0),
+                            on_click=toggle_video_play,
+                            ink=True,
+                            content=ft.Icon(app_icon("PLAY_ARROW" if is_paused else "PAUSE", "PLAY_CIRCLE"), size=48, color="#0B0705"),
+                        ),
+                    ),
+                ],
+            )
+
+        like_count = active_video.get("likes") or active_video.get("views") or "0"
+        share_count = active_video.get("shares") or "1.7만"
+        save_count = active_video.get("saves") or "3.1만"
+
+        category_bar = ft.Row(
+            controls=[
+                ft.Container(
+                    padding=ft.padding.symmetric(horizontal=11, vertical=6),
+                    bgcolor=MAIN_COLOR if cat == selected_cat else ft.Colors.with_opacity(0.22, "#F4EEE8"),
+                    border_radius=999,
+                    border=ft.border.all(1, MAIN_COLOR if cat == selected_cat else ft.Colors.with_opacity(0.22, "#F4EEE8")),
+                    on_click=choose_cat(cat),
+                    ink=True,
+                    content=ft.Text(cat, size=11, color="#FFFFFF" if cat == selected_cat else "#F4EEE8", weight=ft.FontWeight.W_900 if cat == selected_cat else ft.FontWeight.W_700),
+                )
+                for cat in video_categories
+            ],
+            spacing=7,
+            scroll=ft.ScrollMode.HIDDEN,
+        )
+
+        def more_sheet_action(icon_name, title, subtitle, on_click):
+            return ft.Container(
+                padding=ft.padding.symmetric(horizontal=14, vertical=11),
+                border_radius=14,
+                on_click=on_click,
+                ink=True,
+                content=ft.Row(
+                    controls=[
+                        ft.Container(
+                            width=34,
+                            height=34,
+                            border_radius=17,
+                            bgcolor=ft.Colors.with_opacity(0.16, MAIN_COLOR),
+                            alignment=ft.Alignment(0, 0),
+                            content=ft.Icon(app_icon(icon_name), size=19, color=MAIN_COLOR),
+                        ),
+                        ft.Column(
+                            controls=[
+                                ft.Text(title, size=13, color="#F7F2EC", weight=ft.FontWeight.W_900),
+                                ft.Text(subtitle, size=10, color=ft.Colors.with_opacity(0.68, "#F7F2EC")),
+                            ],
+                            spacing=1,
+                            expand=True,
+                        ),
+                    ],
+                    spacing=10,
                     vertical_alignment=ft.CrossAxisAlignment.CENTER,
                 ),
             )
 
-        cat_chips = ft.Row(
-            controls=[
-                ft.GestureDetector(
-                    on_tap=choose_cat(cat),
-                    content=ft.Container(
-                        padding=ft.padding.symmetric(horizontal=14, vertical=8),
-                        bgcolor=CHIP_BG if cat == selected_cat else CARD_COLOR,
-                        border_radius=999,
-                        border=ft.border.all(1, MAIN_COLOR if cat == selected_cat else ft.Colors.with_opacity(0.76, BORDER_COLOR)),
-                        content=ft.Text(cat, size=12, color=MAIN_COLOR_DARK if cat == selected_cat else TEXT_COLOR, weight=ft.FontWeight.W_600 if cat == selected_cat else ft.FontWeight.NORMAL),
-                    ),
-                )
-                for cat in video_categories
-            ],
-            spacing=6,
-            scroll=ft.ScrollMode.HIDDEN,
-        )
-
-        write_video_button = ft.Container(
-            width=content_width(),
-            padding=ft.padding.symmetric(horizontal=16, vertical=14),
-            bgcolor=CARD_COLOR,
-            border_radius=24,
-            border=ft.border.all(1, ft.Colors.with_opacity(0.35, MAIN_COLOR)),
-            shadow=ft.BoxShadow(spread_radius=0, blur_radius=14, color="#0A8B6B4F", offset=ft.Offset(0, 6)),
-            on_click=lambda e: (app_state.__setitem__("current_page", "write_video"), show_write_video_page()),
-            ink=True,
-            content=ft.Row(
-                controls=[
-                    ft.Icon(ft.Icons.VIDEO_CALL_OUTLINED, size=20, color=MAIN_COLOR),
-                    ft.Column(
-                        controls=[
-                            ft.Text("영상 올리기", size=14, color=MAIN_COLOR, weight=ft.FontWeight.W_600),
-                            ft.Text("비디오 페이지에는 영상만 등록할 수 있어요.", size=11, color=ft.Colors.with_opacity(0.75, MAIN_COLOR)),
-                        ],
-                        spacing=2,
-                        expand=True,
-                    ),
-                    ft.Icon(ft.Icons.ARROW_FORWARD_IOS_ROUNDED, size=13, color=MAIN_COLOR),
-                ],
-                spacing=10,
-                vertical_alignment=ft.CrossAxisAlignment.CENTER,
-            ),
-        )
-
-        video_stage_height = 520
-        video_stage = ft.Container(
-            width=content_width(),
-            height=video_stage_height,
-            border_radius=34,
-            clip_behavior=ft.ClipBehavior.HARD_EDGE,
-            bgcolor="#000000",
-            content=ft.Stack(
-                controls=[
-                    black_image_box(content_width(), video_stage_height),
-                    ft.Container(
-                        alignment=ft.Alignment(0, 0),
-                        content=ft.Icon(ft.Icons.PLAY_CIRCLE_FILL_ROUNDED, size=74, color=MAIN_COLOR),
-                    ),
-                    ft.Container(
-                        left=18,
-                        right=18,
-                        bottom=22,
-                        content=ft.Column(
-                            controls=[
-                                ft.Row(
-                                    controls=[
-                                        ft.Container(
-                                            padding=ft.padding.symmetric(horizontal=10, vertical=5),
-                                            bgcolor=ft.Colors.with_opacity(0.86, "#FFFFFF"),
-                                            border_radius=999,
-                                            content=ft.Text(active_video.get("category", "비디오"), size=11, color=MAIN_COLOR_DARK, weight=ft.FontWeight.W_800),
-                                        ),
-                                        ft.Container(
-                                            padding=ft.padding.symmetric(horizontal=10, vertical=5),
-                                            bgcolor=ft.Colors.with_opacity(0.86, "#FFFFFF"),
-                                            border_radius=999,
-                                            content=ft.Text(active_video.get("duration", "0:59"), size=11, color=TEXT_COLOR, weight=ft.FontWeight.W_800),
-                                        ),
-                                    ],
-                                    spacing=8,
-                                ),
-                                ft.Text(active_video.get("title", "비디오"), size=21, color="#FFFFFF", weight=ft.FontWeight.W_800),
-                                ft.Text(active_video.get("subtitle", ""), size=13, color=ft.Colors.with_opacity(0.84, "#FFFFFF")),
-                                ft.Text(f'{active_video.get("badge", "SHORTS")} · 조회 {active_video.get("views", "0")} · 최대 1분', size=12, color=ft.Colors.with_opacity(0.78, "#FFFFFF"), weight=ft.FontWeight.W_600),
-                            ],
-                            spacing=7,
-                        ),
-                    ),
-                ],
-            ),
-        )
-
-        video_meta_card = ft.Container(
-            width=content_width(),
-            padding=SPACE_LG,
-            bgcolor="#FFFFFF",
-            border_radius=RADIUS_LG,
-            border=ft.border.all(1, BORDER_COLOR),
-            content=ft.Column(
-                controls=[
-                    ft.Row(
-                        controls=[
-                            ft.Text(f"{active_index + 1}/{len(filtered)}", size=12, color=SUBTEXT_COLOR, weight=ft.FontWeight.W_700),
-                            ft.Container(expand=True),
-                            ft.Container(
-                                padding=ft.padding.symmetric(horizontal=10, vertical=6),
-                                bgcolor=MAIN_COLOR_SOFT,
-                                border_radius=999,
-                                content=ft.Text("1분 이내 영상", size=11, color=MAIN_COLOR_DARK, weight=ft.FontWeight.W_700),
-                            ),
-                        ],
-                    ),
-                    ft.Row(
-                        controls=[
-                            video_action_button("CHEVRON_LEFT", "이전", move_video(-1), width=86),
-                            video_action_button("FAVORITE_BORDER", "좋아요", toggle_video_like, active=active_key in liked_ids),
-                            video_action_button("BOOKMARK_BORDER", "저장", toggle_video_save, active=active_key in saved_ids),
-                            video_action_button("CHEVRON_RIGHT", "다음", move_video(1), width=86),
-                        ],
-                        spacing=7,
-                        alignment=ft.MainAxisAlignment.CENTER,
-                    ),
-                ],
-                spacing=14,
-            ),
-        )
-
-        comment_card = ft.Container(
-            width=content_width(),
-            padding=SPACE_LG,
-            bgcolor="#FFFFFF",
-            border_radius=RADIUS_LG,
-            border=ft.border.all(1, BORDER_COLOR),
-            content=ft.Column(
-                controls=[
-                    ft.Row(
-                        controls=[
-                            ft.Text("댓글", size=14, weight=ft.FontWeight.W_700, color=TEXT_COLOR),
-                            ft.Container(expand=True),
-                            ft.Text(f"{comment_count['value']}개", size=12, color=SUBTEXT_COLOR, weight=ft.FontWeight.W_700),
-                        ],
-                    ),
-                    comment_field,
-                    soft_button("댓글 등록", MAIN_COLOR, "white", submit_video_comment, width=content_width() - 44),
-                ],
-                spacing=10,
-            ),
-        )
-
-        body = ft.Column(
-            controls=[
-                tab_page_intro("비디오", "1분 이내 숏폼 영상으로 스타일 흐름을 바로 확인해요."),
-                ft.Container(height=10),
-                write_video_button,
-                ft.Container(
-                    width=content_width(),
-                    clip_behavior=ft.ClipBehavior.HARD_EDGE,
-                    content=cat_chips,
+        def video_more_panel():
+            return ft.Container(
+                right=12,
+                bottom=232,
+                width=238,
+                padding=ft.padding.all(10),
+                bgcolor=ft.Colors.with_opacity(0.96, "#15110E"),
+                border_radius=20,
+                border=ft.border.all(1, ft.Colors.with_opacity(0.28, MAIN_COLOR)),
+                shadow=ft.BoxShadow(blur_radius=22, color="#77000000", offset=ft.Offset(0, 8)),
+                content=ft.Column(
+                    controls=[
+                        more_sheet_action("BOOKMARK_BORDER", "저장", "나중에 다시 볼 비디오로 보관", lambda e: (toggle_video_save(e), close_video_more())),
+                        more_sheet_action("SPA_OUTLINED", "나의 FINDY에 반영", "이런 영상 추천을 더 보여줘요", lambda e: (show_beauty_profile_page(), close_video_more())),
+                        more_sheet_action("REPORT_OUTLINED", "신고", "불편한 콘텐츠를 운영 검토로 보내요", lambda e: (show_snack("신고가 접수되었어요."), close_video_more())),
+                    ],
+                    spacing=2,
                 ),
-                video_stage,
-                video_meta_card,
-                comment_card,
-                ft.Container(height=18),
-            ],
-            spacing=SPACE_MD,
-            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            )
+
+        video_wordmark_path = resolve_asset_file("app_logo/app_findy_logo_wordmark.png")
+
+        video_stage = ft.GestureDetector(
+            on_vertical_drag_start=on_video_drag_start,
+            on_vertical_drag_update=on_video_drag_update,
+            on_vertical_drag_end=on_video_drag_end,
+            content=ft.Container(
+                width=full_phone_width(),
+                height=PHONE_HEIGHT - 18,
+                bgcolor="#090604",
+                clip_behavior=ft.ClipBehavior.HARD_EDGE,
+                content=ft.Stack(
+                    controls=[
+                        ft.Container(width=full_phone_width(), height=PHONE_HEIGHT, content=video_background()),
+                        ft.Container(left=0, right=0, top=0, height=150, bgcolor=ft.Colors.with_opacity(0.38, "#090604")),
+                        ft.Container(left=0, right=0, bottom=0, height=250, bgcolor=ft.Colors.with_opacity(0.48, "#090604")),
+                        ft.Container(
+                            alignment=ft.Alignment(0, 0),
+                            content=ft.Container(
+                                width=82,
+                                height=82,
+                                border_radius=41,
+                                bgcolor=ft.Colors.with_opacity(0.88, "#F4EEE8"),
+                                border=ft.border.all(1, ft.Colors.with_opacity(0.50, MAIN_COLOR)),
+                                alignment=ft.Alignment(0, 0),
+                                on_click=toggle_video_play,
+                                ink=True,
+                                visible=active_key in paused_ids,
+                                content=ft.Icon(app_icon("PLAY_ARROW"), size=45, color="#0B0705"),
+                            ),
+                        ),
+                        ft.Container(
+                            top=22,
+                            left=22,
+                            right=22,
+                            content=ft.Stack(
+                                controls=[
+                                    ft.Container(
+                                        width=34,
+                                        height=34,
+                                        border_radius=17,
+                                        bgcolor=ft.Colors.with_opacity(0.14, "#F4EEE8"),
+                                        alignment=ft.Alignment(0, 0),
+                                        on_click=lambda e: (app_state.__setitem__("current_page", "write_video"), show_write_video_page()),
+                                        ink=True,
+                                        content=ft.Icon(app_icon("ADD"), size=28, color="#F7F2EC"),
+                                    ),
+                                    ft.Container(
+                                        alignment=ft.Alignment(0, 0),
+                                        content=ft.Row(
+                                            controls=[
+                                                ft.Image(src=video_wordmark_path, width=96, height=24, fit=ft.ImageFit.CONTAIN)
+                                                if video_wordmark_path
+                                                else ft.Text("FINDY", size=22, color=MAIN_COLOR, weight=ft.FontWeight.W_900),
+                                                ft.Text("비디오", size=18, color="#F7F2EC", weight=ft.FontWeight.W_800),
+                                            ],
+                                            spacing=8,
+                                            alignment=ft.MainAxisAlignment.CENTER,
+                                            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                                        ),
+                                    ),
+                                    ft.Container(
+                                        alignment=ft.Alignment(1, 0),
+                                        content=ft.Container(
+                                            padding=ft.padding.symmetric(horizontal=9, vertical=5),
+                                            bgcolor=ft.Colors.with_opacity(0.14, "#F4EEE8"),
+                                            border_radius=999,
+                                            content=ft.Text(f"{active_index + 1}/{len(filtered)}", size=12, color="#F7F2EC", weight=ft.FontWeight.W_900),
+                                        ),
+                                    ),
+                                ],
+                            ),
+                        ),
+                        ft.Container(top=68, left=20, right=20, content=category_bar),
+                        ft.Container(
+                            right=12,
+                            bottom=118,
+                            content=ft.Column(
+                                controls=[
+                                    reels_action("FAVORITE" if active_key in liked_ids else "FAVORITE_BORDER", like_count, toggle_video_like, active_key in liked_ids),
+                                    reels_action("CHAT_BUBBLE_OUTLINE", comment_count["value"] or 137, open_video_comments),
+                                    reels_action("AUTORENEW", share_count, toggle_video_repost, active_key in reposted_ids),
+                                    reels_action("SEND", save_count, share_video, active_key in shared_ids),
+                                    ft.Container(
+                                        width=46,
+                                        height=42,
+                                        border_radius=21,
+                                        bgcolor=ft.Colors.with_opacity(0.18, "#FFFFFF") if not app_state.get("video_more_open") else ft.Colors.with_opacity(0.92, "#F4EEE8"),
+                                        border=ft.border.all(1, ft.Colors.with_opacity(0.70, "#FFFFFF" if not app_state.get("video_more_open") else MAIN_COLOR)),
+                                        alignment=ft.Alignment(0, 0),
+                                        on_click=toggle_video_more,
+                                        ink=True,
+                                        content=ft.Icon(app_icon("MORE_HORIZ", "MORE_VERT"), size=25, color="#FFFFFF" if not app_state.get("video_more_open") else MAIN_COLOR_DARK),
+                                    ),
+                                    ft.Container(height=10),
+                                    ft.Container(
+                                        width=42,
+                                        height=42,
+                                        border_radius=12,
+                                        bgcolor=ft.Colors.with_opacity(0.88, "#FFFFFF"),
+                                        alignment=ft.Alignment(0, 0),
+                                        on_click=lambda e: show_beauty_profile_page(),
+                                        ink=True,
+                                        content=brand_mark(32),
+                                    ),
+                                ],
+                                spacing=4,
+                                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                            ),
+                        ),
+                        ft.Container(
+                            left=18,
+                            right=86,
+                            bottom=96,
+                            content=ft.Column(
+                                controls=[
+                                    ft.Row(
+                                        controls=[
+                                            ft.Container(on_click=open_video_profile, ink=True, content=video_profile_avatar(active_creator)),
+                                            ft.Column(
+                                                controls=[
+                                                    ft.Text(f"{active_creator}님", size=13, color="#F7F2EC", weight=ft.FontWeight.W_900),
+                                                    ft.Text(f'{active_video.get("badge", "TIP")} · 조회 {active_video.get("views", "0")} · {active_video.get("duration", "0:59")}', size=11, color=ft.Colors.with_opacity(0.78, "#F7F2EC")),
+                                                ],
+                                                spacing=2,
+                                                expand=True,
+                                            ),
+                                            ft.Container(
+                                                padding=ft.padding.symmetric(horizontal=12, vertical=6),
+                                                bgcolor=MAIN_COLOR if active_creator not in followed_creators else ft.Colors.with_opacity(0.16, "#F4EEE8"),
+                                                border=ft.border.all(1, MAIN_COLOR if active_creator not in followed_creators else ft.Colors.with_opacity(0.40, "#F4EEE8")),
+                                                border_radius=999,
+                                                on_click=toggle_follow_creator,
+                                                ink=True,
+                                                content=ft.Text("팔로우" if active_creator not in followed_creators else "팔로잉", size=12, color="#FFFFFF", weight=ft.FontWeight.W_900),
+                                            ),
+                                        ],
+                                        spacing=9,
+                                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                                    ),
+                                    ft.Text(active_video.get("title", "비디오"), size=17, color="#F7F2EC", weight=ft.FontWeight.W_900, max_lines=2, overflow=ft.TextOverflow.ELLIPSIS),
+                                    ft.Text(active_video.get("subtitle", "FINDY 회원의 뷰티 팁"), size=12, color=ft.Colors.with_opacity(0.84, "#F7F2EC"), max_lines=2, overflow=ft.TextOverflow.ELLIPSIS),
+                                    ft.Text("아래에서 위로 올리면 다음 · 위에서 아래로 내리면 이전", size=10, color=ft.Colors.with_opacity(0.62, "#F7F2EC"), max_lines=1),
+                                    ft.Container(width=content_width() - 12, height=2, bgcolor=ft.Colors.with_opacity(0.40, MAIN_COLOR), border_radius=2),
+                                ],
+                                spacing=7,
+                            ),
+                        ),
+                        *([video_more_panel()] if app_state.get("video_more_open") else []),
+                        *([video_comments_panel()] if app_state.get("video_comments_open") else []),
+                    ],
+                ),
+            ),
+        )
+
+        body = ft.Container(
+            width=full_phone_width(),
+            height=PHONE_HEIGHT - 18,
+            bgcolor="#090604",
+            clip_behavior=ft.ClipBehavior.HARD_EDGE,
+            content=video_stage,
         )
 
         make_shell(body, app_state["selected_tab"])
@@ -10202,22 +10536,189 @@ async def main(page: ft.Page):
         app_state["selected_tab"] = 4
         app_state["current_page"] = "my"
 
+        user = app_state.get("current_user") or {}
+        nickname = user.get("nickname") or "FINDY 회원"
+        username = user.get("username") or "findy_user"
+        provider = user.get("provider_label") or "FINDY"
+        reservation_count = len([i for i in app_state.get("reservation_history", []) if i.get("status") != "예약 취소"])
+        saved_count = len(app_state.get("saved_ids", set())) + len(app_state.get("snap_saved_ids", set())) + len(app_state.get("video_saved_keys", set()))
+        review_count = len(app_state.get("written_reviews", []))
+
+        def my_card(content, padding=18, on_click=None):
+            return ft.Container(
+                width=content_width(),
+                padding=padding,
+                bgcolor="#FFFFFF",
+                border_radius=24,
+                border=ft.border.all(1, ft.Colors.with_opacity(0.5, BORDER_COLOR)),
+                shadow=ft.BoxShadow(spread_radius=0, blur_radius=16, color="#09000000", offset=ft.Offset(0, 6)),
+                on_click=on_click,
+                ink=bool(on_click),
+                content=content,
+            )
+
+        def service_tile(icon_name, label, color, on_click):
+            return ft.Container(
+                width=(content_width() - 44) / 2,
+                padding=ft.padding.symmetric(horizontal=12, vertical=11),
+                border_radius=18,
+                on_click=on_click,
+                ink=True,
+                content=ft.Row(
+                    controls=[
+                        ft.Icon(app_icon(icon_name), size=27, color=color),
+                        ft.Text(label, size=14, color=TEXT_COLOR, weight=ft.FontWeight.W_800, max_lines=1, overflow=ft.TextOverflow.ELLIPSIS, expand=True),
+                    ],
+                    spacing=12,
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                ),
+            )
+
+        def mini_stat(label, value):
+            return ft.Container(
+                expand=True,
+                padding=ft.padding.symmetric(vertical=10),
+                border_radius=18,
+                bgcolor=CARD_COLOR,
+                border=ft.border.all(1, ft.Colors.with_opacity(0.55, BORDER_COLOR)),
+                alignment=ft.Alignment(0, 0),
+                content=ft.Column(
+                    controls=[
+                        ft.Text(label, size=10, color=SUBTEXT_COLOR, weight=ft.FontWeight.W_700),
+                        ft.Text(str(value), size=17, color=TEXT_COLOR, weight=ft.FontWeight.W_900),
+                    ],
+                    spacing=2,
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                ),
+            )
+
+        def my_page_intro():
+            wordmark_path = resolve_asset_file("app_logo/app_findy_logo_wordmark.png")
+            wordmark = (
+                ft.Image(src=wordmark_path, width=122, height=30, fit=ft.ImageFit.CONTAIN)
+                if wordmark_path
+                else ft.Text("FINDY", size=25, weight=ft.FontWeight.W_900, color=MAIN_COLOR)
+            )
+            return ft.Container(
+                width=content_width(),
+                padding=ft.padding.only(top=4, bottom=4),
+                content=ft.Column(
+                    controls=[
+                        wordmark,
+                        ft.Text("내정보", size=13, weight=ft.FontWeight.W_700, color=TEXT_COLOR),
+                        ft.Container(
+                            margin=ft.margin.only(top=10),
+                            border=ft.border.only(bottom=ft.BorderSide(1, BORDER_COLOR)),
+                        ),
+                    ],
+                    spacing=6,
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                ),
+            )
+
+        profile_card = my_card(
+            ft.Column(
+                controls=[
+                    ft.Row(
+                        controls=[
+                            ft.Container(
+                                width=62,
+                                height=62,
+                                border_radius=999,
+                                bgcolor=CHIP_BG,
+                                border=ft.border.all(1, BORDER_COLOR),
+                                alignment=ft.Alignment(0, 0),
+                                content=ft.Text(nickname[:1], size=22, color=MAIN_COLOR_DARK, weight=ft.FontWeight.W_900),
+                            ),
+                            ft.Column(
+                                controls=[
+                                    ft.Row(
+                                        controls=[
+                                            ft.Text(nickname, size=17, color=TEXT_COLOR, weight=ft.FontWeight.W_900, max_lines=1, overflow=ft.TextOverflow.ELLIPSIS),
+                                            ft.Container(
+                                                padding=ft.padding.symmetric(horizontal=9, vertical=4),
+                                                bgcolor=MAIN_COLOR_SOFT,
+                                                border_radius=999,
+                                                content=ft.Text(provider, size=10, color=MAIN_COLOR_DARK, weight=ft.FontWeight.W_800),
+                                            ),
+                                        ],
+                                        spacing=8,
+                                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                                    ),
+                                    ft.Text(username, size=12, color=SUBTEXT_COLOR, weight=ft.FontWeight.W_700),
+                                    ft.Text("프로필 확인", size=11, color=SUBTEXT_COLOR, weight=ft.FontWeight.W_700),
+                                ],
+                                spacing=4,
+                                expand=True,
+                            ),
+                            ft.Icon(app_icon("CHEVRON_RIGHT", "ARROW_FORWARD_IOS"), size=19, color=SUBTEXT_COLOR),
+                        ],
+                        spacing=14,
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                    ),
+                    ft.Row(
+                        controls=[
+                            mini_stat("예약", reservation_count),
+                            ft.Container(width=8),
+                            mini_stat("저장", saved_count),
+                            ft.Container(width=8),
+                            mini_stat("리뷰", review_count),
+                        ],
+                        spacing=0,
+                    ),
+                ],
+                spacing=14,
+            ),
+            on_click=lambda e: show_beauty_profile_page(),
+        )
+
+        service_card = my_card(
+            ft.Column(
+                controls=[
+                    ft.Row(
+                        controls=[
+                            ft.Text("서비스", size=13, color=TEXT_COLOR, weight=ft.FontWeight.W_900, expand=True),
+                            ft.Icon(app_icon("CHEVRON_RIGHT", "ARROW_FORWARD_IOS"), size=17, color=SUBTEXT_COLOR),
+                        ],
+                    ),
+                    ft.Row(
+                        controls=[
+                            service_tile("ARTICLE_OUTLINED", "내가 쓴글", MAIN_COLOR, lambda e: show_my_reviews_page()),
+                            service_tile("BOOKMARK_BORDER", "저장", "#8D6AF3", lambda e: show_saved_page()),
+                        ],
+                        spacing=8,
+                    ),
+                    ft.Row(
+                        controls=[
+                            service_tile("SPA_OUTLINED", "나의 FINDY", "#42A76F", lambda e: show_beauty_profile_page()),
+                            service_tile("CALENDAR_MONTH", "예약내역", "#F28B22", lambda e: show_reservation_history_page()),
+                        ],
+                        spacing=8,
+                    ),
+                    ft.Row(
+                        controls=[
+                            service_tile("RATE_REVIEW_OUTLINED", "내 리뷰", "#E257A8", lambda e: show_my_reviews_page()),
+                            service_tile("SUPPORT_AGENT", "고객센터", MAIN_COLOR_DARK, lambda e: show_support_page()),
+                        ],
+                        spacing=8,
+                    ),
+                ],
+                spacing=10,
+            ),
+        )
+
         controls = [
-            tab_page_intro("내정보", "원하는 항목을 빠르게 탐색해보세요."),
-            ft.Container(height=14),
-            build_my_info_profile_card(),
-        ]
-        controls.extend([
-            ft.Container(height=14),
+            my_page_intro(),
+            profile_card,
+            service_card,
             build_my_info_menu_section(),
-            ft.Container(height=14),
             logout_button(),
             ft.Container(height=24),
-        ])
+        ]
 
         body = ft.Column(
             controls=controls,
-            spacing=0,
+            spacing=12,
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
         )
 
@@ -10243,12 +10744,12 @@ async def main(page: ft.Page):
 
     def artist_action_card(icon_name, title, subtitle, on_click):
         return ft.Container(
-            width=content_width(),
-            padding=ft.padding.symmetric(horizontal=16, vertical=15),
-            bgcolor=CARD_COLOR,
-            border_radius=24,
-            border=ft.border.all(1, ft.Colors.with_opacity(0.78, BORDER_COLOR)),
-            shadow=ft.BoxShadow(spread_radius=0, blur_radius=14, color="#0B8B6B4F", offset=ft.Offset(0, 7)),
+            width=max(220, content_width() - 36),
+            padding=ft.padding.symmetric(horizontal=17, vertical=16),
+            bgcolor="#FFFFFF",
+            border_radius=26,
+            border=ft.border.all(1, ft.Colors.with_opacity(0.58, BORDER_COLOR)),
+            shadow=ft.BoxShadow(spread_radius=0, blur_radius=16, color="#09000000", offset=ft.Offset(0, 7)),
             ink=True,
             on_click=on_click,
             content=ft.Row(
@@ -10256,8 +10757,8 @@ async def main(page: ft.Page):
                     ft.Container(
                         width=42,
                         height=42,
-                        border_radius=16,
-                        bgcolor=CHIP_BG,
+                        border_radius=18,
+                        bgcolor=MAIN_COLOR_SOFT,
                         border=ft.border.all(1, BORDER_COLOR),
                         alignment=ft.Alignment(0, 0),
                         content=ft.Icon(app_icon(icon_name), size=20, color=MAIN_COLOR),
@@ -10310,23 +10811,62 @@ async def main(page: ft.Page):
             on_change=toggle_artist_profile_public,
         )
 
+        def artist_my_card(content, padding=18, on_click=None):
+            return ft.Container(
+                width=content_width(),
+                padding=padding,
+                bgcolor="#FFFFFF",
+                border_radius=24,
+                border=ft.border.all(1, ft.Colors.with_opacity(0.5, BORDER_COLOR)),
+                shadow=ft.BoxShadow(spread_radius=0, blur_radius=16, color="#09000000", offset=ft.Offset(0, 6)),
+                on_click=on_click,
+                ink=bool(on_click),
+                content=content,
+            )
+
+        def artist_service_tile(icon_name, label, color, on_click):
+            return ft.Container(
+                width=(content_width() - 44) / 2,
+                padding=ft.padding.symmetric(horizontal=12, vertical=11),
+                border_radius=18,
+                on_click=on_click,
+                ink=True,
+                content=ft.Row(
+                    controls=[
+                        ft.Icon(app_icon(icon_name), size=27, color=color),
+                        ft.Text(label, size=14, color=TEXT_COLOR, weight=ft.FontWeight.W_800, max_lines=1, overflow=ft.TextOverflow.ELLIPSIS, expand=True),
+                    ],
+                    spacing=12,
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                ),
+            )
+
         profile_card = ft.Container(
             width=content_width(),
             padding=SPACE_LG,
             bgcolor="#FFFFFF",
-            border_radius=RADIUS_XL,
-            border=ft.border.all(1, BORDER_COLOR),
-            shadow=ft.BoxShadow(spread_radius=0, blur_radius=16, color="#0B000000", offset=ft.Offset(0, 7)),
+            border_radius=28,
+            border=ft.border.all(1, ft.Colors.with_opacity(0.58, BORDER_COLOR)),
+            shadow=ft.BoxShadow(spread_radius=0, blur_radius=18, color="#09000000", offset=ft.Offset(0, 8)),
             content=ft.Column(
                 controls=[
                     ft.Row(
                         controls=[
-                            ft.Container(width=56, height=56, border_radius=18, bgcolor="#000000"),
+                            ft.Container(
+                                width=62,
+                                height=62,
+                                border_radius=999,
+                                bgcolor=CHIP_BG,
+                                border=ft.border.all(1, BORDER_COLOR),
+                                alignment=ft.Alignment(0, 0),
+                                content=ft.Text(profile["name"][:1], size=22, color=MAIN_COLOR_DARK, weight=ft.FontWeight.W_900),
+                            ),
                             ft.Column(
                                 controls=[
                                     ft.Text(profile["name"], size=18, weight=ft.FontWeight.W_800, color=TEXT_COLOR),
                                     ft.Text(f'{profile["field"]} · {profile["region"]}', size=11, color=SUBTEXT_COLOR),
                                     ft.Text(profile["shop"], size=11, color=SUBTEXT_COLOR),
+                                    ft.Text("프로필 확인", size=11, color=SUBTEXT_COLOR, weight=ft.FontWeight.W_700),
                                 ],
                                 spacing=3,
                                 expand=True,
@@ -10366,23 +10906,28 @@ async def main(page: ft.Page):
         )
 
         def artist_section(title, subtitle, controls):
-            return ft.Column(
-                controls=[
-                    ft.Container(
-                        width=content_width(),
-                        padding=ft.padding.only(left=4, right=4, top=8, bottom=2),
-                        content=ft.Column(
+            return artist_my_card(
+                ft.Column(
+                    controls=[
+                        ft.Row(
                             controls=[
-                                ft.Text(title, size=14, weight=ft.FontWeight.W_800, color=TEXT_COLOR),
-                                ft.Text(subtitle, size=11, color=SUBTEXT_COLOR),
+                                ft.Column(
+                                    controls=[
+                                        ft.Text(title, size=13, weight=ft.FontWeight.W_900, color=TEXT_COLOR),
+                                        ft.Text(subtitle, size=11, color=SUBTEXT_COLOR),
+                                    ],
+                                    spacing=3,
+                                    expand=True,
+                                ),
+                                ft.Icon(app_icon("CHEVRON_RIGHT", "ARROW_FORWARD_IOS"), size=17, color=SUBTEXT_COLOR),
                             ],
-                            spacing=4,
+                            vertical_alignment=ft.CrossAxisAlignment.CENTER,
                         ),
-                    ),
-                    *controls,
-                ],
-                spacing=SPACE_SM,
-                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                        *controls,
+                    ],
+                    spacing=10,
+                ),
+                padding=ft.padding.symmetric(horizontal=18, vertical=16),
             )
 
         completion_items = [
@@ -10512,7 +11057,7 @@ async def main(page: ft.Page):
         completion_body.controls = build_completion_controls()
 
         completion = ft.Container(
-            width=content_width(),
+            width=max(220, content_width() - 36),
             padding=SPACE_LG,
             bgcolor=CARD_COLOR,
             border_radius=RADIUS_LG,
@@ -10522,7 +11067,7 @@ async def main(page: ft.Page):
 
         recent_review = reviews[0] if reviews else None
         recent_review_card = ft.Container(
-            width=content_width(),
+            width=max(220, content_width() - 36),
             padding=SPACE_LG,
             bgcolor="#FFFFFF",
             border_radius=RADIUS_LG,
@@ -10545,12 +11090,11 @@ async def main(page: ft.Page):
         )
 
         reservation_manage_card = ft.Container(
-            width=content_width(),
+            width=max(220, content_width() - 36),
             padding=SPACE_LG,
             bgcolor="#FFFFFF",
-            border_radius=RADIUS_XL,
-            border=ft.border.all(1, BORDER_COLOR),
-            shadow=ft.BoxShadow(spread_radius=0, blur_radius=14, color="#08000000", offset=ft.Offset(0, 7)),
+            border_radius=24,
+            border=ft.border.all(1, ft.Colors.with_opacity(0.58, BORDER_COLOR)),
             ink=True,
             on_click=lambda e: show_artist_reservation_manage_page(),
             content=ft.Column(
@@ -10560,8 +11104,8 @@ async def main(page: ft.Page):
                             ft.Container(
                                 width=42,
                                 height=42,
-                                border_radius=16,
-                                bgcolor=CHIP_BG,
+                                border_radius=18,
+                                bgcolor=MAIN_COLOR_SOFT,
                                 border=ft.border.all(1, BORDER_COLOR),
                                 alignment=ft.Alignment(0, 0),
                                 content=ft.Icon(app_icon("EVENT_NOTE"), size=20, color=MAIN_COLOR),
@@ -10618,6 +11162,41 @@ async def main(page: ft.Page):
             ),
         )
 
+        artist_service_card = artist_my_card(
+            ft.Column(
+                controls=[
+                    ft.Row(
+                        controls=[
+                            ft.Text("서비스", size=13, color=TEXT_COLOR, weight=ft.FontWeight.W_900, expand=True),
+                            ft.Icon(app_icon("CHEVRON_RIGHT", "ARROW_FORWARD_IOS"), size=17, color=SUBTEXT_COLOR),
+                        ],
+                    ),
+                    ft.Row(
+                        controls=[
+                            artist_service_tile("PERSON_OUTLINE", "프로필", MAIN_COLOR, lambda e: show_artist_profile_page()),
+                            artist_service_tile("PHOTO_LIBRARY_OUTLINED", "포트폴리오", "#8D6AF3", lambda e: show_artist_portfolio_page()),
+                        ],
+                        spacing=8,
+                    ),
+                    ft.Row(
+                        controls=[
+                            artist_service_tile("EVENT_NOTE", "예약 관리", "#F28B22", lambda e: show_artist_reservation_manage_page()),
+                            artist_service_tile("RATE_REVIEW_OUTLINED", "리뷰 관리", "#E257A8", lambda e: show_artist_review_manage_page()),
+                        ],
+                        spacing=8,
+                    ),
+                    ft.Row(
+                        controls=[
+                            artist_service_tile("LIST_ALT", "가격 메뉴", "#42A76F", lambda e: show_artist_price_menu_page()),
+                            artist_service_tile("CHAT_BUBBLE_OUTLINE", "고객 메시지", MAIN_COLOR_DARK, lambda e: show_artist_messages_page()),
+                        ],
+                        spacing=8,
+                    ),
+                ],
+                spacing=10,
+            ),
+        )
+
         artist_profile_section = artist_section(
             "프로필 관리",
             "노출 신뢰도와 예약 전환에 필요한 정보를 관리해요.",
@@ -10647,54 +11226,32 @@ async def main(page: ft.Page):
             ],
         )
 
-        artist_activity_section = ft.Column(
-            controls=[
-                ft.Container(
-                    width=content_width(),
-                    padding=ft.padding.only(left=4, right=4, top=4, bottom=2),
-                    content=ft.Column(
-                        controls=[
-                            ft.Text("내 활동", size=14, weight=ft.FontWeight.W_800, color=TEXT_COLOR),
-                            ft.Text("작성한 콘텐츠와 저장한 뷰티를 모아볼 수 있어요.", size=11, color=SUBTEXT_COLOR),
-                        ],
-                        spacing=4,
-                    ),
-                ),
+        artist_activity_section = artist_section(
+            "내 활동",
+            "작성한 콘텐츠와 저장한 뷰티를 모아볼 수 있어요.",
+            [
                 artist_action_card("ADD_PHOTO_ALTERNATE_OUTLINED", "내가 쓴 스냅", "아티스트가 올린 스냅을 확인하고 관리해요.", lambda e: show_my_content_page("스냅")),
                 artist_action_card("SMART_DISPLAY_OUTLINED", "내가 쓴 비디오", "업로드한 영상 콘텐츠를 확인해요.", lambda e: show_my_content_page("비디오")),
                 artist_action_card("FORUM_OUTLINED", "내가 쓴 커뮤니티", "작성한 커뮤니티 글을 확인해요.", lambda e: show_my_content_page("커뮤니티")),
                 artist_action_card("BOOKMARK_BORDER", "저장한 뷰티", "저장한 스냅, 비디오와 참고 자료를 모아봐요.", lambda e: show_saved_page()),
             ],
-            spacing=SPACE_SM,
-            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
         )
 
-        artist_support_section = ft.Column(
-            controls=[
-                ft.Container(
-                    width=content_width(),
-                    padding=ft.padding.only(left=4, right=4, top=4, bottom=2),
-                    content=ft.Column(
-                        controls=[
-                            ft.Text("고객 지원", size=14, weight=ft.FontWeight.W_800, color=TEXT_COLOR),
-                            ft.Text("문의와 공지사항을 확인할 수 있어요.", size=11, color=SUBTEXT_COLOR),
-                        ],
-                        spacing=4,
-                    ),
-                ),
+        artist_support_section = artist_section(
+            "고객 지원",
+            "문의와 공지사항을 확인할 수 있어요.",
+            [
                 artist_action_card("CHAT_BUBBLE_OUTLINE", "고객 메시지", "고객이 보낸 메시지를 확인하고 답장해요.", lambda e: show_artist_messages_page()),
                 artist_action_card("SUPPORT_AGENT", "고객센터", "1:1 문의와 문의 내역을 확인해요.", lambda e: show_support_page()),
             ],
-            spacing=SPACE_SM,
-            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
         )
 
         body = ft.Column(
             controls=[
-                tab_page_intro("아티스트", "포트폴리오와 예약을 한 곳에서 관리해보세요."),
+                tab_page_intro("내정보", "아티스트 프로필과 예약을 한 곳에서 관리해보세요."),
                 ft.Container(height=14),
                 profile_card,
-                ft.Container(height=12),
+                artist_service_card,
                 artist_profile_section,
                 artist_reservation_section,
                 artist_review_section,

@@ -146,11 +146,30 @@ async def main(page: ft.Page):
     def full_phone_width():
         return layout_metrics()["frame_width"]
 
+    def default_header_back_handler(on_back=None):
+        if on_back is not None:
+            return on_back
+        root_pages = {
+            "opening",
+            "login",
+            "signup",
+            "home",
+            "home_category_transition",
+            "category",
+            "snap",
+            "video",
+            "my",
+        }
+        current = app_state.get("current_page", "")
+        if current and current not in root_pages:
+            return go_back_page
+        return None
+
     def build_standard_header(title, on_back=None, on_close=None, width=None):
-        return ui_page_header(title, on_back=on_back, width=width or content_width())
+        return ui_page_header(title, on_back=default_header_back_handler(on_back), width=width or content_width())
 
     def page_header(title, on_back=None, width=None):
-        return ui_page_header(title, on_back=on_back, width=width or content_width())
+        return ui_page_header(title, on_back=default_header_back_handler(on_back), width=width or content_width())
 
     def page_title_map():
         current_page = app_state.get("current_page", "")
@@ -164,8 +183,10 @@ async def main(page: ft.Page):
             "reservation_complete": "예약 완료",
             "reservation_history": "예약내역",
             "notifications": "알림",
+            "settings": "설정",
+            "findy_recommendation": "FINDY 추천정보",
             "review": "리뷰",
-            "review_admin": "리뷰 관리",
+            "review_admin": "운영 검토",
             "profile": "프로필",
             "edit_profile": "프로필 편집",
             "search": "검색",
@@ -181,6 +202,15 @@ async def main(page: ft.Page):
             "notice": "공지사항",
             "feedback": "개선 의견",
             "placeholder_info": "안내",
+            "my_content": "내가 쓴글",
+            "saved_content": "저장",
+            "liked_content": "좋아요",
+            "content_detail": "상세",
+            "community_board": "커뮤니티",
+            "write_community": "글쓰기",
+            "write_snap": "스냅 작성",
+            "write_video": "비디오 작성",
+            "video_detail": "비디오",
         }
         return mapping.get(current_page, "")
 
@@ -426,10 +456,15 @@ async def main(page: ft.Page):
         "video_comments_open": False,
         "video_liked_keys": set(),
         "video_saved_keys": set(),
+        "video_followed_creators": set(),
+        "video_reposted_keys": set(),
+        "video_shared_keys": set(),
+        "video_paused_keys": set(),
+        "video_more_open": False,
         "video_category_filter": "전체",
         "video_detail_item": None,
-        "my_content_type": "리뷰",
-        "saved_content_type": "스냅",
+        "my_content_type": "전체",
+        "saved_content_type": "전체",
         "content_detail_item": None,
         "artist_available_slots": ["11:00", "12:30", "15:00", "17:30", "19:00"],
         "current_user": None,
@@ -1412,6 +1447,10 @@ async def main(page: ft.Page):
                     "review_admin",
                     "my_content",
                     "saved_content",
+                    "liked_content",
+                    "settings",
+                    "findy_recommendation",
+                    "content_detail",
                     "completed",
                     "beauty_profile",
                     "notice",
@@ -1491,6 +1530,12 @@ async def main(page: ft.Page):
             show_my_content_page()
         elif page_name == "saved_content":
             show_saved_content_page()
+        elif page_name == "liked_content":
+            show_liked_content_page()
+        elif page_name == "settings":
+            show_settings_page()
+        elif page_name == "findy_recommendation":
+            show_findy_recommendation_page()
         elif page_name == "content_detail":
             show_content_detail_page()
         elif page_name == "reservation":
@@ -4526,13 +4571,17 @@ async def main(page: ft.Page):
     def show_my_content_page(content_type=None):
         if content_type:
             app_state["my_content_type"] = content_type
-        content_type = app_state.get("my_content_type", "스냅")
+        content_type = app_state.get("my_content_type", "전체")
         app_state["current_page"] = "my_content"
         app_state["selected_tab"] = 4
 
-        if content_type == "스냅":
-            raw_items = app_state.get("written_snaps", [])
-            items = [
+        content_tabs = ["전체", "질문", "자유게시판", "스냅", "비디오"]
+        if content_type not in content_tabs:
+            content_type = "전체"
+            app_state["my_content_type"] = content_type
+
+        def snap_items():
+            return [
                 make_simple_content_item(
                     "snap",
                     item.get("title"),
@@ -4542,11 +4591,11 @@ async def main(page: ft.Page):
                     f'좋아요 {item.get("likes", 0)} · 저장 {item.get("saves", 0)}',
                     item,
                 )
-                for item in raw_items
+                for item in app_state.get("written_snaps", [])
             ]
-        elif content_type == "비디오":
-            raw_items = app_state.get("written_videos", [])
-            items = [
+
+        def video_items():
+            return [
                 make_simple_content_item(
                     "video",
                     item.get("title"),
@@ -4556,11 +4605,14 @@ async def main(page: ft.Page):
                     f'조회 {item.get("views", "0")}',
                     item,
                 )
-                for item in raw_items
+                for item in app_state.get("written_videos", [])
             ]
-        else:
-            raw_items = app_state.get("community_posts", [])
-            items = [
+
+        def community_items(post_type=None):
+            posts = app_state.get("community_posts", [])
+            if post_type:
+                posts = [item for item in posts if item.get("post_type", item.get("badge")) == post_type]
+            return [
                 make_simple_content_item(
                     "community",
                     item.get("title", "커뮤니티 글"),
@@ -4570,8 +4622,36 @@ async def main(page: ft.Page):
                     item.get("meta", "댓글 0 · 저장 0"),
                     item,
                 )
-                for item in raw_items
+                for item in posts
             ]
+
+        if content_type == "질문":
+            items = community_items("질문")
+        elif content_type == "자유게시판":
+            items = community_items("자유")
+        elif content_type == "스냅":
+            items = snap_items()
+        elif content_type == "비디오":
+            items = video_items()
+        else:
+            items = community_items() + snap_items() + video_items()
+
+        def content_tab(label):
+            active = content_type == label
+            return ft.Container(
+                padding=ft.padding.symmetric(horizontal=14, vertical=9),
+                bgcolor=MAIN_COLOR if active else "#FFFFFF",
+                border_radius=999,
+                border=ft.border.all(1, MAIN_COLOR if active else BORDER_COLOR),
+                on_click=lambda e, selected=label: show_my_content_page(selected),
+                ink=True,
+                content=ft.Text(
+                    label,
+                    size=12,
+                    color="#FFFFFF" if active else TEXT_COLOR,
+                    weight=ft.FontWeight.W_800,
+                ),
+            )
 
         def open_item(item):
             def handler(e):
@@ -4585,14 +4665,27 @@ async def main(page: ft.Page):
             return handler
 
         controls = [
-            page_header(f"내가 쓴 {content_type}", on_back=go_back_page),
-            ft.Text(f"작성한 {content_type} 콘텐츠를 모아봤어요.", size=13, color=SUBTEXT_COLOR, width=content_width()),
+            page_header("내가 쓴글", on_back=go_back_page),
+            ft.Text("질문, 자유게시판, 스냅, 비디오까지 앱 안에서 작성한 글을 모아봤어요.", size=13, color=SUBTEXT_COLOR, width=content_width()),
+            ft.Row(
+                controls=[content_tab(label) for label in content_tabs],
+                spacing=8,
+                run_spacing=8,
+                wrap=True,
+                width=content_width(),
+            ),
         ]
         visible_items = [item for item in items if not is_content_hidden(item)]
         if visible_items:
             controls.extend([browse_result_card(item, on_click=open_item(item)) for item in visible_items])
         else:
-            write_target = {"스냅": show_write_snap_page, "비디오": show_write_video_page, "커뮤니티": show_write_community_page}.get(content_type, show_my_page)
+            write_target = {
+                "스냅": show_write_snap_page,
+                "비디오": show_write_video_page,
+                "질문": lambda: (app_state.__setitem__("community_write_type", "질문"), show_write_community_page()),
+                "자유게시판": lambda: (app_state.__setitem__("community_write_type", "자유"), show_write_community_page()),
+            }.get(content_type, show_write_community_page)
+            empty_label = "글" if content_type == "전체" else content_type
             controls.append(
                 ft.Container(
                     width=content_width(),
@@ -4602,9 +4695,9 @@ async def main(page: ft.Page):
                     border=ft.border.all(1, BORDER_COLOR),
                     content=ft.Column(
                         controls=[
-                            ft.Text(f"아직 작성한 {content_type}이 없어요.", size=15, weight=ft.FontWeight.W_800, color=TEXT_COLOR),
+                            ft.Text(f"아직 작성한 {empty_label}이 없어요.", size=15, weight=ft.FontWeight.W_800, color=TEXT_COLOR),
                             ft.Text("첫 콘텐츠를 작성하면 이곳에서 바로 확인할 수 있어요.", size=12, color=SUBTEXT_COLOR),
-                            soft_button(f"{content_type} 작성하기", MAIN_COLOR, "white", lambda e: write_target(), width=content_width() - 48),
+                            soft_button(f"{empty_label} 작성하기", MAIN_COLOR, "white", lambda e: write_target(), width=content_width() - 48),
                         ],
                         spacing=12,
                         horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -4617,42 +4710,74 @@ async def main(page: ft.Page):
     def show_saved_content_page(content_type=None):
         if content_type:
             app_state["saved_content_type"] = content_type
-        content_type = app_state.get("saved_content_type", "아티스트")
+        content_type = app_state.get("saved_content_type", "전체")
         app_state["current_page"] = "saved_content"
         app_state["selected_tab"] = 4
 
-        items = []
-        if content_type == "샵":
-            saved_artists = [find_artist_by_id(aid) for aid in app_state.get("saved_ids", set())]
-            for artist in [a for a in saved_artists if a]:
-                items.append(make_simple_content_item("shop", f'{artist["name"].split()[0]} 뷰티 스튜디오', artist["category"], artist["intro"], "샵", f'⭐ {artist["rating"]} · {artist["distance"]}', artist))
-        elif content_type == "스냅":
+        content_tabs = ["전체", "질문", "자유게시판", "스냅", "비디오"]
+        if content_type not in content_tabs:
+            content_type = "전체"
+            app_state["saved_content_type"] = content_type
+
+        def saved_snap_items():
+            items = []
             saved_ids = app_state.get("snap_saved_ids", set())
             for category in ["헤어", "네일아트", "메이크업", "반영구", "웨딩", "포토"]:
                 for snap in get_snap_feed_items("latest", category):
                     if snap.get("id") in saved_ids:
                         items.append(make_simple_content_item("snap", snap.get("title"), snap.get("category"), snap.get("description", ""), "스냅", f'좋아요 {snap.get("likes", 0)} · 저장 {snap.get("saves", 0)}', snap))
-        elif content_type == "비디오":
+            return items
+
+        def saved_video_items():
+            items = []
             saved_keys = app_state.get("video_saved_keys", set())
             for video in get_all_video_items():
                 if video_key(video) in saved_keys:
                     items.append(make_simple_content_item("video", video.get("title"), video.get("category"), video.get("subtitle", ""), "비디오", f'{video.get("duration", "0:00")} · 조회 {video.get("views", "0")}', video))
-        elif content_type == "커뮤니티":
+            return items
+
+        def saved_community_items(post_type_filter=None):
+            items = []
             saved_keys = app_state.get("community_saved_ids", set())
             for post in community_posts():
-                if content_identity(post) in saved_keys:
+                post_type = post.get("post_type", post.get("badge", "커뮤니티"))
+                if content_identity(post) in saved_keys and (post_type_filter is None or post_type == post_type_filter):
                     items.append(make_simple_content_item(
                         "community",
                         post.get("title", "커뮤니티 글"),
-                        f'{post.get("category", "커뮤니티")} · {post.get("post_type", post.get("badge", "커뮤니티"))}',
+                        f'{post.get("category", "커뮤니티")} · {post_type}',
                         post.get("description", ""),
-                        post.get("post_type", "커뮤니티"),
+                        post_type,
                         post.get("meta", "댓글 0 · 저장 0"),
                         post,
                     ))
+            return items
+
+        if content_type in {"질문", "자유게시판"}:
+            items = saved_community_items(content_type)
+        elif content_type == "스냅":
+            items = saved_snap_items()
+        elif content_type == "비디오":
+            items = saved_video_items()
         else:
-            show_saved_content_page("스냅")
-            return
+            items = saved_community_items() + saved_snap_items() + saved_video_items()
+
+        def content_tab(label):
+            active = content_type == label
+            return ft.Container(
+                padding=ft.padding.symmetric(horizontal=14, vertical=9),
+                bgcolor=MAIN_COLOR if active else "#FFFFFF",
+                border_radius=999,
+                border=ft.border.all(1, MAIN_COLOR if active else BORDER_COLOR),
+                on_click=lambda e, selected=label: show_saved_content_page(selected),
+                ink=True,
+                content=ft.Text(
+                    label,
+                    size=12,
+                    color="#FFFFFF" if active else TEXT_COLOR,
+                    weight=ft.FontWeight.W_800,
+                ),
+            )
 
         def open_item(item):
             def handler(e):
@@ -4668,8 +4793,15 @@ async def main(page: ft.Page):
             return handler
 
         controls = [
-            page_header(f"저장한 {content_type}", on_back=go_back_page),
-            ft.Text(f"저장한 {content_type} 항목을 모아봤어요.", size=13, color=SUBTEXT_COLOR, width=content_width()),
+            page_header("저장", on_back=go_back_page),
+            ft.Text("저장한 커뮤니티 글, 스냅, 비디오를 모아봤어요.", size=13, color=SUBTEXT_COLOR, width=content_width()),
+            ft.Row(
+                controls=[content_tab(label) for label in content_tabs],
+                spacing=8,
+                run_spacing=8,
+                wrap=True,
+                width=content_width(),
+            ),
         ]
         visible_items = [item for item in items if not is_content_hidden(item)]
         if visible_items:
@@ -4684,8 +4816,122 @@ async def main(page: ft.Page):
                     border=ft.border.all(1, BORDER_COLOR),
                     content=ft.Column(
                         controls=[
-                            ft.Text(f"아직 저장한 {content_type}이 없어요.", size=15, weight=ft.FontWeight.W_800, color=TEXT_COLOR),
-                            ft.Text("좋아요/저장 버튼을 누르면 이곳에 모여요.", size=12, color=SUBTEXT_COLOR),
+                            ft.Text("아직 저장한 글이 없어요.", size=15, weight=ft.FontWeight.W_800, color=TEXT_COLOR),
+                            ft.Text("저장 버튼을 누르면 이곳에 모여요.", size=12, color=SUBTEXT_COLOR),
+                        ],
+                        spacing=4,
+                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                    ),
+                )
+            )
+        controls.append(ft.Container(height=24))
+        make_shell(ft.Column(controls=controls, spacing=SPACE_MD, horizontal_alignment=ft.CrossAxisAlignment.CENTER), app_state["selected_tab"])
+
+    def show_liked_content_page(content_type="전체"):
+        app_state["current_page"] = "liked_content"
+        app_state["selected_tab"] = 4
+
+        content_tabs = ["전체", "질문", "자유게시판", "스냅", "비디오"]
+        if content_type not in content_tabs:
+            content_type = "전체"
+
+        def liked_snap_items():
+            items = []
+            liked_ids = app_state.get("snap_liked_ids", set())
+            for category in ["헤어", "네일아트", "메이크업", "반영구", "웨딩", "포토"]:
+                for snap in get_snap_feed_items("latest", category):
+                    if snap.get("id") in liked_ids:
+                        items.append(make_simple_content_item("snap", snap.get("title"), snap.get("category"), snap.get("description", ""), "스냅", f'좋아요 {snap.get("likes", 0)} · 저장 {snap.get("saves", 0)}', snap))
+            return items
+
+        def liked_video_items():
+            items = []
+            liked_keys = app_state.get("video_liked_keys", set())
+            for video in get_all_video_items():
+                if video_key(video) in liked_keys:
+                    items.append(make_simple_content_item("video", video.get("title"), video.get("category"), video.get("subtitle", ""), "비디오", f'{video.get("duration", "0:00")} · 조회 {video.get("views", "0")}', video))
+            return items
+
+        def liked_community_items(post_type_filter=None):
+            items = []
+            liked_ids = app_state.get("community_liked_ids", set())
+            for post in community_posts():
+                post_type = post.get("post_type", post.get("badge", "커뮤니티"))
+                if content_identity(post) in liked_ids and (post_type_filter is None or post_type == post_type_filter):
+                    items.append(make_simple_content_item(
+                        "community",
+                        post.get("title", "커뮤니티 글"),
+                        f'{post.get("category", "커뮤니티")} · {post_type}',
+                        post.get("description", ""),
+                        post_type,
+                        post.get("meta", "댓글 0 · 저장 0"),
+                        post,
+                    ))
+            return items
+
+        if content_type in {"질문", "자유게시판"}:
+            items = liked_community_items(content_type)
+        elif content_type == "스냅":
+            items = liked_snap_items()
+        elif content_type == "비디오":
+            items = liked_video_items()
+        else:
+            items = liked_community_items() + liked_snap_items() + liked_video_items()
+
+        def content_tab(label):
+            active = content_type == label
+            return ft.Container(
+                padding=ft.padding.symmetric(horizontal=14, vertical=9),
+                bgcolor=MAIN_COLOR if active else "#FFFFFF",
+                border_radius=999,
+                border=ft.border.all(1, MAIN_COLOR if active else BORDER_COLOR),
+                on_click=lambda e, selected=label: show_liked_content_page(selected),
+                ink=True,
+                content=ft.Text(
+                    label,
+                    size=12,
+                    color="#FFFFFF" if active else TEXT_COLOR,
+                    weight=ft.FontWeight.W_800,
+                ),
+            )
+
+        def open_item(item):
+            def handler(e):
+                source = item.get("source") or item
+                if item["type"] == "snap":
+                    open_snap_detail(source)
+                elif item["type"] == "video":
+                    show_video_detail_page(source)
+                else:
+                    open_content_detail(item, back_page="liked_content")
+            return handler
+
+        controls = [
+            page_header("좋아요", on_back=go_back_page),
+            ft.Text("좋아요를 누른 커뮤니티 글, 스냅, 비디오를 모아봤어요.", size=13, color=SUBTEXT_COLOR, width=content_width()),
+            ft.Row(
+                controls=[content_tab(label) for label in content_tabs],
+                spacing=8,
+                run_spacing=8,
+                wrap=True,
+                width=content_width(),
+            ),
+        ]
+        visible_items = [item for item in items if not is_content_hidden(item)]
+        if visible_items:
+            controls.extend([browse_result_card(item, on_click=open_item(item)) for item in visible_items])
+        else:
+            controls.append(
+                ft.Container(
+                    width=content_width(),
+                    padding=SPACE_XL,
+                    bgcolor="#FFFFFF",
+                    border_radius=RADIUS_XL,
+                    border=ft.border.all(1, BORDER_COLOR),
+                    content=ft.Column(
+                        controls=[
+                            ft.Text("아직 좋아요 누른 글이 없어요.", size=15, weight=ft.FontWeight.W_800, color=TEXT_COLOR),
+                            ft.Text("좋아요 버튼을 누르면 이곳에 모여요.", size=12, color=SUBTEXT_COLOR),
                         ],
                         spacing=4,
                         horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -4956,7 +5202,7 @@ async def main(page: ft.Page):
 
         filter_labels = [("전체", "all"), ("정상", "visible"), ("검토", "pending"), ("신고", "reported"), ("숨김", "hidden"), ("삭제", "deleted")]
         body_controls = [
-            page_header("리뷰 관리", on_back=go_back_page),
+            page_header("운영 검토", on_back=go_back_page),
             ft.Container(
                 width=content_width(),
                 padding=SPACE_LG,
@@ -5195,32 +5441,41 @@ async def main(page: ft.Page):
             {
                 "label": "내가 쓴 글",
                 "icon_name": "ARTICLE_OUTLINED",
-                "action": lambda e: (close_overlays(), show_my_reviews_page()),
+                "action": lambda e: (close_overlays(), show_my_content_page("전체")),
                 "enabled": True,
                 "children": [
-                    {"label": "리뷰", "action": lambda e: (close_overlays(), show_my_reviews_page())},
+                    {"label": "전체", "action": lambda e: (close_overlays(), show_my_content_page("전체"))},
+                    {"label": "질문", "action": lambda e: (close_overlays(), show_my_content_page("질문"))},
+                    {"label": "자유게시판", "action": lambda e: (close_overlays(), show_my_content_page("자유게시판"))},
                     {"label": "스냅", "action": lambda e: (close_overlays(), show_my_content_page("스냅"))},
                     {"label": "비디오", "action": lambda e: (close_overlays(), show_my_content_page("비디오"))},
-                    {"label": "커뮤니티", "action": lambda e: (close_overlays(), show_my_content_page("커뮤니티"))},
                 ],
             },
             {
-                "label": "저장한 뷰티",
-                "icon_name": "BOOKMARK_BORDER",
-                "action": lambda e: (close_overlays(), show_saved_page()),
+                "label": "좋아요",
+                "icon_name": "FAVORITE_BORDER",
+                "action": lambda e: (close_overlays(), show_liked_content_page("전체")),
                 "enabled": True,
                 "children": [
-                    {"label": "커뮤니티", "action": lambda e: (close_overlays(), show_saved_content_page("커뮤니티"))},
+                    {"label": "전체", "action": lambda e: (close_overlays(), show_liked_content_page("전체"))},
+                    {"label": "질문", "action": lambda e: (close_overlays(), show_liked_content_page("질문"))},
+                    {"label": "자유게시판", "action": lambda e: (close_overlays(), show_liked_content_page("자유게시판"))},
+                    {"label": "스냅", "action": lambda e: (close_overlays(), show_liked_content_page("스냅"))},
+                    {"label": "비디오", "action": lambda e: (close_overlays(), show_liked_content_page("비디오"))},
+                ],
+            },
+            {
+                "label": "저장",
+                "icon_name": "BOOKMARK_BORDER",
+                "action": lambda e: (close_overlays(), show_saved_content_page("전체")),
+                "enabled": True,
+                "children": [
+                    {"label": "전체", "action": lambda e: (close_overlays(), show_saved_content_page("전체"))},
+                    {"label": "질문", "action": lambda e: (close_overlays(), show_saved_content_page("질문"))},
+                    {"label": "자유게시판", "action": lambda e: (close_overlays(), show_saved_content_page("자유게시판"))},
                     {"label": "스냅", "action": lambda e: (close_overlays(), show_saved_content_page("스냅"))},
                     {"label": "비디오", "action": lambda e: (close_overlays(), show_saved_content_page("비디오"))},
                 ],
-            },
-            {
-                "label": "리뷰 관리",
-                "icon_name": "ADMIN_PANEL_SETTINGS",
-                "action": lambda e: (close_overlays(), show_review_admin_page()),
-                "enabled": True,
-                "badge_text": f'{len(app_state.get("review_reports", []))}건' if app_state.get("review_reports") else None,
             },
         ]
 
@@ -5398,6 +5653,7 @@ async def main(page: ft.Page):
             "write_video",
             "my_content",
             "saved_content",
+            "liked_content",
             "content_detail",
             "community_board",
             "reservation_history",
@@ -5408,11 +5664,13 @@ async def main(page: ft.Page):
             "customer_messages",
             "message_detail",
             "beauty_profile",
+            "findy_recommendation",
             "notice",
             "feedback",
             "support",
             "inquiry",
             "notifications",
+            "settings",
             "placeholder_info",
         }
         full_height_pages = {"login", "signup"}
@@ -7324,7 +7582,7 @@ async def main(page: ft.Page):
                         controls=[
                             highlight("New", "ADD", lambda e: show_write_snap_page()),
                             highlight("하이라이트", "AUTO_AWESOME"),
-                            highlight("관심분야", "SPA_OUTLINED", lambda e: show_edit_profile_page(reset_draft=True)),
+                            highlight("관심분야", "SPA_OUTLINED", lambda e: show_findy_recommendation_page(reset_draft=True)),
                         ],
                         spacing=8,
                         scroll=ft.ScrollMode.HIDDEN,
@@ -7358,6 +7616,42 @@ async def main(page: ft.Page):
         if reset_draft or app_state.get("profile_edit_draft") is None:
             app_state["profile_edit_draft"] = json.loads(json.dumps(get_user_profile()))
         draft = app_state["profile_edit_draft"]
+        recommendation_categories = ["헤어", "네일아트", "메이크업", "포토", "웨딩", "반영구시술"]
+        recommendation_slug_map = {
+            "헤어": "hair",
+            "네일아트": "nail",
+            "메이크업": "makeup",
+            "포토": "photo",
+            "웨딩": "wedding",
+            "반영구시술": "semi_permanent",
+        }
+        selected_recommendation_fields = draft.setdefault("interestedFields", ["헤어"])
+        active_recommendation_category = app_state.get("profile_edit_active_category") or (selected_recommendation_fields[0] if selected_recommendation_fields else "헤어")
+        if active_recommendation_category not in recommendation_categories:
+            active_recommendation_category = "헤어"
+        if active_recommendation_category not in selected_recommendation_fields:
+            selected_recommendation_fields.append(active_recommendation_category)
+        app_state["profile_edit_active_category"] = active_recommendation_category
+
+        def recommendation_key(key, category=None):
+            slug = recommendation_slug_map.get(category or active_recommendation_category, "hair")
+            return f"{key}_{slug}"
+
+        def seed_recommendation_defaults():
+            for category in recommendation_categories:
+                style_key = recommendation_key("styleKeywords", category)
+                if style_key not in draft:
+                    draft[style_key] = list(draft.get("styleKeywords", [])) if category == active_recommendation_category else []
+                for base_key in ["budgetRange", "locationPreference", "algorithmMemo"]:
+                    scoped = recommendation_key(base_key, category)
+                    if scoped not in draft:
+                        draft[scoped] = draft.get(base_key, "")
+            draft.setdefault(recommendation_key("hairConcern", "헤어"), draft.get("hairConcern", ""))
+            draft.setdefault(recommendation_key("skinType", "메이크업"), draft.get("skinType", ""))
+            draft.setdefault(recommendation_key("makeupConcern", "메이크업"), draft.get("makeupConcern", ""))
+            draft.setdefault(recommendation_key("personalTone", "메이크업"), draft.get("personalTone", ""))
+
+        seed_recommendation_defaults()
 
         def update_field(key):
             def handler(e):
@@ -7366,6 +7660,20 @@ async def main(page: ft.Page):
 
         def save_profile(e=None):
             profile = json.loads(json.dumps(draft))
+            active = app_state.get("profile_edit_active_category", active_recommendation_category)
+            profile["styleKeywords"] = list(profile.get(recommendation_key("styleKeywords", active), profile.get("styleKeywords", [])))
+            profile["budgetRange"] = profile.get(recommendation_key("budgetRange", active), profile.get("budgetRange", ""))
+            profile["locationPreference"] = profile.get(recommendation_key("locationPreference", active), profile.get("locationPreference", ""))
+            profile["algorithmMemo"] = profile.get(recommendation_key("algorithmMemo", active), profile.get("algorithmMemo", ""))
+            recommendation_by_category = {}
+            for category in recommendation_categories:
+                suffix = f"_{recommendation_slug_map[category]}"
+                category_data = {}
+                for key, value in profile.items():
+                    if key.endswith(suffix):
+                        category_data[key[: -len(suffix)]] = value
+                recommendation_by_category[category] = category_data
+            profile["recommendationByCategory"] = recommendation_by_category
             app_state["user_profile"] = profile
             app_state["profile_edit_draft"] = None
             if app_state.get("current_user"):
@@ -7429,6 +7737,7 @@ async def main(page: ft.Page):
 
         def multi_choice_row(title, key, options):
             values = draft.setdefault(key, [])
+
             def toggle(option):
                 def handler(e):
                     current = draft.setdefault(key, [])
@@ -7438,6 +7747,7 @@ async def main(page: ft.Page):
                         current.append(option)
                     show_edit_profile_page()
                 return handler
+
             return ft.Container(
                 width=content_width(),
                 padding=ft.padding.symmetric(vertical=13),
@@ -7455,6 +7765,117 @@ async def main(page: ft.Page):
                     spacing=9,
                 ),
             )
+
+        def recommendation_category_row():
+            values = draft.setdefault("interestedFields", [])
+
+            def choose(category):
+                def handler(e):
+                    if category not in values:
+                        values.append(category)
+                    app_state["profile_edit_active_category"] = category
+                    show_edit_profile_page()
+                return handler
+
+            def category_chip(category):
+                active = category == active_recommendation_category
+                selected = category in values
+                return ft.Container(
+                    padding=ft.padding.symmetric(horizontal=14, vertical=10),
+                    bgcolor=MAIN_COLOR if active else MAIN_COLOR_SOFT if selected else "#FFFFFF",
+                    border_radius=999,
+                    border=ft.border.all(1, MAIN_COLOR if active or selected else BORDER_COLOR),
+                    on_click=choose(category),
+                    ink=True,
+                    content=ft.Text(
+                        category,
+                        size=13,
+                        color="#FFFFFF" if active else TEXT_COLOR,
+                        weight=ft.FontWeight.W_800,
+                    ),
+                )
+
+            return ft.Container(
+                width=content_width(),
+                padding=ft.padding.symmetric(vertical=13),
+                border=ft.border.only(bottom=ft.BorderSide(1, BORDER_COLOR)),
+                content=ft.Column(
+                    controls=[
+                        ft.Row(
+                            controls=[
+                                ft.Text("관심있는 분야", size=13, color=TEXT_COLOR, weight=ft.FontWeight.W_900, expand=True),
+                                ft.Text(f"{active_recommendation_category} 편집 중", size=12, color=SUBTEXT_COLOR, weight=ft.FontWeight.W_700),
+                            ],
+                            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                        ),
+                        ft.Row(
+                            controls=[category_chip(category) for category in recommendation_categories],
+                            spacing=7,
+                            run_spacing=7,
+                            wrap=True,
+                        ),
+                    ],
+                    spacing=9,
+                ),
+            )
+
+        style_options_by_category = {
+            "헤어": ["내추럴", "차분한", "힙한", "고급스러운", "러블리", "시크한", "청순한", "화려한"],
+            "네일아트": ["깔끔한", "시럽", "프렌치", "글리터", "귀여운", "화려한", "오피스", "웨딩"],
+            "메이크업": ["차가운", "귀여운", "도도한", "내추럴", "화려한", "청순한", "힙한", "고급스러운"],
+            "포토": ["자연스러운", "고급스러운", "청량한", "시크한", "따뜻한", "필름감성", "화보느낌", "보정 적게"],
+            "웨딩": ["자연스러운", "화사한", "우아한", "고급스러운", "깔끔한", "러블리", "클래식", "화려한"],
+            "반영구시술": ["자연스러운", "또렷한", "깔끔한", "부드러운", "대칭감", "민낯 친화", "선명한", "은은한"],
+        }
+        budget_options_by_category = {
+            "헤어": ["상관없음", "5만원 이하", "5~10만원", "10~20만원", "20만원 이상", "가성비", "프리미엄"],
+            "네일아트": ["상관없음", "3만원 이하", "3~5만원", "5~8만원", "8만원 이상", "가성비", "프리미엄"],
+            "메이크업": ["상관없음", "5만원 이하", "5~10만원", "10~20만원", "20만원 이상", "가성비", "프리미엄"],
+            "포토": ["상관없음", "10만원 이하", "10~20만원", "20~40만원", "40만원 이상", "가성비", "프리미엄"],
+            "웨딩": ["상관없음", "20만원 이하", "20~50만원", "50~100만원", "100만원 이상", "가성비", "프리미엄"],
+            "반영구시술": ["상관없음", "10만원 이하", "10~20만원", "20~40만원", "40만원 이상", "가성비", "프리미엄"],
+        }
+
+        def recommendation_rows():
+            category = active_recommendation_category
+            common_rows = [
+                multi_choice_row("선호 스타일", recommendation_key("styleKeywords"), style_options_by_category.get(category, [])),
+            ]
+            category_rows = {
+                "헤어": [
+                    single_choice_row("헤어 고민", recommendation_key("hairConcern"), ["볼륨", "손상모", "곱슬", "탈색모", "두피", "숱 적음", "숱 많음"]),
+                    single_choice_row("헤어 목적", recommendation_key("visitPurpose"), ["데일리 관리", "기분전환", "촬영", "데이트", "면접", "웨딩", "여행"]),
+                ],
+                "네일아트": [
+                    single_choice_row("네일 고민", recommendation_key("nailConcern"), ["손톱 얇음", "잘 부러짐", "유지력", "큐티클", "짧은 손톱", "파츠 유지"]),
+                    single_choice_row("네일 목적", recommendation_key("visitPurpose"), ["데일리", "기분전환", "여행", "촬영", "웨딩", "계절 아트"]),
+                ],
+                "메이크업": [
+                    single_choice_row("피부/메이크업", recommendation_key("skinType"), ["지성", "건성", "복합성", "민감성", "수부지"]),
+                    single_choice_row("메이크업 고민", recommendation_key("makeupConcern"), ["지속력", "커버력", "톤보정", "무너짐", "모공", "다크닝", "건조 끼임"]),
+                    single_choice_row("퍼스널 톤", recommendation_key("personalTone"), ["웜톤", "쿨톤", "뉴트럴", "잘 모름"]),
+                ],
+                "포토": [
+                    single_choice_row("포토 목적", recommendation_key("photoPurpose"), ["프로필", "증명사진", "SNS", "커플", "우정", "가족", "웨딩 스냅"]),
+                    single_choice_row("포토 무드", recommendation_key("photoMood"), ["자연스러운", "고급스러운", "청량한", "시크한", "따뜻한", "필름감성"]),
+                ],
+                "웨딩": [
+                    single_choice_row("웨딩 역할", recommendation_key("weddingRole"), ["신부", "신랑", "혼주", "하객", "브라이덜샤워", "스몰웨딩"]),
+                    single_choice_row("웨딩 니즈", recommendation_key("weddingNeed"), ["오래 유지", "사진발", "눈물/땀 걱정", "자연스러운", "화려한", "피부관리 포함"]),
+                ],
+                "반영구시술": [
+                    single_choice_row("시술 부위", recommendation_key("semiPermanentArea"), ["눈썹", "아이라인", "입술", "헤어라인", "두피 SMP"]),
+                    single_choice_row("반영구 고민", recommendation_key("semiPermanentConcern"), ["자연스러운 색", "또렷한 라인", "탈각 걱정", "붓기 걱정", "통증 걱정", "색 빠짐"]),
+                ],
+            }
+            return [
+                ft.Container(width=content_width(), padding=ft.padding.only(top=4), content=ft.Text(f"{category} 추천 항목", size=13, color=TEXT_COLOR, weight=ft.FontWeight.W_900)),
+                *common_rows,
+                *category_rows.get(category, []),
+                single_choice_row("예산", recommendation_key("budgetRange"), budget_options_by_category.get(category, ["상관없음", "가성비", "중간", "프리미엄"])),
+                single_choice_row("추천 위치", recommendation_key("locationPreference"), ["내 주변", "인기 지역", "상관없음"]),
+                edit_text_row("알고리즘 메모", recommendation_key("algorithmMemo"), f"{category} 추천에 반영할 취향을 적어주세요.", multiline=True),
+            ]
 
         body = ft.Column(
             controls=[
@@ -7498,21 +7919,313 @@ async def main(page: ft.Page):
                 single_choice_row("연락처 옵션", "contactOption", ["비공개", "이메일만", "앱 알림만"]),
                 single_choice_row("행동 유도 버튼", "actionButton", ["비활성화", "팔로우", "문의하기"]),
                 single_choice_row("프로필 표시", "profileVisibility", ["전체 공개", "팔로워만", "비공개"]),
-                ft.Container(width=content_width(), padding=ft.padding.only(top=10), content=ft.Text("FINDY 추천 정보", size=14, color=TEXT_COLOR, weight=ft.FontWeight.W_900)),
-                multi_choice_row("관심있는 분야", "interestedFields", ["헤어", "네일아트", "메이크업", "포토", "웨딩", "반영구시술"]),
-                multi_choice_row("선호 스타일", "styleKeywords", ["차가운", "귀여운", "도도한", "내추럴", "화려한", "청순한", "힙한", "고급스러운"]),
-                single_choice_row("피부/메이크업", "skinType", ["지성", "건성", "복합성", "민감성", "수부지"]),
-                single_choice_row("메이크업 고민", "makeupConcern", ["지속력", "커버력", "톤보정", "무너짐", "모공"]),
-                single_choice_row("헤어 고민", "hairConcern", ["볼륨", "손상모", "곱슬", "탈색모", "두피"]),
-                single_choice_row("퍼스널 톤", "personalTone", ["웜톤", "쿨톤", "뉴트럴", "잘 모름"]),
-                single_choice_row("예산", "budgetRange", ["상관없음", "가성비", "중간", "프리미엄"]),
-                single_choice_row("추천 위치", "locationPreference", ["내 주변", "인기 지역", "상관없음"]),
-                edit_text_row("알고리즘 메모", "algorithmMemo", "추천에 반영할 취향을 적어주세요.", multiline=True),
-                ft.Container(height=8),
                 soft_button("프로필 저장", MAIN_COLOR, "white", save_profile, width=content_width()),
                 ft.Container(height=24),
             ],
             spacing=0,
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+        )
+        make_shell(body, app_state["selected_tab"])
+
+    def show_findy_recommendation_page(reset_draft=False):
+        clear_transient_ui()
+        close_overlays()
+        app_state["selected_tab"] = 4
+        app_state["current_page"] = "findy_recommendation"
+
+        if reset_draft or app_state.get("findy_recommendation_draft") is None:
+            app_state["findy_recommendation_draft"] = json.loads(json.dumps(get_user_profile()))
+        draft = app_state["findy_recommendation_draft"]
+
+        recommendation_categories = ["헤어", "네일아트", "메이크업", "포토", "웨딩", "반영구시술"]
+        recommendation_slug_map = {
+            "헤어": "hair",
+            "네일아트": "nail",
+            "메이크업": "makeup",
+            "포토": "photo",
+            "웨딩": "wedding",
+            "반영구시술": "semi_permanent",
+        }
+        selected_fields = draft.setdefault("interestedFields", ["헤어"])
+        active_category = app_state.get("findy_recommendation_active_category") or (selected_fields[0] if selected_fields else "헤어")
+        if active_category not in recommendation_categories:
+            active_category = "헤어"
+        if active_category not in selected_fields:
+            selected_fields.append(active_category)
+        app_state["findy_recommendation_active_category"] = active_category
+
+        def recommendation_key(key, category=None):
+            slug = recommendation_slug_map.get(category or active_category, "hair")
+            return f"{key}_{slug}"
+
+        def seed_recommendation_defaults():
+            for category in recommendation_categories:
+                style_key = recommendation_key("styleKeywords", category)
+                if style_key not in draft:
+                    draft[style_key] = list(draft.get("styleKeywords", [])) if category == active_category else []
+                for base_key in ["budgetRange", "locationPreference", "algorithmMemo"]:
+                    scoped = recommendation_key(base_key, category)
+                    if scoped not in draft:
+                        draft[scoped] = draft.get(base_key, "")
+            draft.setdefault(recommendation_key("hairConcern", "헤어"), draft.get("hairConcern", ""))
+            draft.setdefault(recommendation_key("skinType", "메이크업"), draft.get("skinType", ""))
+            draft.setdefault(recommendation_key("makeupConcern", "메이크업"), draft.get("makeupConcern", ""))
+            draft.setdefault(recommendation_key("personalTone", "메이크업"), draft.get("personalTone", ""))
+
+        seed_recommendation_defaults()
+
+        def update_field(key):
+            def handler(e):
+                draft[key] = e.control.value or ""
+            return handler
+
+        def refresh_recommendation_page():
+            show_findy_recommendation_page()
+
+        def save_recommendation(e=None):
+            profile = json.loads(json.dumps(get_user_profile()))
+            profile["interestedFields"] = list(draft.get("interestedFields", []))
+            for category in recommendation_categories:
+                suffix = f"_{recommendation_slug_map[category]}"
+                for key, value in draft.items():
+                    if key.endswith(suffix):
+                        profile[key] = value
+
+            active = app_state.get("findy_recommendation_active_category", active_category)
+            profile["styleKeywords"] = list(profile.get(recommendation_key("styleKeywords", active), profile.get("styleKeywords", [])))
+            profile["budgetRange"] = profile.get(recommendation_key("budgetRange", active), profile.get("budgetRange", ""))
+            profile["locationPreference"] = profile.get(recommendation_key("locationPreference", active), profile.get("locationPreference", ""))
+            profile["algorithmMemo"] = profile.get(recommendation_key("algorithmMemo", active), profile.get("algorithmMemo", ""))
+
+            recommendation_by_category = {}
+            for category in recommendation_categories:
+                suffix = f"_{recommendation_slug_map[category]}"
+                category_data = {}
+                for key, value in profile.items():
+                    if key.endswith(suffix):
+                        category_data[key[: -len(suffix)]] = value
+                recommendation_by_category[category] = category_data
+            profile["recommendationByCategory"] = recommendation_by_category
+
+            app_state["user_profile"] = profile
+            app_state["findy_recommendation_draft"] = None
+            show_snack("FINDY 추천정보가 저장되었어요.")
+            show_my_page()
+
+        def edit_text_row(label, key, hint="", multiline=False):
+            return ft.Container(
+                width=content_width(),
+                padding=ft.padding.symmetric(vertical=11),
+                border=ft.border.only(bottom=ft.BorderSide(1, BORDER_COLOR)),
+                content=ft.Row(
+                    controls=[
+                        ft.Text(label, size=13, color=TEXT_COLOR, weight=ft.FontWeight.W_800, width=112),
+                        ft.TextField(
+                            value=draft.get(key, ""),
+                            hint_text=hint,
+                            border=ft.InputBorder.NONE,
+                            multiline=multiline,
+                            min_lines=1,
+                            max_lines=3 if multiline else 1,
+                            text_style=ft.TextStyle(size=13, color=TEXT_COLOR, weight=ft.FontWeight.W_700),
+                            hint_style=ft.TextStyle(size=13, color=SUBTEXT_COLOR),
+                            on_change=update_field(key),
+                            expand=True,
+                        ),
+                    ],
+                    spacing=10,
+                    vertical_alignment=ft.CrossAxisAlignment.START,
+                ),
+            )
+
+        def single_choice_row(title, key, options):
+            return ft.Container(
+                width=content_width(),
+                padding=ft.padding.symmetric(vertical=13),
+                border=ft.border.only(bottom=ft.BorderSide(1, BORDER_COLOR)),
+                content=ft.Column(
+                    controls=[
+                        ft.Row(
+                            controls=[
+                                ft.Text(title, size=13, color=TEXT_COLOR, weight=ft.FontWeight.W_900, width=112),
+                                ft.Text(draft.get(key, ""), size=12, color=SUBTEXT_COLOR, expand=True),
+                            ],
+                            spacing=10,
+                        ),
+                        ft.Row(
+                            controls=[
+                                community_chip(option, draft.get(key) == option, lambda e, opt=option: (draft.__setitem__(key, opt), refresh_recommendation_page()))
+                                for option in options
+                            ],
+                            spacing=7,
+                            run_spacing=7,
+                            wrap=True,
+                        ),
+                    ],
+                    spacing=9,
+                ),
+            )
+
+        def multi_choice_row(title, key, options):
+            values = draft.setdefault(key, [])
+
+            def toggle(option):
+                def handler(e):
+                    current = draft.setdefault(key, [])
+                    if option in current:
+                        current.remove(option)
+                    else:
+                        current.append(option)
+                    refresh_recommendation_page()
+                return handler
+
+            return ft.Container(
+                width=content_width(),
+                padding=ft.padding.symmetric(vertical=13),
+                border=ft.border.only(bottom=ft.BorderSide(1, BORDER_COLOR)),
+                content=ft.Column(
+                    controls=[
+                        ft.Text(title, size=13, color=TEXT_COLOR, weight=ft.FontWeight.W_900),
+                        ft.Row(
+                            controls=[community_chip(option, option in values, toggle(option)) for option in options],
+                            spacing=7,
+                            run_spacing=7,
+                            wrap=True,
+                        ),
+                    ],
+                    spacing=9,
+                ),
+            )
+
+        def recommendation_category_row():
+            values = draft.setdefault("interestedFields", [])
+
+            def choose(category):
+                def handler(e):
+                    if category not in values:
+                        values.append(category)
+                    app_state["findy_recommendation_active_category"] = category
+                    refresh_recommendation_page()
+                return handler
+
+            def category_chip(category):
+                active = category == active_category
+                selected = category in values
+                return ft.Container(
+                    padding=ft.padding.symmetric(horizontal=14, vertical=10),
+                    bgcolor=MAIN_COLOR if active else MAIN_COLOR_SOFT if selected else "#FFFFFF",
+                    border_radius=999,
+                    border=ft.border.all(1, MAIN_COLOR if active or selected else BORDER_COLOR),
+                    on_click=choose(category),
+                    ink=True,
+                    content=ft.Text(
+                        category,
+                        size=13,
+                        color="#FFFFFF" if active else TEXT_COLOR,
+                        weight=ft.FontWeight.W_800,
+                    ),
+                )
+
+            return ft.Container(
+                width=content_width(),
+                padding=ft.padding.symmetric(vertical=13),
+                border=ft.border.only(bottom=ft.BorderSide(1, BORDER_COLOR)),
+                content=ft.Column(
+                    controls=[
+                        ft.Row(
+                            controls=[
+                                ft.Text("관심있는 분야", size=13, color=TEXT_COLOR, weight=ft.FontWeight.W_900, expand=True),
+                                ft.Text(f"{active_category} 편집 중", size=12, color=SUBTEXT_COLOR, weight=ft.FontWeight.W_700),
+                            ],
+                            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                        ),
+                        ft.Row(
+                            controls=[category_chip(category) for category in recommendation_categories],
+                            spacing=7,
+                            run_spacing=7,
+                            wrap=True,
+                        ),
+                    ],
+                    spacing=9,
+                ),
+            )
+
+        style_options_by_category = {
+            "헤어": ["내추럴", "차분한", "힙한", "고급스러운", "러블리", "시크한", "청순한", "화려한"],
+            "네일아트": ["깔끔한", "시럽", "프렌치", "글리터", "귀여운", "화려한", "오피스", "웨딩"],
+            "메이크업": ["차가운", "귀여운", "도도한", "내추럴", "화려한", "청순한", "힙한", "고급스러운"],
+            "포토": ["자연스러운", "고급스러운", "청량한", "시크한", "따뜻한", "필름감성", "화보느낌", "보정 적게"],
+            "웨딩": ["자연스러운", "화사한", "우아한", "고급스러운", "깔끔한", "러블리", "클래식", "화려한"],
+            "반영구시술": ["자연스러운", "또렷한", "깔끔한", "부드러운", "대칭감", "민낯 친화", "선명한", "은은한"],
+        }
+        budget_options_by_category = {
+            "헤어": ["상관없음", "5만원 이하", "5~10만원", "10~20만원", "20만원 이상", "가성비", "프리미엄"],
+            "네일아트": ["상관없음", "3만원 이하", "3~5만원", "5~8만원", "8만원 이상", "가성비", "프리미엄"],
+            "메이크업": ["상관없음", "5만원 이하", "5~10만원", "10~20만원", "20만원 이상", "가성비", "프리미엄"],
+            "포토": ["상관없음", "10만원 이하", "10~20만원", "20~40만원", "40만원 이상", "가성비", "프리미엄"],
+            "웨딩": ["상관없음", "20만원 이하", "20~50만원", "50~100만원", "100만원 이상", "가성비", "프리미엄"],
+            "반영구시술": ["상관없음", "10만원 이하", "10~20만원", "20~40만원", "40만원 이상", "가성비", "프리미엄"],
+        }
+
+        def recommendation_rows():
+            category_rows = {
+                "헤어": [
+                    single_choice_row("헤어 고민", recommendation_key("hairConcern"), ["볼륨", "손상모", "곱슬", "탈색모", "두피", "숱 적음", "숱 많음"]),
+                    single_choice_row("헤어 목적", recommendation_key("visitPurpose"), ["데일리 관리", "기분전환", "촬영", "데이트", "면접", "웨딩", "여행"]),
+                ],
+                "네일아트": [
+                    single_choice_row("네일 고민", recommendation_key("nailConcern"), ["손톱 얇음", "잘 부러짐", "유지력", "큐티클", "짧은 손톱", "파츠 유지"]),
+                    single_choice_row("네일 목적", recommendation_key("visitPurpose"), ["데일리", "기분전환", "여행", "촬영", "웨딩", "계절 아트"]),
+                ],
+                "메이크업": [
+                    single_choice_row("피부/메이크업", recommendation_key("skinType"), ["지성", "건성", "복합성", "민감성", "수부지"]),
+                    single_choice_row("메이크업 고민", recommendation_key("makeupConcern"), ["지속력", "커버력", "톤보정", "무너짐", "모공", "다크닝", "건조 끼임"]),
+                    single_choice_row("퍼스널 톤", recommendation_key("personalTone"), ["웜톤", "쿨톤", "뉴트럴", "잘 모름"]),
+                ],
+                "포토": [
+                    single_choice_row("포토 목적", recommendation_key("photoPurpose"), ["프로필", "증명사진", "SNS", "커플", "우정", "가족", "웨딩 스냅"]),
+                    single_choice_row("포토 무드", recommendation_key("photoMood"), ["자연스러운", "고급스러운", "청량한", "시크한", "따뜻한", "필름감성"]),
+                ],
+                "웨딩": [
+                    single_choice_row("웨딩 역할", recommendation_key("weddingRole"), ["신부", "신랑", "혼주", "하객", "브라이덜샤워", "스몰웨딩"]),
+                    single_choice_row("웨딩 니즈", recommendation_key("weddingNeed"), ["오래 유지", "사진발", "눈물/땀 걱정", "자연스러운", "화려한", "피부관리 포함"]),
+                ],
+                "반영구시술": [
+                    single_choice_row("시술 부위", recommendation_key("semiPermanentArea"), ["눈썹", "아이라인", "입술", "헤어라인", "두피 SMP"]),
+                    single_choice_row("반영구 고민", recommendation_key("semiPermanentConcern"), ["자연스러운 색", "또렷한 라인", "탈각 걱정", "붓기 걱정", "통증 걱정", "색 빠짐"]),
+                ],
+            }
+            return [
+                ft.Container(width=content_width(), padding=ft.padding.only(top=4), content=ft.Text(f"{active_category} 추천 항목", size=13, color=TEXT_COLOR, weight=ft.FontWeight.W_900)),
+                multi_choice_row("선호 스타일", recommendation_key("styleKeywords"), style_options_by_category.get(active_category, [])),
+                *category_rows.get(active_category, []),
+                single_choice_row("예산", recommendation_key("budgetRange"), budget_options_by_category.get(active_category, ["상관없음", "가성비", "중간", "프리미엄"])),
+                single_choice_row("추천 위치", recommendation_key("locationPreference"), ["내 주변", "인기 지역", "상관없음"]),
+                edit_text_row("알고리즘 메모", recommendation_key("algorithmMemo"), f"{active_category} 추천에 반영할 취향을 적어주세요.", multiline=True),
+            ]
+
+        body = ft.Column(
+            controls=[
+                page_header("FINDY 추천정보", on_back=go_back_page),
+                ft.Container(
+                    width=content_width(),
+                    padding=ft.padding.symmetric(horizontal=16, vertical=14),
+                    bgcolor="#FFFFFF",
+                    border_radius=18,
+                    border=ft.border.all(1, BORDER_COLOR),
+                    content=ft.Column(
+                        controls=[
+                            ft.Text("추천 알고리즘에 반영될 정보만 관리해요.", size=13, color=SUBTEXT_COLOR, weight=ft.FontWeight.W_700),
+                            recommendation_category_row(),
+                            *recommendation_rows(),
+                        ],
+                        spacing=0,
+                    ),
+                ),
+                soft_button("FINDY 추천정보 저장", MAIN_COLOR, "white", save_recommendation, width=content_width()),
+                ft.Container(height=24),
+            ],
+            spacing=12,
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
         )
         make_shell(body, app_state["selected_tab"])
@@ -10560,13 +11273,19 @@ async def main(page: ft.Page):
         active_key = video_key(active_video)
         liked_ids = app_state.setdefault("video_liked_keys", set())
         saved_ids = app_state.setdefault("video_saved_keys", set())
+        followed_creators = app_state.setdefault("video_followed_creators", set())
+        reposted_ids = app_state.setdefault("video_reposted_keys", set())
+        shared_ids = app_state.setdefault("video_shared_keys", set())
+        paused_ids = app_state.setdefault("video_paused_keys", set())
         drag_state = {"dy": 0}
+        app_state.setdefault("video_more_open", False)
 
         def choose_cat(cat):
             def handler(e):
                 app_state["video_category_filter"] = cat
                 app_state["active_video_index"] = 0
                 app_state["video_comments_open"] = False
+                app_state["video_more_open"] = False
                 show_video_page()
             return handler
 
@@ -10578,6 +11297,7 @@ async def main(page: ft.Page):
                     return
                 app_state["active_video_index"] = next_index
                 app_state["video_comments_open"] = False
+                app_state["video_more_open"] = False
                 show_video_page()
             return handler
 
@@ -10593,6 +11313,37 @@ async def main(page: ft.Page):
                 saved_ids.discard(active_key)
             else:
                 saved_ids.add(active_key)
+            show_video_page()
+
+        def toggle_video_repost(e=None):
+            if active_key in reposted_ids:
+                reposted_ids.discard(active_key)
+                show_snack("리포스트를 취소했어요.")
+            else:
+                reposted_ids.add(active_key)
+                show_snack("내 활동에 리포스트했어요.")
+            show_video_page()
+
+        def share_video(e=None):
+            shared_ids.add(active_key)
+            show_snack("공유 링크가 준비되었어요.")
+            show_video_page()
+
+        def toggle_video_more(e=None):
+            app_state["video_more_open"] = not app_state.get("video_more_open", False)
+            show_video_page()
+
+        def close_video_more(e=None):
+            app_state["video_more_open"] = False
+            show_video_page()
+
+        def toggle_video_play(e=None):
+            if active_key in paused_ids:
+                paused_ids.discard(active_key)
+                show_snack("비디오를 재생해요.")
+            else:
+                paused_ids.add(active_key)
+                show_snack("비디오를 일시정지했어요.")
             show_video_page()
 
         comment_count = {"value": int(active_video.get("comments", 0) or 0)}
@@ -10613,15 +11364,16 @@ async def main(page: ft.Page):
             height=44,
             hint_text="회원님의 생각을 남겨보세요.",
             border=ft.InputBorder.NONE,
-            bgcolor=ft.Colors.with_opacity(0.08, "#FFFFFF"),
+            bgcolor=ft.Colors.with_opacity(0.13, "#F5EDE5"),
             border_radius=999,
             content_padding=ft.padding.symmetric(horizontal=16, vertical=9),
-            text_style=ft.TextStyle(size=13, color="#FFFFFF"),
-            hint_style=ft.TextStyle(size=13, color=ft.Colors.with_opacity(0.62, "#FFFFFF")),
+            text_style=ft.TextStyle(size=13, color="#FFFFFF", weight=ft.FontWeight.W_700),
+            hint_style=ft.TextStyle(size=13, color=ft.Colors.with_opacity(0.68, "#F5EDE5")),
         )
 
         def open_video_comments(e=None):
             app_state["video_comments_open"] = True
+            app_state["video_more_open"] = False
             show_video_page()
 
         def close_video_comments(e=None):
@@ -10654,9 +11406,10 @@ async def main(page: ft.Page):
         def on_video_drag_end(e):
             dy = drag_state.get("dy", 0)
             velocity = getattr(e, "velocity_y", 0) or getattr(e, "primary_velocity", 0) or 0
-            if dy > 52 or velocity > 700:
+            # FINDY_2 reels order: swiping up moves 1 -> 2 -> 3, swiping down moves back.
+            if dy < -52 or velocity < -700:
                 move_video(1)(e)
-            elif dy < -52 or velocity < -700:
+            elif dy > 52 or velocity > 700:
                 move_video(-1)(e)
             drag_state["dy"] = 0
 
@@ -10677,18 +11430,40 @@ async def main(page: ft.Page):
                 content=ft.Text((name or "F")[0], size=15, color=MAIN_COLOR_DARK, weight=ft.FontWeight.W_900),
             )
 
+        active_creator = creator_name(active_video)
+
+        def open_video_profile(e=None):
+            show_snack(f"{active_creator}님의 프로필은 다음 단계에서 연결할게요.")
+
+        def toggle_follow_creator(e=None):
+            if active_creator in followed_creators:
+                followed_creators.discard(active_creator)
+                show_snack("팔로우를 취소했어요.")
+            else:
+                followed_creators.add(active_creator)
+                show_snack(f"{active_creator}님을 팔로우했어요.")
+            show_video_page()
+
         def reels_action(icon_name, count, on_click=None, active=False):
             return ft.Container(
-                width=54,
-                height=74,
+                width=58,
+                height=76,
                 on_click=on_click,
                 ink=True,
                 content=ft.Column(
                     controls=[
-                        ft.Icon(app_icon(icon_name), size=31, color=MAIN_COLOR if active else "#FFFFFF"),
-                        ft.Text(metric_label(count), size=11, color="#FFFFFF", weight=ft.FontWeight.W_800, text_align=ft.TextAlign.CENTER),
+                        ft.Container(
+                            width=46,
+                            height=46,
+                            border_radius=23,
+                            bgcolor=ft.Colors.with_opacity(0.92, "#F4EEE8") if active else ft.Colors.with_opacity(0.18, "#FFFFFF"),
+                            border=ft.border.all(1, ft.Colors.with_opacity(0.70, MAIN_COLOR if active else "#FFFFFF")),
+                            alignment=ft.Alignment(0, 0),
+                            content=ft.Icon(app_icon(icon_name), size=27, color=MAIN_COLOR_DARK if active else "#FFFFFF"),
+                        ),
+                        ft.Text(metric_label(count), size=11, color="#F7F2EC", weight=ft.FontWeight.W_900, text_align=ft.TextAlign.CENTER),
                     ],
-                    spacing=4,
+                    spacing=3,
                     horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                     alignment=ft.MainAxisAlignment.CENTER,
                 ),
@@ -10739,6 +11514,15 @@ async def main(page: ft.Page):
                 ),
             )
 
+        def add_reaction(emoji):
+            def handler(e=None):
+                comment_field.value = f"{comment_field.value or ''}{emoji}"
+                try:
+                    comment_field.update()
+                except Exception:
+                    pass
+            return handler
+
         def video_comments_panel():
             reactions = ["❤️", "🙌", "🔥", "👏", "🥲", "😍", "😮", "😂"]
             return ft.Container(
@@ -10746,16 +11530,17 @@ async def main(page: ft.Page):
                 right=0,
                 bottom=0,
                 height=390,
-                bgcolor="#171B1F",
+                bgcolor="#15110E",
                 border_radius=ft.border_radius.only(top_left=26, top_right=26),
-                shadow=ft.BoxShadow(blur_radius=22, color="#66000000", offset=ft.Offset(0, -8)),
+                border=ft.border.only(top=ft.BorderSide(1, ft.Colors.with_opacity(0.32, MAIN_COLOR))),
+                shadow=ft.BoxShadow(blur_radius=22, color="#77000000", offset=ft.Offset(0, -8)),
                 content=ft.Column(
                     controls=[
-                        ft.Container(width=44, height=3, bgcolor=ft.Colors.with_opacity(0.42, "#FFFFFF"), border_radius=999, margin=ft.margin.only(top=12, bottom=6), alignment=ft.Alignment(0, 0)),
+                        ft.Container(width=44, height=3, bgcolor=ft.Colors.with_opacity(0.58, MAIN_COLOR), border_radius=999, margin=ft.margin.only(top=12, bottom=6), alignment=ft.Alignment(0, 0)),
                         ft.Row(
                             controls=[
-                                ft.Text(f"댓글 {len(active_comments)}", size=15, color="#FFFFFF", weight=ft.FontWeight.W_900, expand=True),
-                                ft.Container(width=32, height=32, border_radius=16, alignment=ft.Alignment(0, 0), on_click=close_video_comments, ink=True, content=ft.Icon(app_icon("CLOSE"), size=20, color="#FFFFFF")),
+                                ft.Text(f"댓글 {len(active_comments)}", size=15, color="#F7F2EC", weight=ft.FontWeight.W_900, expand=True),
+                                ft.Container(width=32, height=32, border_radius=16, bgcolor=ft.Colors.with_opacity(0.12, "#FFFFFF"), alignment=ft.Alignment(0, 0), on_click=close_video_comments, ink=True, content=ft.Icon(app_icon("CLOSE"), size=20, color="#F7F2EC")),
                             ],
                             spacing=8,
                         ),
@@ -10769,15 +11554,26 @@ async def main(page: ft.Page):
                         ),
                         ft.Container(height=1, bgcolor=ft.Colors.with_opacity(0.08, "#FFFFFF")),
                         ft.Row(
-                            controls=[ft.Text(emoji, size=23) for emoji in reactions],
+                            controls=[
+                                ft.Container(
+                                    width=34,
+                                    height=34,
+                                    border_radius=17,
+                                    alignment=ft.Alignment(0, 0),
+                                    on_click=add_reaction(emoji),
+                                    ink=True,
+                                    content=ft.Text(emoji, size=22),
+                                )
+                                for emoji in reactions
+                            ],
                             alignment=ft.MainAxisAlignment.SPACE_AROUND,
                         ),
                         ft.Row(
                             controls=[
                                 profile_avatar(44, get_user_profile()),
                                 comment_field,
-                                ft.Icon(app_icon("IMAGE_OUTLINED", "PHOTO_LIBRARY_OUTLINED"), size=25, color=ft.Colors.with_opacity(0.86, "#FFFFFF")),
-                                ft.Container(width=36, height=36, border_radius=18, alignment=ft.Alignment(0, 0), on_click=submit_reel_comment, ink=True, content=ft.Icon(app_icon("SEND"), size=20, color="#FFFFFF")),
+                                ft.Container(width=34, height=34, border_radius=17, alignment=ft.Alignment(0, 0), on_click=lambda e: show_snack("댓글 사진 첨부는 다음 단계에서 연결할게요."), ink=True, content=ft.Icon(app_icon("IMAGE_OUTLINED", "PHOTO_LIBRARY_OUTLINED"), size=23, color=ft.Colors.with_opacity(0.90, "#F7F2EC"))),
+                                ft.Container(width=36, height=36, border_radius=18, bgcolor=MAIN_COLOR, alignment=ft.Alignment(0, 0), on_click=submit_reel_comment, ink=True, content=ft.Icon(app_icon("SEND"), size=20, color="#FFFFFF")),
                             ],
                             spacing=8,
                             vertical_alignment=ft.CrossAxisAlignment.CENTER,
@@ -10791,33 +11587,49 @@ async def main(page: ft.Page):
 
         def video_background():
             video_path = active_video.get("video_path") or active_video.get("path") or active_video.get("src")
+            is_paused = active_key in paused_ids
             if video_path:
                 return ft.Video(
                     playlist=[ft.VideoMedia(resource=video_path)],
                     width=full_phone_width(),
                     height=PHONE_HEIGHT,
-                    autoplay=True,
+                    autoplay=not is_paused,
                     show_controls=False,
                     muted=False,
                     fit=ft.ImageFit.COVER,
                     playlist_mode=ft.PlaylistMode.LOOP,
-                    fill_color="#000000",
+                    fill_color="#0B0705",
                 )
             return ft.Stack(
                 controls=[
-                    black_image_box(full_phone_width(), PHONE_HEIGHT),
                     ft.Container(
-                        alignment=ft.Alignment(0, 0),
-                        content=ft.Icon(app_icon("PLAY_CIRCLE_FILL_ROUNDED", "PLAY_CIRCLE"), size=78, color=ft.Colors.with_opacity(0.88, "#FFFFFF")),
+                        width=full_phone_width(),
+                        height=PHONE_HEIGHT,
+                        bgcolor="#090604",
+                        content=ft.Stack(
+                            controls=[
+                                ft.Container(left=-40, top=90, width=220, height=220, border_radius=110, bgcolor=ft.Colors.with_opacity(0.12, MAIN_COLOR)),
+                                ft.Container(right=-52, bottom=180, width=260, height=260, border_radius=130, bgcolor=ft.Colors.with_opacity(0.10, "#F4EEE8")),
+                                ft.Container(alignment=ft.Alignment(0, -0.26), content=ft.Text(active_video.get("category", "FINDY"), size=48, color=ft.Colors.with_opacity(0.14, "#F4EEE8"), weight=ft.FontWeight.W_900)),
+                            ],
+                        ),
                     ),
                     ft.Container(
-                        alignment=ft.Alignment(0, -0.36),
-                        content=ft.Text(active_video.get("category", "FINDY"), size=46, color=ft.Colors.with_opacity(0.12, "#FFFFFF"), weight=ft.FontWeight.W_900),
+                        alignment=ft.Alignment(0, 0),
+                        content=ft.Container(
+                            width=92,
+                            height=92,
+                            border_radius=46,
+                            bgcolor=ft.Colors.with_opacity(0.92, "#F4EEE8"),
+                            alignment=ft.Alignment(0, 0),
+                            on_click=toggle_video_play,
+                            ink=True,
+                            content=ft.Icon(app_icon("PLAY_ARROW" if is_paused else "PAUSE", "PLAY_CIRCLE"), size=48, color="#0B0705"),
+                        ),
                     ),
                 ],
             )
 
-        active_creator = creator_name(active_video)
         like_count = active_video.get("likes") or active_video.get("views") or "0"
         share_count = active_video.get("shares") or "1.7만"
         save_count = active_video.get("saves") or "3.1만"
@@ -10826,18 +11638,70 @@ async def main(page: ft.Page):
             controls=[
                 ft.Container(
                     padding=ft.padding.symmetric(horizontal=11, vertical=6),
-                    bgcolor=ft.Colors.with_opacity(0.28 if cat == selected_cat else 0.12, "#FFFFFF"),
+                    bgcolor=MAIN_COLOR if cat == selected_cat else ft.Colors.with_opacity(0.22, "#F4EEE8"),
                     border_radius=999,
-                    border=ft.border.all(1, ft.Colors.with_opacity(0.28 if cat == selected_cat else 0.08, "#FFFFFF")),
+                    border=ft.border.all(1, MAIN_COLOR if cat == selected_cat else ft.Colors.with_opacity(0.22, "#F4EEE8")),
                     on_click=choose_cat(cat),
                     ink=True,
-                    content=ft.Text(cat, size=11, color="#FFFFFF", weight=ft.FontWeight.W_900 if cat == selected_cat else ft.FontWeight.W_600),
+                    content=ft.Text(cat, size=11, color="#FFFFFF" if cat == selected_cat else "#F4EEE8", weight=ft.FontWeight.W_900 if cat == selected_cat else ft.FontWeight.W_700),
                 )
                 for cat in video_categories
             ],
             spacing=7,
             scroll=ft.ScrollMode.HIDDEN,
         )
+
+        def more_sheet_action(icon_name, title, subtitle, on_click):
+            return ft.Container(
+                padding=ft.padding.symmetric(horizontal=14, vertical=11),
+                border_radius=14,
+                on_click=on_click,
+                ink=True,
+                content=ft.Row(
+                    controls=[
+                        ft.Container(
+                            width=34,
+                            height=34,
+                            border_radius=17,
+                            bgcolor=ft.Colors.with_opacity(0.16, MAIN_COLOR),
+                            alignment=ft.Alignment(0, 0),
+                            content=ft.Icon(app_icon(icon_name), size=19, color=MAIN_COLOR),
+                        ),
+                        ft.Column(
+                            controls=[
+                                ft.Text(title, size=13, color="#F7F2EC", weight=ft.FontWeight.W_900),
+                                ft.Text(subtitle, size=10, color=ft.Colors.with_opacity(0.68, "#F7F2EC")),
+                            ],
+                            spacing=1,
+                            expand=True,
+                        ),
+                    ],
+                    spacing=10,
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                ),
+            )
+
+        def video_more_panel():
+            return ft.Container(
+                right=12,
+                bottom=232,
+                width=238,
+                padding=ft.padding.all(10),
+                bgcolor=ft.Colors.with_opacity(0.96, "#15110E"),
+                border_radius=20,
+                border=ft.border.all(1, ft.Colors.with_opacity(0.28, MAIN_COLOR)),
+                shadow=ft.BoxShadow(blur_radius=22, color="#77000000", offset=ft.Offset(0, 8)),
+                content=ft.Column(
+                    controls=[
+                        more_sheet_action("BOOKMARK_BORDER", "저장", "나중에 다시 볼 비디오로 보관", lambda e: (toggle_video_save(e), close_video_more())),
+                        more_sheet_action("TUNE", "나의 FINDY에 반영", "이런 영상 추천을 더 보여줘요", lambda e: (show_snack("나의 FINDY 추천에 반영했어요."), close_video_more())),
+                        more_sheet_action("REPORT_OUTLINED", "신고", "불편한 콘텐츠를 운영 검토로 보내요", lambda e: (show_snack("신고가 접수되었어요."), close_video_more())),
+                    ],
+                    spacing=2,
+                ),
+            )
+
+        video_wordmark_path = resolve_asset_file("app_logo/app_findy_logo_wordmark.png")
 
         video_stage = ft.GestureDetector(
             on_vertical_drag_start=on_video_drag_start,
@@ -10846,34 +11710,70 @@ async def main(page: ft.Page):
             content=ft.Container(
                 width=full_phone_width(),
                 height=PHONE_HEIGHT - 18,
-                bgcolor="#000000",
+                bgcolor="#090604",
                 clip_behavior=ft.ClipBehavior.HARD_EDGE,
                 content=ft.Stack(
                     controls=[
                         ft.Container(width=full_phone_width(), height=PHONE_HEIGHT, content=video_background()),
+                        ft.Container(left=0, right=0, top=0, height=150, bgcolor=ft.Colors.with_opacity(0.38, "#090604")),
+                        ft.Container(left=0, right=0, bottom=0, height=250, bgcolor=ft.Colors.with_opacity(0.48, "#090604")),
                         ft.Container(
-                            top=22,
-                            left=22,
-                            right=22,
-                            content=ft.Row(
-                                controls=[
-                                    ft.Container(
-                                        width=34,
-                                        height=34,
-                                        border_radius=17,
-                                        alignment=ft.Alignment(0, 0),
-                                        on_click=lambda e: (app_state.__setitem__("current_page", "write_video"), show_write_video_page()),
-                                        ink=True,
-                                        content=ft.Icon(app_icon("ADD"), size=30, color="#FFFFFF"),
-                                    ),
-                                    ft.Container(expand=True),
-                                    ft.Text("FINDY 비디오", size=17, color="#FFFFFF", weight=ft.FontWeight.W_900),
-                                    ft.Text(f"{active_index + 1}/{len(filtered)}", size=12, color=ft.Colors.with_opacity(0.78, "#FFFFFF"), weight=ft.FontWeight.W_700),
-                                ],
-                                spacing=12,
-                                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                            alignment=ft.Alignment(0, 0),
+                            content=ft.Container(
+                                width=82,
+                                height=82,
+                                border_radius=41,
+                                bgcolor=ft.Colors.with_opacity(0.88, "#F4EEE8"),
+                                border=ft.border.all(1, ft.Colors.with_opacity(0.50, MAIN_COLOR)),
+                                alignment=ft.Alignment(0, 0),
+                                on_click=toggle_video_play,
+                                ink=True,
+                                visible=active_key in paused_ids,
+                                content=ft.Icon(app_icon("PLAY_ARROW"), size=45, color="#0B0705"),
                             ),
                         ),
+                        ft.Container(
+                                top=22,
+                                left=22,
+                                right=22,
+                                content=ft.Stack(
+                                    controls=[
+                                        ft.Container(
+                                            width=34,
+                                            height=34,
+                                            border_radius=17,
+                                            bgcolor=ft.Colors.with_opacity(0.14, "#F4EEE8"),
+                                            alignment=ft.Alignment(0, 0),
+                                            on_click=lambda e: (app_state.__setitem__("current_page", "write_video"), show_write_video_page()),
+                                            ink=True,
+                                            content=ft.Icon(app_icon("ADD"), size=28, color="#F7F2EC"),
+                                        ),
+                                        ft.Container(
+                                            alignment=ft.Alignment(0, 0),
+                                            content=ft.Row(
+                                                controls=[
+                                                    ft.Image(src=video_wordmark_path, width=96, height=24, fit=ft.ImageFit.CONTAIN)
+                                                    if video_wordmark_path
+                                                    else ft.Text("FINDY", size=22, color=MAIN_COLOR, weight=ft.FontWeight.W_900),
+                                                    ft.Text("비디오", size=18, color="#F7F2EC", weight=ft.FontWeight.W_800),
+                                                ],
+                                                spacing=8,
+                                                alignment=ft.MainAxisAlignment.CENTER,
+                                                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                                            ),
+                                        ),
+                                        ft.Container(
+                                            alignment=ft.Alignment(1, 0),
+                                            content=ft.Container(
+                                                padding=ft.padding.symmetric(horizontal=9, vertical=5),
+                                                bgcolor=ft.Colors.with_opacity(0.14, "#F4EEE8"),
+                                                border_radius=999,
+                                                content=ft.Text(f"{active_index + 1}/{len(filtered)}", size=12, color="#F7F2EC", weight=ft.FontWeight.W_900),
+                                            ),
+                                        ),
+                                    ],
+                                ),
+                            ),
                         ft.Container(top=68, left=20, right=20, content=category_bar),
                         ft.Container(
                             right=12,
@@ -10882,9 +11782,19 @@ async def main(page: ft.Page):
                                 controls=[
                                     reels_action("FAVORITE" if active_key in liked_ids else "FAVORITE_BORDER", like_count, toggle_video_like, active_key in liked_ids),
                                     reels_action("CHAT_BUBBLE_OUTLINE", comment_count["value"] or 137, open_video_comments),
-                                    reels_action("AUTORENEW", share_count),
-                                    reels_action("SEND_OUTLINED", save_count, toggle_video_save, active_key in saved_ids),
-                                    ft.Icon(app_icon("MORE_HORIZ", "MORE_VERT"), size=28, color="#FFFFFF"),
+                                    reels_action("AUTORENEW", share_count, toggle_video_repost, active_key in reposted_ids),
+                                    reels_action("SEND_OUTLINED", save_count, share_video, active_key in shared_ids),
+                                    ft.Container(
+                                        width=46,
+                                        height=42,
+                                        border_radius=21,
+                                        bgcolor=ft.Colors.with_opacity(0.18, "#FFFFFF") if not app_state.get("video_more_open") else ft.Colors.with_opacity(0.92, "#F4EEE8"),
+                                        border=ft.border.all(1, ft.Colors.with_opacity(0.70, "#FFFFFF" if not app_state.get("video_more_open") else MAIN_COLOR)),
+                                        alignment=ft.Alignment(0, 0),
+                                        on_click=toggle_video_more,
+                                        ink=True,
+                                        content=ft.Icon(app_icon("MORE_HORIZ", "MORE_VERT"), size=25, color="#FFFFFF" if not app_state.get("video_more_open") else MAIN_COLOR_DARK),
+                                    ),
                                     ft.Container(height=10),
                                     ft.Container(
                                         width=42,
@@ -10892,6 +11802,8 @@ async def main(page: ft.Page):
                                         border_radius=12,
                                         bgcolor=ft.Colors.with_opacity(0.88, "#FFFFFF"),
                                         alignment=ft.Alignment(0, 0),
+                                        on_click=lambda e: (show_findy_recommendation_page(reset_draft=True)),
+                                        ink=True,
                                         content=brand_mark(32),
                                     ),
                                 ],
@@ -10907,34 +11819,37 @@ async def main(page: ft.Page):
                                 controls=[
                                     ft.Row(
                                         controls=[
-                                            video_profile_avatar(active_creator),
+                                            ft.Container(on_click=open_video_profile, ink=True, content=video_profile_avatar(active_creator)),
                                             ft.Column(
                                                 controls=[
-                                                    ft.Text(f"{active_creator}님", size=13, color="#FFFFFF", weight=ft.FontWeight.W_900),
-                                                    ft.Text(f'{active_video.get("badge", "TIP")} · 조회 {active_video.get("views", "0")} · {active_video.get("duration", "0:59")}', size=11, color=ft.Colors.with_opacity(0.78, "#FFFFFF")),
+                                                    ft.Text(f"{active_creator}님", size=13, color="#F7F2EC", weight=ft.FontWeight.W_900),
+                                                    ft.Text(f'{active_video.get("badge", "TIP")} · 조회 {active_video.get("views", "0")} · {active_video.get("duration", "0:59")}', size=11, color=ft.Colors.with_opacity(0.78, "#F7F2EC")),
                                                 ],
                                                 spacing=2,
                                                 expand=True,
                                             ),
                                             ft.Container(
                                                 padding=ft.padding.symmetric(horizontal=12, vertical=6),
-                                                bgcolor=ft.Colors.with_opacity(0.18, "#FFFFFF"),
-                                                border=ft.border.all(1, ft.Colors.with_opacity(0.36, "#FFFFFF")),
+                                                bgcolor=MAIN_COLOR if active_creator not in followed_creators else ft.Colors.with_opacity(0.16, "#F4EEE8"),
+                                                border=ft.border.all(1, MAIN_COLOR if active_creator not in followed_creators else ft.Colors.with_opacity(0.40, "#F4EEE8")),
                                                 border_radius=999,
-                                                content=ft.Text("팔로우", size=12, color="#FFFFFF", weight=ft.FontWeight.W_900),
+                                                on_click=toggle_follow_creator,
+                                                ink=True,
+                                                content=ft.Text("팔로우" if active_creator not in followed_creators else "팔로잉", size=12, color="#FFFFFF", weight=ft.FontWeight.W_900),
                                             ),
                                         ],
                                         spacing=9,
                                         vertical_alignment=ft.CrossAxisAlignment.CENTER,
                                     ),
-                                    ft.Text(active_video.get("title", "비디오"), size=17, color="#FFFFFF", weight=ft.FontWeight.W_900, max_lines=2, overflow=ft.TextOverflow.ELLIPSIS),
-                                    ft.Text(active_video.get("subtitle", "FINDY 회원의 뷰티 팁"), size=12, color=ft.Colors.with_opacity(0.84, "#FFFFFF"), max_lines=2, overflow=ft.TextOverflow.ELLIPSIS),
-                                    ft.Text("위에서 아래로 내리면 다음 · 아래에서 위로 올리면 이전", size=10, color=ft.Colors.with_opacity(0.58, "#FFFFFF"), max_lines=1),
-                                    ft.Container(width=content_width() - 12, height=2, bgcolor=ft.Colors.with_opacity(0.32, "#FFFFFF"), border_radius=2),
+                                    ft.Text(active_video.get("title", "비디오"), size=17, color="#F7F2EC", weight=ft.FontWeight.W_900, max_lines=2, overflow=ft.TextOverflow.ELLIPSIS),
+                                    ft.Text(active_video.get("subtitle", "FINDY 회원의 뷰티 팁"), size=12, color=ft.Colors.with_opacity(0.84, "#F7F2EC"), max_lines=2, overflow=ft.TextOverflow.ELLIPSIS),
+                                    ft.Text("아래에서 위로 올리면 다음 · 위에서 아래로 내리면 이전", size=10, color=ft.Colors.with_opacity(0.62, "#F7F2EC"), max_lines=1),
+                                    ft.Container(width=content_width() - 12, height=2, bgcolor=ft.Colors.with_opacity(0.40, MAIN_COLOR), border_radius=2),
                                 ],
                                 spacing=7,
                             ),
                         ),
+                        *([video_more_panel()] if app_state.get("video_more_open") else []),
                         *([video_comments_panel()] if app_state.get("video_comments_open") else []),
                     ],
                 ),
@@ -10944,7 +11859,7 @@ async def main(page: ft.Page):
         body = ft.Container(
             width=full_phone_width(),
             height=PHONE_HEIGHT - 18,
-            bgcolor="#000000",
+            bgcolor="#090604",
             clip_behavior=ft.ClipBehavior.HARD_EDGE,
             content=video_stage,
         )
@@ -11680,7 +12595,7 @@ async def main(page: ft.Page):
 
     def show_saved_page():
         clear_transient_ui()
-        show_saved_content_page(app_state.get("saved_content_type", "스냅"))
+        show_saved_content_page(app_state.get("saved_content_type", "전체"))
 
     def show_category_page():
         clear_transient_ui()
@@ -11770,6 +12685,168 @@ async def main(page: ft.Page):
 
         make_shell(body, app_state["selected_tab"])
 
+    def show_settings_page():
+        clear_transient_ui()
+        close_overlays()
+        app_state["selected_tab"] = 4
+        app_state["current_page"] = "settings"
+
+        settings = app_state.setdefault(
+            "app_settings",
+            {
+                "pushNotifications": True,
+                "activityNotifications": True,
+                "reviewNotifications": True,
+                "soundEffects": True,
+                "vibration": True,
+                "privateProfile": False,
+                "activityStatus": True,
+                "personalizedRecommendations": True,
+                "autoPlayVideos": True,
+                "dataSaver": False,
+                "highContrastText": False,
+                "cacheSize": "128MB",
+                "language": "한국어",
+                "region": "대한민국",
+            },
+        )
+
+        def update_setting(key, value):
+            settings[key] = value
+            page.update()
+
+        def open_coming_soon(title):
+            def handler(e=None):
+                show_snack(f"{title} 설정은 다음 단계에서 세부 화면으로 연결할게요.")
+            return handler
+
+        def setting_switch(title, subtitle, key):
+            return ft.Container(
+                width=content_width() - 36,
+                padding=ft.padding.symmetric(vertical=12),
+                content=ft.Row(
+                    controls=[
+                        ft.Column(
+                            controls=[
+                                ft.Text(title, size=14, color=TEXT_COLOR, weight=ft.FontWeight.W_800),
+                                ft.Text(subtitle, size=11, color=SUBTEXT_COLOR),
+                            ],
+                            spacing=3,
+                            expand=True,
+                        ),
+                        ft.Switch(
+                            value=bool(settings.get(key)),
+                            active_color=MAIN_COLOR,
+                            on_change=lambda e, selected_key=key: update_setting(selected_key, e.control.value),
+                        ),
+                    ],
+                    spacing=10,
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                ),
+            )
+
+        def setting_row(icon_name, title, subtitle, value="", on_click=None):
+            trailing = []
+            if value:
+                trailing.append(ft.Text(value, size=11, color=SUBTEXT_COLOR, weight=ft.FontWeight.W_700))
+            trailing.append(ft.Icon(app_icon("CHEVRON_RIGHT", "ARROW_FORWARD_IOS"), size=16, color=SUBTEXT_COLOR))
+            return ft.Container(
+                width=content_width() - 36,
+                padding=ft.padding.symmetric(vertical=13),
+                on_click=on_click or open_coming_soon(title),
+                ink=True,
+                content=ft.Row(
+                    controls=[
+                        ft.Icon(app_icon(icon_name), size=24, color=TEXT_COLOR),
+                        ft.Column(
+                            controls=[
+                                ft.Text(title, size=14, color=TEXT_COLOR, weight=ft.FontWeight.W_800),
+                                ft.Text(subtitle, size=11, color=SUBTEXT_COLOR),
+                            ],
+                            spacing=3,
+                            expand=True,
+                        ),
+                        *trailing,
+                    ],
+                    spacing=12,
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                ),
+            )
+
+        def settings_section(title, rows):
+            return ft.Container(
+                width=content_width(),
+                padding=ft.padding.symmetric(horizontal=18, vertical=16),
+                bgcolor="#FFFFFF",
+                border_radius=20,
+                border=ft.border.all(1, ft.Colors.with_opacity(0.34, BORDER_COLOR)),
+                content=ft.Column(
+                    controls=[
+                        ft.Text(title, size=13, color=TEXT_COLOR, weight=ft.FontWeight.W_900),
+                        *rows,
+                    ],
+                    spacing=2,
+                ),
+            )
+
+        controls = [
+            page_header("설정", on_back=go_back_page),
+            ft.Text("앱 사용 방식, 알림, 개인정보, 콘텐츠 추천 기준을 관리해요.", size=13, color=SUBTEXT_COLOR, width=content_width()),
+            settings_section(
+                "알림",
+                [
+                    setting_switch("푸시 알림", "댓글, 답변, 저장 반응을 받을지 선택해요.", "pushNotifications"),
+                    setting_switch("활동 알림", "내 글의 좋아요와 댓글 알림을 받아요.", "activityNotifications"),
+                    setting_switch("리뷰 알림", "리뷰 상태 변경과 신고 처리 알림을 받아요.", "reviewNotifications"),
+                ],
+            ),
+            settings_section(
+                "소리와 재생",
+                [
+                    setting_switch("앱 소리", "버튼, 반응, 완료 안내음을 켜거나 꺼요.", "soundEffects"),
+                    setting_switch("진동", "좋아요나 저장 같은 터치 반응 진동을 사용해요.", "vibration"),
+                    setting_switch("비디오 자동 재생", "FINDY 비디오에 들어가면 자동으로 재생해요.", "autoPlayVideos"),
+                ],
+            ),
+            settings_section(
+                "개인정보와 보안",
+                [
+                    setting_switch("비공개 프로필", "내 프로필과 작성글 노출 범위를 제한해요.", "privateProfile"),
+                    setting_switch("활동 상태 표시", "최근 활동 여부를 다른 사용자에게 보여줘요.", "activityStatus"),
+                    setting_row("LOCK_OUTLINE", "계정 보안", "로그인 기기, 비밀번호, 2단계 인증을 관리해요."),
+                    setting_row("BLOCK", "차단/숨김 관리", "차단한 사용자와 숨긴 글을 확인해요."),
+                ],
+            ),
+            settings_section(
+                "콘텐츠와 추천",
+                [
+                    setting_switch("맞춤 추천", "나의 FINDY와 활동을 추천에 반영해요.", "personalizedRecommendations"),
+                    setting_row("TUNE", "나의 FINDY", "헤어, 네일아트, 메이크업 등 추천 기준을 조정해요.", on_click=lambda e: show_findy_recommendation_page(reset_draft=True)),
+                    setting_row("HISTORY", "시청/검색 기록", "최근 본 글과 검색 기록을 관리해요."),
+                ],
+            ),
+            settings_section(
+                "앱 환경",
+                [
+                    setting_switch("데이터 절약 모드", "이미지와 비디오 로딩을 가볍게 사용해요.", "dataSaver"),
+                    setting_switch("글자 대비 높이기", "텍스트를 더 선명하게 표시해요.", "highContrastText"),
+                    setting_row("LANGUAGE", "언어", "앱 표시 언어", settings.get("language", "한국어")),
+                    setting_row("PUBLIC", "지역", "추천 콘텐츠 기준 지역", settings.get("region", "대한민국")),
+                    setting_row("STORAGE", "저장공간", "캐시와 임시 파일 관리", settings.get("cacheSize", "0MB")),
+                ],
+            ),
+            settings_section(
+                "지원과 정보",
+                [
+                    setting_row("HELP_OUTLINE", "도움말", "앱 이용 방법과 자주 묻는 질문", on_click=lambda e: show_support_page()),
+                    setting_row("DESCRIPTION_OUTLINED", "약관 및 개인정보 처리방침", "서비스 정책과 데이터 이용 기준"),
+                    setting_row("INFO_OUTLINE", "앱 정보", "FINDY_2 beta · 커뮤니티 데이터 수집 버전"),
+                ],
+            ),
+            ft.Container(height=24),
+        ]
+        make_shell(ft.Column(controls=controls, spacing=SPACE_MD, horizontal_alignment=ft.CrossAxisAlignment.CENTER), app_state["selected_tab"])
+
     def show_my_page():
         clear_transient_ui()
         app_state["selected_tab"] = 4
@@ -11799,7 +12876,7 @@ async def main(page: ft.Page):
                 content=ft.Row(
                     controls=[
                         ft.Icon(app_icon(icon_name), size=27, color=color),
-                        ft.Text(label, size=14, color=TEXT_COLOR, weight=ft.FontWeight.W_800),
+                        ft.Text(label, size=14, color=TEXT_COLOR, weight=ft.FontWeight.W_800, max_lines=1, overflow=ft.TextOverflow.ELLIPSIS, expand=True),
                     ],
                     spacing=12,
                     vertical_alignment=ft.CrossAxisAlignment.CENTER,
@@ -11869,48 +12946,49 @@ async def main(page: ft.Page):
                 padding=ft.padding.symmetric(horizontal=18, vertical=16),
             )
 
-        controls = [
-            ft.Container(
+        def my_page_intro():
+            wordmark_path = resolve_asset_file("app_logo/app_findy_logo_wordmark.png")
+            wordmark = (
+                ft.Image(src=wordmark_path, width=122, height=30, fit=ft.ImageFit.CONTAIN)
+                if wordmark_path
+                else ft.Text("FINDY", size=25, weight=ft.FontWeight.W_900, color=MAIN_COLOR)
+            )
+            return ft.Container(
                 width=content_width(),
                 padding=ft.padding.only(top=4, bottom=4),
-                content=ft.Row(
+                content=ft.Column(
                     controls=[
-                        ft.Text("내정보", size=27, color=TEXT_COLOR, weight=ft.FontWeight.W_900, expand=True),
+                        wordmark,
+                        ft.Text("내정보", size=13, weight=ft.FontWeight.W_700, color=TEXT_COLOR),
                         ft.Container(
-                            width=38,
-                            height=38,
-                            border_radius=19,
-                            alignment=ft.Alignment(0, 0),
-                            on_click=lambda e: show_edit_profile_page(reset_draft=True),
-                            ink=True,
-                            content=ft.Icon(app_icon("SETTINGS_OUTLINED", "SETTINGS"), size=26, color=TEXT_COLOR),
+                            margin=ft.margin.only(top=10),
+                            border=ft.border.only(bottom=ft.BorderSide(1, BORDER_COLOR)),
                         ),
                     ],
-                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                    spacing=6,
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                 ),
-            ),
+            )
+
+        controls = [
+            my_page_intro(),
             my_card(
                 ft.Row(
                     controls=[
                         profile_avatar(62, profile),
                         ft.Column(
                             controls=[
+                                ft.Text(profile.get("name") or "FINDY 회원", size=17, color=TEXT_COLOR, weight=ft.FontWeight.W_900, max_lines=1, overflow=ft.TextOverflow.ELLIPSIS),
+                                ft.Text(profile.get("username") or "findy_user", size=12, color=SUBTEXT_COLOR, weight=ft.FontWeight.W_700),
                                 ft.Row(
                                     controls=[
-                                        ft.Text(profile.get("name") or "FINDY 회원", size=17, color=TEXT_COLOR, weight=ft.FontWeight.W_900),
-                                        ft.Container(
-                                            padding=ft.padding.symmetric(horizontal=8, vertical=4),
-                                            bgcolor="#FFF2D8",
-                                            border_radius=999,
-                                            content=ft.Text("34.2°C", size=11, color="#A07122", weight=ft.FontWeight.W_900),
-                                        ),
+                                        ft.Text("프로필 확인", size=11, color=SUBTEXT_COLOR, weight=ft.FontWeight.W_700),
                                     ],
-                                    spacing=8,
+                                    spacing=7,
                                     vertical_alignment=ft.CrossAxisAlignment.CENTER,
                                 ),
-                                ft.Text(profile.get("username") or "findy_user", size=12, color=SUBTEXT_COLOR, weight=ft.FontWeight.W_700),
                             ],
-                            spacing=5,
+                            spacing=4,
                             expand=True,
                         ),
                         ft.Icon(app_icon("CHEVRON_RIGHT", "ARROW_FORWARD_IOS"), size=19, color=SUBTEXT_COLOR),
@@ -11967,64 +13045,28 @@ async def main(page: ft.Page):
                         ),
                         ft.Row(
                             controls=[
-                                service_tile("SPA_OUTLINED", "나의 뷰티정보", MAIN_COLOR, lambda e: show_beauty_profile_page()),
-                                service_tile("RATE_REVIEW_OUTLINED", "리뷰", "#F08A24", lambda e: show_review_page()),
+                                service_tile("ARTICLE_OUTLINED", "내가 쓴글", MAIN_COLOR, lambda e: show_my_content_page("전체")),
+                                service_tile("FAVORITE_BORDER", "좋아요", "#E257A8", lambda e: show_liked_content_page("전체")),
                             ],
                             spacing=8,
                         ),
                         ft.Row(
                             controls=[
-                                service_tile("HELP_OUTLINE", "질문", "#E257A8", lambda e: show_community_board_page("질문", selected_tab=2)),
-                                service_tile("PHOTO_LIBRARY_OUTLINED", "스냅", "#3A8DFF", lambda e: show_snap_page()),
+                                service_tile("BOOKMARK_BORDER", "저장", "#8D6AF3", lambda e: show_saved_content_page("전체")),
+                                service_tile("TUNE", "나의 FINDY", MAIN_COLOR, lambda e: show_findy_recommendation_page(reset_draft=True)),
                             ],
                             spacing=8,
                         ),
                         ft.Row(
                             controls=[
-                                service_tile("SMART_DISPLAY_OUTLINED", "비디오", "#F28B22", lambda e: show_video_page()),
-                                service_tile("ACCOUNT_CIRCLE_OUTLINED", "프로필", "#48B7D8", lambda e: show_profile_page()),
-                            ],
-                            spacing=8,
-                        ),
-                        ft.Row(
-                            controls=[
-                                service_tile("BOOKMARK_BORDER", "저장", "#8D6AF3", lambda e: show_saved_page()),
-                                service_tile("SUPPORT_AGENT", "고객센터", "#45B26B", lambda e: show_support_page()),
+                                service_tile("SETTINGS_OUTLINED", "설정", "#F28B22", lambda e: show_settings_page()),
+                                ft.Container(width=(content_width() - 44) / 2),
                             ],
                             spacing=8,
                         ),
                     ],
                     spacing=10,
                 ),
-            ),
-            my_card(
-                ft.Row(
-                    controls=[
-                        quick_action("FAVORITE_BORDER", "관심목록", lambda e: show_saved_page()),
-                        ft.Container(width=1, height=40, bgcolor=BORDER_COLOR),
-                        quick_action("SCHEDULE", "최근 본 글", lambda e: show_placeholder_info_page("최근 본 글", "최근 확인한 커뮤니티 글과 콘텐츠를 모아볼 예정이에요.")),
-                        ft.Container(width=1, height=40, bgcolor=BORDER_COLOR),
-                        quick_action("DIAMOND_OUTLINED", "혜택", lambda e: show_placeholder_info_page("혜택", "FINDY 활동 보상과 이벤트 혜택을 준비 중이에요."), dot=True),
-                    ],
-                    spacing=8,
-                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                ),
-            ),
-            section_card(
-                "자주 사용",
-                [
-                    section_row("ARTICLE_OUTLINED", "내가 쓴 글", "리뷰, 질문, 자유글을 확인해요.", lambda e: show_my_reviews_page()),
-                    section_row("PHOTO_LIBRARY_OUTLINED", "내 스냅", "올린 스냅을 모아봐요.", lambda e: show_my_content_page("스냅")),
-                    section_row("SMART_DISPLAY_OUTLINED", "내 비디오", "업로드한 팁 영상을 관리해요.", lambda e: show_my_content_page("비디오")),
-                ],
-            ),
-            section_card(
-                "나의 활동",
-                [
-                    section_row("RATE_REVIEW_OUTLINED", "리뷰 관리", "내 리뷰와 신고 상태를 확인해요.", lambda e: show_my_reviews_page(), badge=len(app_state.get("written_reviews", []))),
-                    section_row("ADMIN_PANEL_SETTINGS", "운영 검토", "신고된 리뷰와 검토 대기 리뷰", lambda e: show_review_admin_page(), badge=f'{len(app_state.get("review_reports", []))}건' if app_state.get("review_reports") else None),
-                    section_row("NOTIFICATIONS_NONE", "알림", "활동 알림과 공지 확인", lambda e: show_notification_page()),
-                ],
             ),
             section_card(
                 "고객 지원",

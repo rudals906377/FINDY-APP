@@ -15,6 +15,10 @@
       --point:      #8B6B4F;
       --soft:       #FFFFFF;
       --sub:        #E6D7C8;
+      --dark:       #090604;
+      --dark-soft:  #15110E;
+      --cream:      #F7F2EC;
+      --cream-2:    #FFFDF9;
       --bg:         #FFFFFF;
       --surface:    #FFFFFF;
       --border:     #E6D7C8;
@@ -200,7 +204,11 @@
       min-height: calc(100vh - 70px);
       padding: 72px 32px 56px;
       text-align: center;
-      background: #fff;
+      background:
+        radial-gradient(circle at 16% 20%, rgba(139,107,79,.26), transparent 28%),
+        radial-gradient(circle at 86% 60%, rgba(247,242,236,.13), transparent 30%),
+        linear-gradient(180deg, var(--dark) 0%, #120D09 68%, #fff 68%);
+      color: var(--cream);
     }
 
     .hero-heading {
@@ -208,12 +216,21 @@
       flex-direction: column;
       align-items: center;
       text-align: center;
+      max-width: 880px;
+      margin: 0 auto;
+      padding: 36px 26px 20px;
+      border: 1px solid rgba(230,215,200,.18);
+      border-radius: 32px;
+      background: rgba(9,6,4,.42);
+      box-shadow: 0 24px 70px rgba(0,0,0,.22);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
     }
 
     /* 타이틀 */
     .hero-title {
       font-size: clamp(34px, 4.4vw, 54px); font-weight: 900;
-      letter-spacing: -.04em; color: var(--text-strong);
+      letter-spacing: -.04em; color: var(--cream);
       line-height: 1; margin-bottom: 14px;
       display: inline-flex; align-items: center;
       gap: 18px; flex-wrap: nowrap; justify-content: center;
@@ -255,7 +272,7 @@
     .hero-subcopy {
       max-width: 640px;
       margin: 0 auto 30px;
-      color: var(--subtext);
+      color: rgba(247,242,236,.74);
       font-size: 16px;
       line-height: 1.7;
       text-align: center;
@@ -266,11 +283,11 @@
       max-width: 700px; margin: 0 auto;
       position: relative;
       display: flex; align-items: stretch;
-      background: #fff;
-      border: 1.5px solid var(--border);
+      background: rgba(255,253,249,.96);
+      border: 1.5px solid rgba(230,215,200,.76);
       border-radius: 999px;
       padding: 6px 6px 6px 22px;
-      box-shadow: var(--shadow-md);
+      box-shadow: 0 18px 48px rgba(0,0,0,.18);
       transition: border-color 180ms ease, box-shadow 180ms ease;
     }
     .search-bar:focus-within {
@@ -333,12 +350,48 @@
     .search-input::placeholder { color: var(--muted); }
     .search-submit {
       width: 50px; height: 50px; flex-shrink: 0;
-      color: var(--main);
+      color: #fff;
+      background: var(--main);
+      border-radius: 999px;
       display: flex; align-items: center; justify-content: center;
-      transition: color 180ms ease, transform 160ms ease;
+      transition: background 180ms ease, transform 160ms ease;
     }
-    .search-submit:hover { color: var(--point); transform: translateX(2px); }
+    .search-submit:hover { background: var(--text-strong); transform: translateX(2px); }
     .search-submit svg { width: 24px; height: 24px; }
+
+    .hero-actions {
+      max-width: 700px;
+      margin: 14px auto 0;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .hero-action {
+      min-height: 46px;
+      padding: 12px 14px;
+      border-radius: 18px;
+      border: 1px solid rgba(230,215,200,.22);
+      background: rgba(247,242,236,.12);
+      color: var(--cream);
+      font-size: 13px;
+      font-weight: 900;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      transition: background 180ms ease, border-color 180ms ease, transform 180ms ease;
+    }
+    .hero-action.primary {
+      background: var(--main);
+      border-color: var(--main);
+      color: #fff;
+    }
+    .hero-action:hover {
+      background: rgba(247,242,236,.20);
+      border-color: rgba(247,242,236,.46);
+      transform: translateY(-1px);
+    }
+    .hero-action.primary:hover { background: #1F1A17; }
 
     /* 인기 검색어 */
     .popular-wrap {
@@ -347,16 +400,26 @@
       align-items: center; gap: 6px 14px;
       font-size: 13px;
     }
-    .popular-label { color: var(--subtext); font-weight: 500; white-space: nowrap; }
+    .popular-label { color: rgba(247,242,236,.62); font-weight: 700; white-space: nowrap; }
     .popular-wrap a {
-      color: var(--text); transition: color 140ms ease;
+      color: var(--cream);
+      background: rgba(247,242,236,.12);
+      border: 1px solid rgba(230,215,200,.18);
+      border-radius: 999px;
+      padding: 5px 10px;
+      transition: color 140ms ease, background 140ms ease, transform 140ms ease;
       white-space: nowrap;
     }
-    .popular-wrap a:hover { color: var(--main); }
+    .popular-wrap a:hover { color: #fff; background: var(--main); transform: translateY(-1px); }
 
     /* 카테고리 그리드 */
     .hero-cats {
       max-width: 900px; margin: 52px auto 0;
+      padding: 18px;
+      border-radius: 30px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,.94);
+      box-shadow: var(--shadow-lg);
     }
     .hero-cats-grid {
       display: grid;
@@ -364,27 +427,28 @@
       gap: 14px;
     }
     .hero-cat-card {
-      background: var(--surface);
+      background: var(--cream-2);
       border-radius: var(--r-lg);
       padding: 24px 18px 20px;
       display: flex; flex-direction: column;
       align-items: center; justify-content: center; gap: 14px;
       cursor: pointer;
-      transition: background 200ms ease, transform 200ms ease, box-shadow 200ms ease;
+      transition: background 200ms ease, transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease;
       text-align: center;
-      border: 1px solid transparent;
+      border: 1px solid rgba(230,215,200,.72);
       min-height: 152px;
     }
     .hero-cat-card:hover {
       background: #fff;
-      border-color: var(--border);
+      border-color: var(--main);
       transform: translateY(-2px);
       box-shadow: var(--shadow-md);
     }
     .hero-cat-icon {
       width: 46px; height: 46px;
       border-radius: 14px;
-      background: var(--soft);
+      background: var(--dark);
+      color: var(--cream);
       display: flex; align-items: center; justify-content: center;
       font-size: 22px;
     }
@@ -1562,8 +1626,10 @@
       .launch-panel { min-height: calc(100vh - 66px); }
       .launch-panel-dots { right: 16px; }
       .hero { padding: 52px 20px 40px; }
+      .hero-heading { padding: 30px 18px 18px; border-radius: 26px; }
       .hero-title { font-size: 28px; gap: 8px; }
       .hero-rotator { width: 132px; }
+      .hero-actions { grid-template-columns: 1fr; gap: 8px; }
       .hero-cats { margin-top: 36px; }
       .hero-cats-grid { grid-template-columns: repeat(4, 1fr); gap: 10px; }
       .hero-cat-card { padding: 16px 12px 14px; gap: 10px; }
@@ -1597,6 +1663,7 @@
     }
     @media (max-width: 560px) {
       .hero-title { font-size: 20px; }
+      .hero-subcopy { font-size: 14px; }
       .brand-logo { width: 58px; height: 32px; }
       .header-cta { padding: 8px 11px; }
       .hero-rotator { width: 96px; }
@@ -1880,6 +1947,12 @@
       </svg>
     </button>
   </form>
+
+  <div class="hero-actions" aria-label="빠른 이동">
+    <a class="hero-action primary" href="#write-review" data-view-link="write">✍️ 리뷰 작성</a>
+    <a class="hero-action" href="#community" data-view-link="community">💬 커뮤니티</a>
+    <a class="hero-action" href="#waitlist" data-view-link="waitlist">📱 출시 알림</a>
+  </div>
 
   <!-- 인기 검색어 -->
   <nav class="popular-wrap" aria-label="인기 검색어">
