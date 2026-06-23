@@ -3,7 +3,8 @@
 import os
 from PIL import Image, ImageDraw, ImageFont
 
-ASSETS = os.path.join(os.path.dirname(__file__), "assets")
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ASSETS = os.path.join(PROJECT_ROOT, "assets")
 FONT_BOLD = os.path.join(ASSETS, "Pretendard-Bold.ttf")
 FONT_REG  = os.path.join(ASSETS, "Pretendard-Regular.ttf")
 if not (os.path.exists(FONT_BOLD) and os.path.exists(FONT_REG)):

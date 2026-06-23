@@ -6,13 +6,15 @@ FINDY는 현재 화면 프로토타입과 기본 흐름 검증 단계입니다. 
 
 - 모든 뒤로가기 버튼을 이전 화면 기준으로 통일합니다.
 - 토글, 필터, 날짜 선택, 액션 버튼 클릭 시 화면이 튀거나 깜빡이지 않게 유지합니다.
-- 고객 모드와 아티스트 모드를 완전히 분리합니다.
+- FINDY에서는 고객 모드와 아티스트 모드를 완전히 분리합니다.
+- FINDY2에서는 고객/아티스트 구분 없이 커뮤니티형 흐름을 유지합니다.
 - 아티스트 모드에서는 리뷰 작성 기능을 막고, 스냅/비디오/커뮤니티 작성만 허용합니다.
 
 ## 2. 핵심 기능 완성
 
 - 고객 모드: 검색, 리뷰 작성, 스냅 작성, 비디오 작성, 커뮤니티 작성, 좋아요, 저장, 댓글을 연결합니다.
 - 아티스트 모드: 프로필 관리, 포트폴리오 관리, 가격 메뉴 관리, 예약 관리, 리뷰 관리, 트렌드 분석을 연결합니다.
+- FINDY2: 인기글, 리뷰, 질문, 자유게시판, FINDY 스냅, FINDY 비디오, 나의 FINDY를 커뮤니티형 데이터 수집 흐름으로 안정화합니다.
 - 포트폴리오는 가격 메뉴와 연동합니다.
 - 예약 변경/취소 요청은 문자 메시지처럼 고객에게 전달되는 구조로 정리합니다.
 - 메모는 예약별 내부 메모로 저장합니다.
@@ -48,7 +50,14 @@ FINDY는 현재 화면 프로토타입과 기본 흐름 검증 단계입니다. 
 ## 6. 매 수정 후 기본 검증
 
 ```bash
-PYTHONPYCACHEPREFIX=/private/tmp/findy_pycache python3 -m py_compile FINDY.py FINDY_customer.py FINDY_artist.py
-PYTHONPYCACHEPREFIX=/private/tmp/findy_pycache python3 smoke_test.py
+PYTHONPYCACHEPREFIX=/private/tmp/findy_pycache python3 -m py_compile python_files/FINDY.py python_files/FINDY2.py python_files/FINDY_customer.py python_files/FINDY_artist.py
+PYTHONPYCACHEPREFIX=/private/tmp/findy_pycache python3 python_files/smoke_test.py
 git diff --check
+```
+
+문서 기준도 함께 확인합니다.
+
+```text
+docs/apps/
+docs/project/
 ```

@@ -2,10 +2,15 @@ import asyncio
 import json
 import math
 import os
+import sys
 from datetime import date, datetime, timedelta
 import calendar
 from typing import Optional
 import flet as ft
+
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 
 from data.artists import BASE_ARTISTS
 from data.categories import LEFT_OVERLAY_CATEGORIES, LEFT_OVERLAY_ICONS, SUBCATEGORIES
@@ -74,8 +79,8 @@ from components.overlays import (
     build_right_overlay as ui_build_right_overlay,
 )
 
-ASSETS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets")
-RESERVATION_STORAGE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "reservation_history.json")
+ASSETS_DIR = os.path.join(PROJECT_ROOT, "assets")
+RESERVATION_STORAGE_PATH = os.path.join(PROJECT_ROOT, "reservation_history.json")
 APP_RUNTIME_MODE = os.environ.get("FINDY_APP_MODE", "combined").strip().lower()
 if APP_RUNTIME_MODE not in {"combined", "customer", "artist"}:
     APP_RUNTIME_MODE = "combined"
@@ -115,7 +120,7 @@ async def main(page: ft.Page):
 
         search_dirs = [
             ASSETS_DIR,
-            os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets"),
+            os.path.join(PROJECT_ROOT, "assets"),
             os.path.join(os.getcwd(), "assets"),
         ]
         for folder in search_dirs:

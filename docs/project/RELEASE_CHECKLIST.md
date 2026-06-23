@@ -4,20 +4,21 @@
 
 ## 1. 실행 진입점
 
-- 고객 모드: `FINDY_customer.py`
-- 아티스트 모드: `FINDY_artist.py`
-- 공통 앱: `FINDY.py`
+- 고객 모드: `python_files/FINDY_customer.py`
+- 아티스트 모드: `python_files/FINDY_artist.py`
+- 공통 앱: `python_files/FINDY.py`
+- 커뮤니티형 첫 배포 앱: `python_files/FINDY2.py`
 - 웹사이트: `web/index.html`
 
-실제 연결 구조는 `md/APP_STRUCTURE.md`를 기준으로 확인합니다.
+실제 연결 구조는 `docs/project/APP_STRUCTURE.md`를 기준으로 확인합니다.
 
 ## 2. 기본 검증
 
 수정 후 아래 명령을 통과해야 합니다.
 
 ```bash
-PYTHONPYCACHEPREFIX=/private/tmp/findy_pycache python3 -m py_compile FINDY.py FINDY_customer.py FINDY_artist.py
-PYTHONPYCACHEPREFIX=/private/tmp/findy_pycache python3 smoke_test.py
+PYTHONPYCACHEPREFIX=/private/tmp/findy_pycache python3 -m py_compile python_files/FINDY.py python_files/FINDY2.py python_files/FINDY_customer.py python_files/FINDY_artist.py
+PYTHONPYCACHEPREFIX=/private/tmp/findy_pycache python3 python_files/smoke_test.py
 git diff --check
 ```
 
@@ -55,7 +56,7 @@ git diff --check
 - 기존 더미 데이터는 화면 진입 시 현재 구조로 보정됩니다.
 - 고객 문의와 예약은 분리합니다.
 - 아티스트 주요 정보는 운영팀 컨펌 후 반영합니다.
-- 세부 데이터 기준은 `md/DATA_STRUCTURE.md`를 따릅니다.
+- 세부 데이터 기준은 `docs/project/DATA_STRUCTURE.md`를 따릅니다.
 
 ## 6. 디자인 기준
 
@@ -73,7 +74,7 @@ git diff --check
 - 그래프와 카드 내용은 좌우 또는 하단으로 잘리지 않습니다.
 - 칩 목록은 가로 스크롤이 필요해도 스크롤바가 노출되지 않습니다.
 - 하단 네비게이션은 고객 모드와 아티스트 모드에서 동일한 높이와 선택 스타일을 유지합니다.
-- 화면 안정성 세부 기준은 `md/UI_STABILITY_GUIDE.md`를 따릅니다.
+- 화면 안정성 세부 기준은 `docs/project/UI_STABILITY_GUIDE.md`를 따릅니다.
 
 ## 8. 출시 전 남은 결정 사항
 
@@ -84,3 +85,9 @@ git diff --check
 - 신고/숨김 처리 정책
 - 개인정보처리방침, 이용약관
 - 배포 대상 플랫폼과 빌드 방식
+
+## 9. 문서 동기화
+
+- 앱 구조 변경 시 `docs/project/APP_STRUCTURE.md`를 함께 수정합니다.
+- FINDY, FINDY2, 고객 모드, 아티스트 모드 기준 변경 시 `docs/apps/` 문서를 함께 수정합니다.
+- QA/출시 기준이 바뀌면 `docs/project/QA_CHECKLIST.md`와 `docs/project/RELEASE_CHECKLIST.md`를 함께 수정합니다.

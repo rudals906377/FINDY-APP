@@ -7,6 +7,7 @@
 ```text
 data/artists.py
 data/categories.py
+data/beauty_mood_keywords.py
 data/reviews.py
 data/snaps.py
 reservation_history.json
@@ -15,6 +16,7 @@ app_state
 
 - `data/artists.py`: 아티스트 카드, 추천 아티스트, 아티스트 프로필 화면의 기본 데이터입니다.
 - `data/categories.py`: 헤어, 네일아트, 메이크업, 반영구, 웨딩, 포토 카테고리 기준입니다.
+- `data/beauty_mood_keywords.py`: FINDY2 추천 알고리즘 준비용 카테고리별 감성어, 색감, 형태, 고민, 목적 키워드 사전입니다.
 - `data/reviews.py`: 리뷰 목록과 리뷰 상세 화면의 기본 데이터입니다.
 - `data/snaps.py`: 스냅 목록과 스냅 상세 화면의 기본 데이터입니다.
 - `reservation_history.json`: 예약 기록 프로토타입 데이터입니다.
@@ -36,6 +38,7 @@ ContentPost
 MessageThread
 Notification
 SupportTicket
+FindyPreference
 ```
 
 ## 3. 주요 관계
@@ -48,6 +51,7 @@ SupportTicket
 - 고객 문의와 예약은 분리합니다. 문의는 메시지 흐름이고, 예약은 날짜/시간 체결 흐름입니다.
 - 고객은 아티스트에게 먼저 메시지를 보낼 수 있고, 아티스트는 답장 중심으로 사용합니다.
 - 아티스트 모드에서는 리뷰 작성 기능을 제공하지 않습니다.
+- FINDY2는 고객/아티스트 구분 없이 `ContentPost`, `Review`, `FindyPreference` 중심으로 데이터를 수집합니다.
 
 ## 4. 프로토타입 저장 기준
 
@@ -85,3 +89,10 @@ SupportTicket
 - 문의가 예약으로 자동 전환되지 않습니다.
 - 추후 예약 연결이 필요하면 메시지 안에 “예약하기” 액션을 별도 버튼으로 추가합니다.
 
+## 8. FINDY2 추천 정보 기준
+
+- `FindyPreference`는 헤어, 네일아트, 메이크업, 포토, 웨딩, 반영구시술 카테고리별로 분리합니다.
+- 카테고리마다 스타일, 고민/특징, 목적, 예산, 중요 조건, 메모를 따로 관리합니다.
+- 감성어/색감/형태/기법/고민/목적 키워드는 `data/beauty_mood_keywords.py`와 `docs/project/BEAUTY_KEYWORD_TAXONOMY.md`를 기준으로 관리합니다.
+- 사용자가 입력한 문장형 취향은 카테고리, 분위기, 색상, 형태, 목적 태그로 나눠 저장할 수 있게 설계합니다.
+- FINDY2에서 쌓은 선호 데이터는 추후 FINDY 추천 알고리즘과 예약 추천 품질을 높이는 기준 데이터로 사용합니다.
