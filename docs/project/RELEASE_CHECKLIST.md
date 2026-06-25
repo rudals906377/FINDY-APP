@@ -4,6 +4,7 @@
 
 ## 1. 실행 진입점
 
+- Flet 배포 진입점: `main.py`
 - 고객 모드: `python_files/FINDY_customer.py`
 - 아티스트 모드: `python_files/FINDY_artist.py`
 - 공통 앱: `python_files/FINDY.py`
@@ -19,6 +20,7 @@
 ```bash
 PYTHONPYCACHEPREFIX=/private/tmp/findy_pycache python3 -m py_compile python_files/FINDY.py python_files/FINDY2.py python_files/FINDY_customer.py python_files/FINDY_artist.py
 PYTHONPYCACHEPREFIX=/private/tmp/findy_pycache python3 python_files/smoke_test.py
+PYTHONPYCACHEPREFIX=/private/tmp/findy_pycache python3 python_files/test_findy2_services.py
 git diff --check
 ```
 
@@ -78,15 +80,35 @@ git diff --check
 
 ## 8. 출시 전 남은 결정 사항
 
-- 실제 소셜 로그인 API 연결
+- 네이버, 카카오, Google, Apple 개발자 앱 키 발급
+- FINDY 통합 로그인 게이트웨이 HTTPS 배포 및 공개 URL 설정
+- 문자 발송 공급자와 PASS 본인확인기관 계약 및 운영 키 설정
+- 휴대폰 번호 암호화 저장, OTP 요청 제한과 인증 감사 로그 검증
+- 소셜 회원탈퇴 시 공급자 토큰 폐기와 계정 연결 해제 구현
 - 실제 예약 데이터 저장소 연결
 - 아티스트 컨펌/승인 운영툴
 - 이미지 업로드 저장소
 - 신고/숨김 처리 정책
-- 개인정보처리방침, 이용약관
-- 배포 대상 플랫폼과 빌드 방식
+- 운영자 정식 정보와 문의 이메일
+- 개인정보 처리방침, 이용약관, 계정 삭제 안내의 공개 HTTPS URL
+- Apple Developer / Google Play Console 계정
+- Android 업로드 키, iOS Team ID와 배포 인증서
+- 미성년자 이용 정책과 스토어 연령 등급
 
-## 9. 문서 동기화
+## 9. FINDY2 배포 설정
+
+- 제품명: `FINDY2`
+- 버전: `0.1.0`
+- 번들 ID 초안: `com.findybeauty.findy2`
+- 앱 권한: 사진 보관함만 요청
+- 앱 내 계정 삭제: `내정보 > 설정 > 계정 삭제`
+- 빌드 가이드: `docs/project/FINDY2_DEPLOYMENT.md`
+- 정책 초안: `docs/legal/`
+- 소셜 로그인 설정: `docs/project/SOCIAL_AUTH_SETUP.md`
+- 인증 서버 로컬 실행: `auth_gateway/run_local.sh`
+- 인증 서버 컨테이너: `auth_gateway/Dockerfile`, `auth_gateway/compose.yaml`
+
+## 10. 문서 동기화
 
 - 앱 구조 변경 시 `docs/project/APP_STRUCTURE.md`를 함께 수정합니다.
 - FINDY, FINDY2, 고객 모드, 아티스트 모드 기준 변경 시 `docs/apps/` 문서를 함께 수정합니다.

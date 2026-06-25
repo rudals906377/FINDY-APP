@@ -28,5 +28,5 @@ docs/project/UI_STABILITY_GUIDE.md
 ```text
 docs/artist/README.md        # 아티스트 운영/승인 정책
 docs/legal/                  # 법적 보호/리뷰 정책 자료
-docs/web/                    # 웹사이트 과제/보고서 자료
+web/report/                  # 웹사이트 과제 보고서 PDF, 원문, 캡처 자료
 ```

@@ -1,0 +1,5 @@
+.env
+.venv/
+findy_auth.db
+findy_auth.db-*
+__pycache__/

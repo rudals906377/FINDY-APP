@@ -1,0 +1,15 @@
+services:
+  auth-gateway:
+    build: .
+    ports:
+      - "8787:8787"
+    env_file:
+      - .env
+    environment:
+      FINDY_AUTH_DATABASE_PATH: /data/findy_auth.db
+    volumes:
+      - findy-auth-data:/data
+    restart: unless-stopped
+
+volumes:
+  findy-auth-data:

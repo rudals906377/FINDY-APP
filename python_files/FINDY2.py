@@ -5,15 +5,37 @@ import os
 import sys
 from datetime import date, datetime, timedelta
 import calendar
-from typing import Optional
 import flet as ft
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
+from core.findy2_config import (
+    ASSETS_DIR,
+    FINDY2_AUTH_DATA_PATH,
+    FINDY2_AUTH_API_URL,
+    FINDY2_DEMO_LOGIN_ENABLED,
+    FINDY2_DIRECT_MESSAGE_ENABLED,
+    FINDY2_MEDIA_DIR,
+    FINDY2_RESERVATION_ENABLED,
+    FINDY2_SESSION_PATH,
+    FINDY2_SOCIAL_AUTH_TIMEOUT_SECONDS,
+    FINDY2_USER_DATA_PATH,
+    RESERVATION_STORAGE_PATH,
+    resolve_asset_file,
+)
+from core.findy2_state import create_findy2_state
 from data.artists import BASE_ARTISTS
 from data.categories import LEFT_OVERLAY_ICONS, SUBCATEGORIES
+from data.findy2_content import (
+    COMMUNITY_POST_TYPE_ORDER,
+    default_community_posts,
+    default_video_items,
+    extract_metric,
+    is_short_video,
+)
+from data.legal_content import LEGAL_DOCUMENTS, LEGAL_UPDATED_AT
 from data.reviews import REVIEW_ITEMS
 from data.review_safety import (
     LEGAL_RESPONSIBILITY_NOTICE,
@@ -90,14 +112,56 @@ from components.overlays import (
     build_left_overlay as ui_build_left_overlay,
     build_right_overlay as ui_build_right_overlay,
 )
-
-ASSETS_DIR = os.path.join(PROJECT_ROOT, "assets")
-RESERVATION_STORAGE_PATH = os.path.join(PROJECT_ROOT, "reservation_history.json")
-
-# FINDY2 is the community-first release. Future reservation/booking features stay
-# in the file for reuse, but current user-facing entry points are gated here.
-FINDY2_RESERVATION_ENABLED = False
-FINDY2_DIRECT_MESSAGE_ENABLED = False
+from services.reservation_storage import (
+    load_reservation_history,
+    save_reservation_history,
+)
+from services.findy2_user_storage import (
+    PERSISTED_KEYS,
+    delete_findy2_user_data,
+    load_findy2_user_data,
+    save_findy2_user_data,
+    user_scoped_data_path,
+)
+from services.findy2_auth import (
+    AuthError,
+    attach_verified_phone,
+    authenticate_user,
+    clear_session,
+    create_session,
+    delete_user,
+    find_user_by_phone,
+    find_usernames_by_phone,
+    get_or_create_demo_user,
+    read_remote_session_token,
+    register_user,
+    reset_password_by_phone,
+    restore_session,
+    social_login_or_register,
+    update_user_profile,
+)
+from services.findy2_phone_auth import (
+    PhoneAuthError,
+    request_phone_otp,
+    verify_phone_otp,
+)
+from services.findy2_media_storage import (
+    MediaStorageError,
+    delete_user_media,
+    remove_media_file,
+    store_images,
+    store_video,
+    validate_image_file,
+    validate_video_file,
+)
+from services.findy2_social_auth import (
+    SOCIAL_PROVIDERS,
+    SocialAuthError,
+    delete_social_account,
+    social_auth_is_configured,
+    start_social_auth,
+    wait_for_social_auth,
+)
 
 async def main(page: ft.Page):
 
@@ -109,36 +173,14 @@ async def main(page: ft.Page):
                 show_home_page()
             except Exception:
                 pass
-    def resolve_asset_file(name: str) -> Optional[str]:
-        candidates = [
-            name,
-            name + ".png" if not name.lower().endswith(".png") else name + ".png",
-            name[:-4] if name.lower().endswith(".png.png") else None,
-        ]
-        cleaned = []
-        for item in candidates:
-            if item and item not in cleaned:
-                cleaned.append(item)
-
-        search_dirs = [
-            ASSETS_DIR,
-            os.path.join(PROJECT_ROOT, "assets"),
-            os.path.join(os.getcwd(), "assets"),
-        ]
-        for folder in search_dirs:
-            for candidate in cleaned:
-                path = os.path.join(folder, candidate)
-                if os.path.exists(path):
-                    return path
-        return None
-
     def layout_metrics():
         page_width = getattr(page, "width", None) or PHONE_WIDTH
-        frame_width = min(PHONE_WIDTH, page_width) if page_width else PHONE_WIDTH
+        frame_width = max(260, min(PHONE_WIDTH, page_width)) if page_width else PHONE_WIDTH
         target_content_width = max(CONTENT_WIDTH, 360)
-        content_width = min(target_content_width, max(300, frame_width - 40))
-        field_width = min(max(FIELD_WIDTH, 320), max(260, content_width - 32))
-        half_card_width = max(132, int((content_width - SPACE_SM) / 2))
+        horizontal_gutter = 24 if frame_width < 340 else 40
+        content_width = min(target_content_width, max(228, frame_width - horizontal_gutter))
+        field_width = min(max(FIELD_WIDTH, 320), max(210, content_width - 24))
+        half_card_width = max(104, int((content_width - SPACE_SM) / 2))
         return {
             "frame_width": frame_width,
             "content_width": content_width,
@@ -171,6 +213,10 @@ async def main(page: ft.Page):
 
     def full_phone_width():
         return layout_metrics()["frame_width"]
+
+    def full_phone_height():
+        page_height = getattr(page, "height", None) or PHONE_HEIGHT
+        return max(420, min(PHONE_HEIGHT, int(page_height - 20)))
 
     def default_header_back_handler(on_back=None):
         if on_back is not None:
@@ -505,6 +551,7 @@ async def main(page: ft.Page):
             saved[field] = maskPersonalInfo(saved.get(field, ""))
         now = datetime.now().strftime("%Y-%m-%d %H:%M")
         saved.setdefault("id", f"review_{len(app_state.get('written_reviews', [])) + 1}_{int(datetime.now().timestamp())}")
+        saved.setdefault("userId", current_user_id())
         saved.setdefault("status", validation["status"])
         saved["riskScore"] = review.get("riskScore", validation["riskScore"])
         saved["detectedRiskTypes"] = review.get("detectedRiskTypes", validation["detectedRiskTypes"])
@@ -512,6 +559,9 @@ async def main(page: ft.Page):
         saved.setdefault("created_at", now.split(" ")[0])
         saved["updatedAt"] = now
         app_state.setdefault("written_reviews", []).append(saved)
+        if not persist_user_data(notify_on_error=True):
+            app_state["written_reviews"].remove(saved)
+            return None
         return saved
 
     def reportReview(reviewId, reason, detail):
@@ -535,6 +585,7 @@ async def main(page: ft.Page):
             review = find_review_by_id(reviewId)
             if review and review.get("status") == "visible":
                 review["status"] = "reported"
+        persist_user_data()
         return report
 
     def updateReviewStatus(reviewId, status, adminMemo):
@@ -546,6 +597,7 @@ async def main(page: ft.Page):
         review["status"] = status
         review["adminMemo"] = adminMemo or review.get("adminMemo", "")
         review["updatedAt"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+        persist_user_data()
         return review
 
     def browse_result_card(item, on_click=None):
@@ -557,14 +609,14 @@ async def main(page: ft.Page):
             return ft.Image(
                 src=path,
                 width=full_phone_width(),
-                height=PHONE_HEIGHT,
+                height=full_phone_height(),
                 fit="contain",
                 opacity=0,
                 animate_opacity=ft.Animation(420, ft.AnimationCurve.EASE_IN_OUT),
             )
         return ft.Container(
             width=full_phone_width(),
-            height=PHONE_HEIGHT,
+            height=full_phone_height(),
             alignment=ft.Alignment(0, 0),
             content=brand_logo(show_slogan=True),
         )
@@ -580,13 +632,13 @@ async def main(page: ft.Page):
         return brand_logo(show_slogan=False, compact=False)
 
     page.title = "FINDY"
-    regular_font_rel = "assets/Pretendard-Regular.ttf"
-    bold_font_rel = "assets/Pretendard-Bold.ttf"
+    regular_font_rel = "Pretendard-Regular.ttf"
+    bold_font_rel = "Pretendard-Bold.ttf"
     regular_font = os.path.join(ASSETS_DIR, "Pretendard-Regular.ttf")
     bold_font = os.path.join(ASSETS_DIR, "Pretendard-Bold.ttf")
     if not (os.path.exists(regular_font) and os.path.exists(bold_font)):
-        regular_font_rel = "assets/Pretendard/Pretendard-Regular.ttf"
-        bold_font_rel = "assets/Pretendard/Pretendard-Bold.ttf"
+        regular_font_rel = "Pretendard/Pretendard-Regular.ttf"
+        bold_font_rel = "Pretendard/Pretendard-Bold.ttf"
         regular_font = os.path.join(ASSETS_DIR, "Pretendard", "Pretendard-Regular.ttf")
         bold_font = os.path.join(ASSETS_DIR, "Pretendard", "Pretendard-Bold.ttf")
     if os.path.exists(regular_font) and os.path.exists(bold_font):
@@ -606,123 +658,82 @@ async def main(page: ft.Page):
     page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
     page.font_family = APP_FONT if os.path.exists(regular_font) else None
 
-    app_state = {
-        "saved_ids": set(),
-        "selected_tab": 0,
-        "selected_category": None,
-        "selected_beauty_category": "헤어",
-        "search_text": "",
-        "search_results": [],
-        "search_sort": "rating",
-        "recent_searches": ["레이어드컷", "여쿨 메이크업", "네일 유지력", "프로필 촬영", "반영구 눈썹"],
-        "recommendation_entry": None,
-        "detail_artist": None,
-        "detail_back_target": "home",
-        "ad_index": 0,
-        "ad_task_started": False,
-        "snap_index": 0,
-        "snap_task_started": False,
-        "snap_cards_row": None,
-        "review_index": 0,
-        "review_cards_column": None,
-        "overlay": None,  # None | "left" | "right"
-        "left_menu_expanded": None,
-        "snap_layout_mode": 3,
-        "snap_sort_mode": "popular",
-        "snap_filter": "전체",
-        "snap_detail_item": None,
-        "snap_liked_ids": set(),
-        "snap_saved_ids": set(),
-        "written_snaps": [],
-        "community_posts": [],
-        "community_board_type": "자유",
-        "community_category_filter": "전체",
-        "community_sort_mode": "popular",
-        "community_write_type": "질문",
-        "community_liked_ids": set(),
-        "community_saved_ids": set(),
-        "content_comments": {},
-        "written_videos": [],
-        "video_comments": {},
-        "video_comments_open": False,
-        "video_liked_keys": set(),
-        "video_saved_keys": set(),
-        "video_followed_creators": set(),
-        "video_reposted_keys": set(),
-        "video_shared_keys": set(),
-        "video_paused_keys": set(),
-        "video_more_open": False,
-        "video_category_filter": "전체",
-        "video_detail_item": None,
-        "my_content_type": "전체",
-        "saved_content_type": "전체",
-        "content_detail_item": None,
-        "artist_available_slots": ["11:00", "12:30", "15:00", "17:30", "19:00"],
-        "current_user": None,
-        "reservation_form": {
-            "artist_id": None,
-            "artist_name": "",
-            "job": "",
-            "category": "",
-            "date": None,
-            "time": None,
-            "note": "",
-        },
-        "reservation_history": [],
-        "written_reviews": [],
-        "review_target": None,
-        "review_reports": [],
-        "review_admin_filter": "pending",
-        "review_admin_memo": "",
-        "last_completed_reservation": None,
-        "reservation_month_offset": 0,
-        "dismissed_upcoming_notice_id": None,
-        "notification_read_at": None,
-            "inquiry_history": [],
-            "inquiry_draft": {
-                "category": "예약/결제",
-                "title": "",
-                "content": "",
-            },
-            "user_profile": {
-                "name": "FINDY 회원",
-                "username": "findy_user",
-                "pronouns": "",
-                "bio": "나에게 맞는 뷰티 스타일을 찾고 있어요.",
-                "link": "",
-                "banner": "",
-                "gender": "선택 안 함",
-                "profileCategory": "뷰티 관심 사용자",
-                "contactOption": "비공개",
-                "actionButton": "비활성화",
-                "profileVisibility": "전체 공개",
-                "facebook": "연결 안 됨",
-                "interestedFields": ["메이크업", "헤어"],
-                "styleKeywords": ["차가운", "귀여운"],
-                "skinType": "지성",
-                "makeupConcern": "지속력",
-                "hairConcern": "볼륨",
-                "personalTone": "쿨톤",
-                "budgetRange": "상관없음",
-                "locationPreference": "내 주변",
-                "algorithmMemo": "관심 분야와 스타일에 맞춰 추천을 받고 싶어요.",
-            },
-            "profile_edit_draft": None,
-            "message_threads": [],
-            "active_message_thread_id": None,
-        "message_draft": {
-            "category": "스타일 상담",
-            "content": "",
-        },
-        "message_reply_draft": "",
-        "message_back_target": None,
-        "completion_feedback": None,
-        "reported_content_ids": set(),
-        "hidden_content_ids": set(),
-        "my_info_expanded_sections": set(),
-        "page_history": [],
-        "_last_rendered_page": None,
-    }
+    app_state = create_findy2_state()
+
+    def persist_user_data(notify_on_error=False):
+        path = user_scoped_data_path(FINDY2_USER_DATA_PATH, current_user_id())
+        saved = save_findy2_user_data(path, app_state)
+        if not saved and notify_on_error:
+            show_snack("사용자 데이터 저장에 실패했어요. 다시 시도해주세요.", bgcolor="#B85C5C")
+        return saved
+
+    def apply_authenticated_user(user):
+        app_state["current_user"] = user
+        saved_profile = dict(user.get("profile") or {})
+        profile = dict(create_findy2_state().get("user_profile") or {})
+        profile.update(saved_profile)
+        profile["name"] = user.get("nickname") or profile.get("name") or "FINDY 회원"
+        profile["username"] = profile["name"]
+        profile["realName"] = user.get("realName") or profile.get("realName") or ""
+        app_state["user_profile"] = profile
+
+    def load_user_workspace(user):
+        defaults = create_findy2_state()
+        path = user_scoped_data_path(FINDY2_USER_DATA_PATH, (user or {}).get("id"))
+        restored = load_findy2_user_data(path, defaults)
+        if not restored and os.path.exists(os.path.expanduser(FINDY2_USER_DATA_PATH)):
+            restored = load_findy2_user_data(FINDY2_USER_DATA_PATH, defaults)
+            if restored:
+                migration_state = dict(defaults)
+                migration_state.update(restored)
+                if save_findy2_user_data(path, migration_state):
+                    try:
+                        os.replace(
+                            os.path.expanduser(FINDY2_USER_DATA_PATH),
+                            os.path.expanduser(FINDY2_USER_DATA_PATH) + ".migrated",
+                        )
+                    except OSError:
+                        pass
+        for key in PERSISTED_KEYS:
+            app_state[key] = restored.get(key, defaults.get(key))
+        apply_authenticated_user(user)
+
+    def clear_user_workspace():
+        defaults = create_findy2_state()
+        for key in PERSISTED_KEYS:
+            app_state[key] = defaults.get(key)
+        app_state["current_user"] = None
+
+    restored_user = restore_session(FINDY2_AUTH_DATA_PATH, FINDY2_SESSION_PATH)
+    if restored_user:
+        load_user_workspace(restored_user)
+
+    def current_user_id():
+        return (app_state.get("current_user") or {}).get("id")
+
+    def current_user_label():
+        user = app_state.get("current_user") or {}
+        return user.get("nickname") or user.get("username") or "FINDY 회원"
+
+    def is_owned_by_current_user(item):
+        item = item or {}
+        source = item.get("source") if isinstance(item, dict) else None
+        if isinstance(source, dict) and source is not item:
+            return is_owned_by_current_user(source)
+        owner_id = item.get("userId") or item.get("ownerUserId")
+        return bool(owner_id and owner_id == current_user_id())
+
+    def sync_profile_to_auth(profile):
+        user_id = current_user_id()
+        if not user_id:
+            return True
+        try:
+            updated_user = update_user_profile(FINDY2_AUTH_DATA_PATH, user_id, profile)
+        except AuthError as error:
+            show_snack(str(error), bgcolor="#B85C5C")
+            return False
+        apply_authenticated_user(updated_user)
+        return True
 
     subcategories = SUBCATEGORIES
 
@@ -882,6 +893,7 @@ async def main(page: ft.Page):
             app_state["saved_ids"].remove(artist_id)
         else:
             app_state["saved_ids"].add(artist_id)
+        persist_user_data()
 
     def is_saved(artist_id):
         return artist_id in app_state["saved_ids"]
@@ -1461,25 +1473,16 @@ async def main(page: ft.Page):
         }
 
     def save_reservation_history_to_file():
-        try:
-            with open(RESERVATION_STORAGE_PATH, "w", encoding="utf-8") as f:
-                json.dump(app_state.get("reservation_history", []), f, ensure_ascii=False, indent=2)
-            return True
-        except Exception as e:
-            print(f"Failed to save reservation history: {e}")
-            return False
+        return save_reservation_history(
+            RESERVATION_STORAGE_PATH,
+            app_state.get("reservation_history", []),
+        )
 
     def load_reservation_history_from_file():
-        if not os.path.exists(RESERVATION_STORAGE_PATH):
-            return []
-        try:
-            with open(RESERVATION_STORAGE_PATH, "r", encoding="utf-8") as f:
-                loaded = json.load(f)
-            if isinstance(loaded, list):
-                return [normalize_reservation_history_item(item) for item in loaded]
-        except Exception as e:
-            print(f"Failed to load reservation history: {e}")
-        return []
+        return load_reservation_history(
+            RESERVATION_STORAGE_PATH,
+            normalize_reservation_history_item,
+        )
 
     def cancel_reservation(reservation_id):
         for item in app_state.get("reservation_history", []):
@@ -1555,7 +1558,8 @@ async def main(page: ft.Page):
     def logout_to_login(e=None):
         clear_transient_ui()
         close_overlays()
-        app_state["current_user"] = None
+        clear_session(FINDY2_SESSION_PATH)
+        clear_user_workspace()
         app_state["selected_tab"] = 2
         app_state["page_history"] = []
         app_state["current_page"] = "login"
@@ -1595,6 +1599,132 @@ async def main(page: ft.Page):
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
         )
+
+    def open_account_deletion_dialog(e=None):
+        user = app_state.get("current_user") or {}
+        if not user:
+            show_snack("로그인된 계정을 찾을 수 없어요.", bgcolor="#B85C5C")
+            return
+
+        is_social_account = user.get("provider", "email") != "email"
+        password_field = ft.TextField(
+            label="현재 비밀번호",
+            password=True,
+            can_reveal_password=True,
+            autofocus=True,
+            border_color=BORDER_COLOR,
+            focused_border_color=MAIN_COLOR,
+        )
+        confirmation_field = ft.TextField(
+            label="'계정 삭제'를 입력해주세요",
+            border_color=BORDER_COLOR,
+            focused_border_color=MAIN_COLOR,
+        )
+
+        def close_dialog(event=None):
+            if page.dialog:
+                page.dialog.open = False
+                page.update()
+
+        def finish_account_deletion(user_id):
+            data_path = user_scoped_data_path(FINDY2_USER_DATA_PATH, user_id)
+            data_deleted = delete_findy2_user_data(data_path)
+            media_deleted = delete_user_media(FINDY2_MEDIA_DIR, user_id)
+            clear_session(FINDY2_SESSION_PATH)
+            close_dialog()
+            clear_user_workspace()
+            app_state["selected_tab"] = 2
+            app_state["page_history"] = []
+            app_state["current_page"] = "login"
+            if not data_deleted or not media_deleted:
+                show_snack(
+                    "계정은 삭제됐지만 일부 로컬 파일 정리가 필요해요.",
+                    bgcolor="#B85C5C",
+                )
+            show_login_page()
+
+        def validate_confirmation():
+            if confirmation_field.value.strip() != "계정 삭제":
+                show_snack("'계정 삭제'를 정확히 입력해주세요.", bgcolor="#B85C5C")
+                return False
+            return True
+
+        def confirm_email_delete(event=None):
+            if not validate_confirmation():
+                return
+            user_id = user.get("id")
+            try:
+                delete_user(
+                    FINDY2_AUTH_DATA_PATH,
+                    user_id,
+                    password_field.value,
+                )
+            except AuthError as error:
+                show_snack(str(error), bgcolor="#B85C5C")
+                return
+            finish_account_deletion(user_id)
+
+        async def confirm_social_delete(event=None):
+            if not validate_confirmation():
+                return
+            remote_token = read_remote_session_token(FINDY2_SESSION_PATH)
+            try:
+                await delete_social_account(
+                    FINDY2_AUTH_API_URL,
+                    remote_token,
+                )
+                delete_user(
+                    FINDY2_AUTH_DATA_PATH,
+                    user.get("id"),
+                    verified_social=True,
+                )
+            except (AuthError, SocialAuthError) as error:
+                show_snack(str(error), bgcolor="#B85C5C")
+                return
+            finish_account_deletion(user.get("id"))
+
+        dialog_controls = [
+            ft.Text(
+                (
+                    "FINDY 통합회원과 이 기기의 작성글, 댓글, 좋아요, 저장, 프로필, 업로드 파일을 모두 삭제합니다."
+                    if is_social_account
+                    else "작성한 글, 댓글, 좋아요, 저장, 프로필과 업로드 파일이 이 기기에서 모두 삭제되며 복구할 수 없습니다."
+                ),
+                size=12,
+                color=SUBTEXT_COLOR,
+            ),
+        ]
+        if not is_social_account:
+            dialog_controls.append(password_field)
+        dialog_controls.append(confirmation_field)
+
+        page.dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("계정을 삭제할까요?", weight=ft.FontWeight.W_900),
+            content=ft.Container(
+                width=min(360, content_width() - 48),
+                content=ft.Column(
+                    controls=dialog_controls,
+                    spacing=14,
+                    tight=True,
+                ),
+            ),
+            actions=[
+                ft.TextButton("취소", on_click=close_dialog),
+                ft.TextButton(
+                    "영구 삭제",
+                    style=ft.ButtonStyle(color="#B85C5C"),
+                    on_click=(
+                        lambda event: page.run_task(confirm_social_delete, event)
+                        if is_social_account
+                        else confirm_email_delete(event)
+                    ),
+                ),
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+        page.dialog.open = True
+        page.update()
 
     def go_back_page(e=None):
         try:
@@ -1642,6 +1772,7 @@ async def main(page: ft.Page):
                     "saved_content",
                     "liked_content",
                     "settings",
+                    "connected_accounts",
                     "findy_recommendation",
                     "content_detail",
                     "completed",
@@ -1651,6 +1782,7 @@ async def main(page: ft.Page):
                     "support",
                     "inquiry",
                     "notifications",
+                    "legal",
                 }:
                     app_state["selected_tab"] = 4
                 render_current_page()
@@ -1661,7 +1793,7 @@ async def main(page: ft.Page):
         app_state["selected_tab"] = 2
         show_home_page()
 
-    def render_current_page():
+    def _render_current_page_unchecked():
         page_name = app_state.get("current_page", "home")
         if page_name == "opening":
             show_opening_page()
@@ -1669,6 +1801,10 @@ async def main(page: ft.Page):
             show_login_page()
         elif page_name == "signup":
             show_signup_page("user")
+        elif page_name == "account_recovery":
+            show_account_recovery_page(app_state.get("account_recovery_mode", "find_id"))
+        elif page_name == "phone_onboarding":
+            show_phone_onboarding_page()
         elif page_name == "completion_feedback":
             show_completion_feedback_page()
         elif page_name == "home_category_transition":
@@ -1727,6 +1863,10 @@ async def main(page: ft.Page):
             show_liked_content_page()
         elif page_name == "settings":
             show_settings_page()
+        elif page_name == "connected_accounts":
+            show_connected_accounts_page()
+        elif page_name == "legal":
+            show_legal_page()
         elif page_name == "findy_recommendation":
             show_findy_recommendation_page()
         elif page_name == "content_detail":
@@ -1761,6 +1901,76 @@ async def main(page: ft.Page):
             show_placeholder_info_page()
         else:
             show_home_page()
+
+    public_pages = {"opening", "login", "signup", "account_recovery", "phone_onboarding"}
+
+    def show_runtime_error_page(error=None):
+        if error is not None:
+            print(f"FINDY2 runtime error: {error}")
+        failed_page = app_state.get("current_page", "home")
+
+        def retry(e=None):
+            app_state["current_page"] = failed_page
+            render_current_page()
+
+        def return_home(e=None):
+            app_state["current_page"] = "home"
+            app_state["selected_tab"] = 2
+            render_current_page()
+
+        compact_error_layout = full_phone_width() < 330
+        error_actions = [
+            soft_button("다시 시도", MAIN_COLOR, "#FFFFFF", retry, width=126 if not compact_error_layout else 180),
+            soft_button("홈으로", CHIP_BG, TEXT_COLOR, return_home, width=126 if not compact_error_layout else 180),
+        ]
+        page.clean()
+        page.add(
+            ft.Container(
+                expand=True,
+                alignment=ft.Alignment(0, 0),
+                bgcolor=BG_COLOR,
+                content=ft.Container(
+                    width=min(340, full_phone_width() - 32),
+                    padding=ft.padding.symmetric(horizontal=24, vertical=28),
+                    bgcolor="#FFFFFF",
+                    border_radius=26,
+                    border=ft.border.all(1, BORDER_COLOR),
+                    content=ft.Column(
+                        controls=[
+                            ft.Icon(app_icon("ERROR_OUTLINE", "INFO_OUTLINE"), size=34, color=MAIN_COLOR),
+                            ft.Text("화면을 불러오지 못했어요", size=19, color=TEXT_COLOR, weight=ft.FontWeight.W_900),
+                            ft.Text("입력한 내용은 유지했어요. 다시 시도하거나 홈으로 이동해주세요.", size=12, color=SUBTEXT_COLOR, text_align=ft.TextAlign.CENTER),
+                            (
+                                ft.Column(
+                                    controls=error_actions,
+                                    spacing=8,
+                                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                                )
+                                if compact_error_layout
+                                else ft.Row(
+                                    controls=error_actions,
+                                    spacing=8,
+                                    alignment=ft.MainAxisAlignment.CENTER,
+                                )
+                            ),
+                        ],
+                        spacing=14,
+                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                    ),
+                ),
+            )
+        )
+        page.update()
+
+    def render_current_page():
+        page_name = app_state.get("current_page", "home")
+        if page_name not in public_pages and not app_state.get("current_user"):
+            app_state["current_page"] = "login"
+            app_state["page_history"] = []
+        try:
+            _render_current_page_unchecked()
+        except Exception as error:
+            show_runtime_error_page(error)
 
     def go_category_page(e=None):
         clear_transient_ui()
@@ -2146,8 +2356,77 @@ async def main(page: ft.Page):
             size=14,
         )
         extra_field = compose_text_field("사용 제품, 가격대, 참고 정보나 태그를 추가해보세요. (선택)", size=13)
+        selected_photos = []
+        photo_count_text = ft.Text("0/6", size=10, color=SUBTEXT_COLOR, weight=ft.FontWeight.W_700)
+        photos_row = ft.Row(spacing=8, scroll=ft.ScrollMode.HIDDEN)
+        photos_preview = ft.Container(width=content_width() - 36, visible=False, content=photos_row)
+
+        def refresh_community_photo_preview():
+            photos_row.controls.clear()
+            for index, path in enumerate(selected_photos):
+                def remove_photo(e=None, target_index=index):
+                    selected_photos.pop(target_index)
+                    refresh_community_photo_preview()
+
+                photos_row.controls.append(
+                    ft.Stack(
+                        width=76,
+                        height=76,
+                        controls=[
+                            ft.Image(src=path, width=76, height=76, fit=ft.ImageFit.COVER, border_radius=12),
+                            ft.Container(
+                                right=4,
+                                top=4,
+                                width=22,
+                                height=22,
+                                border_radius=11,
+                                bgcolor=ft.Colors.with_opacity(0.72, "#000000"),
+                                alignment=ft.Alignment(0, 0),
+                                ink=True,
+                                on_click=remove_photo,
+                                content=ft.Icon(app_icon("CLOSE"), size=13, color="#FFFFFF"),
+                            ),
+                        ],
+                    )
+                )
+            photos_preview.visible = bool(selected_photos)
+            photo_count_text.value = f"{len(selected_photos)}/6"
+            page.update()
+
+        def on_community_photos_picked(e: ft.FilePickerResultEvent):
+            if not e.files:
+                return
+            remaining = 6 - len(selected_photos)
+            for selected_file in e.files[:remaining]:
+                if not selected_file.path:
+                    continue
+                try:
+                    validate_image_file(selected_file.path)
+                except MediaStorageError as error:
+                    show_snack(str(error), bgcolor="#B85C5C")
+                    continue
+                if selected_file.path not in selected_photos:
+                    selected_photos.append(selected_file.path)
+            refresh_community_photo_preview()
+            if len(e.files) > remaining:
+                show_snack("커뮤니티 사진은 최대 6장까지 등록할 수 있어요.", bgcolor="#B85C5C")
+
+        community_photo_picker = ft.FilePicker(on_result=on_community_photos_picked)
+        page.overlay.append(community_photo_picker)
+        page.update()
+
+        def pick_community_photos(e=None):
+            if len(selected_photos) >= 6:
+                show_snack("커뮤니티 사진은 최대 6장까지 등록할 수 있어요.", bgcolor="#B85C5C")
+                return
+            community_photo_picker.pick_files(
+                allow_multiple=True,
+                allowed_extensions=["jpg", "jpeg", "png", "webp", "heic", "gif"],
+            )
 
         def go_back(e=None):
+            if community_photo_picker in page.overlay:
+                page.overlay.remove(community_photo_picker)
             show_community_board_page(app_state.get("community_board_type", "자유"), app_state.get("selected_tab", 2))
 
         def submit_post(e):
@@ -2161,19 +2440,41 @@ async def main(page: ft.Page):
                 show_snack("글 내용을 입력해주세요.", bgcolor="#B85C5C")
                 return
 
-            app_state.setdefault("community_posts", []).insert(0, {
+            try:
+                stored_images = store_images(
+                    selected_photos,
+                    FINDY2_MEDIA_DIR,
+                    current_user_id(),
+                    limit=6,
+                )
+            except MediaStorageError as error:
+                show_snack(str(error), bgcolor="#B85C5C")
+                return
+
+            new_post = {
                 "id": f"community_user_{int(datetime.now().timestamp())}",
+                "userId": current_user_id(),
                 "type": "community",
                 "post_type": selected_type[0],
                 "title": title,
-                "subtitle": f"FINDY 회원 · {selected_category[0]} · 방금 전",
+                "subtitle": f"{current_user_label()} · {selected_category[0]} · 방금 전",
                 "meta": "댓글 0 · 저장 0",
                 "description": body_text if not extra_text else f"{body_text}\n\n{extra_text}",
                 "badge": selected_type[0],
                 "category": selected_category[0],
                 "created_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
                 "tags": [selected_category[0], selected_type[0], "새글"],
-            })
+                "photos": [item["path"] for item in stored_images],
+                "imageMetadata": stored_images,
+            }
+            app_state.setdefault("community_posts", []).insert(0, new_post)
+            if not persist_user_data(notify_on_error=True):
+                app_state["community_posts"].remove(new_post)
+                for stored_image in stored_images:
+                    remove_media_file(stored_image.get("path"), FINDY2_MEDIA_DIR)
+                return
+            if community_photo_picker in page.overlay:
+                page.overlay.remove(community_photo_picker)
             app_state["community_board_type"] = selected_type[0]
             app_state["community_category_filter"] = selected_category[0]
             app_state["selected_subcategory"] = "커뮤니티"
@@ -2255,11 +2556,14 @@ async def main(page: ft.Page):
                     title_field,
                     content_field,
                     extra_field,
+                    photos_preview,
                     compose_bottom_toolbar([
-                        compose_bottom_action(("IMAGE_OUTLINED", "PHOTO_LIBRARY_OUTLINED"), "사진", lambda e: show_snack("사진 첨부는 곧 연결될 예정이에요.")),
+                        compose_bottom_action(("IMAGE_OUTLINED", "PHOTO_LIBRARY_OUTLINED"), "사진", pick_community_photos),
                         compose_bottom_action(("PLACE_OUTLINED", "LOCATION_ON_OUTLINED"), "장소", lambda e: show_snack("장소 첨부는 곧 연결될 예정이에요.")),
                         compose_bottom_action(("HOW_TO_VOTE_OUTLINED", "BALLOT_OUTLINED"), "투표", lambda e: show_snack("투표 기능은 곧 연결될 예정이에요.")),
                         compose_bottom_action(("TAG", "NUMBERS"), "태그", lambda e: show_snack("내용에 #태그를 입력해보세요.")),
+                        ft.Container(expand=True),
+                        photo_count_text,
                     ]),
                 ],
                 spacing=6,
@@ -2277,87 +2581,6 @@ async def main(page: ft.Page):
         )
         make_shell(body, app_state["selected_tab"])
 
-    def default_community_posts():
-        return [
-            {
-                "type": "community",
-                "post_type": "질문",
-                "category": "헤어",
-                "title": "앞머리 자를까 말까 봐주세요",
-                "subtitle": "익명뷰티러 · 강남 · 12분 전",
-                "meta": "댓글 8 · 저장 14 · 조회 120",
-                "description": "중단발이고 얼굴형이 긴 편이에요. 시스루뱅이 나을지 풀뱅이 나을지 고민돼요.",
-                "badge": "질문",
-                "tags": ["앞머리", "중단발", "상담"],
-            },
-            {
-                "type": "community",
-                "post_type": "리뷰",
-                "category": "네일아트",
-                "title": "화이트 프렌치 네일 2주차 후기",
-                "subtitle": "네일기록 · 홍대 · 36분 전",
-                "meta": "만족도 4.5 · 댓글 3 · 저장 21",
-                "description": "손톱이 짧은 편인데 라인을 얇게 잡아줘서 손이 길어 보여요. 유지력도 괜찮았고 재방문 의향 있어요.",
-                "badge": "리뷰",
-                "tags": ["프렌치", "유지력", "짧은손톱"],
-            },
-            {
-                "type": "community",
-                "post_type": "자유",
-                "category": "메이크업",
-                "title": "봄라이트 데일리 메이크업 조합",
-                "subtitle": "피치무드 · 성수 · 1시간 전",
-                "meta": "좋아요 77 · 저장 44 · 댓글 6",
-                "description": "피치 베이스에 로지 블러셔를 얹으니 얼굴이 훨씬 맑아 보여요. 면접 메이크업으로도 괜찮았어요.",
-                "badge": "자유",
-                "tags": ["봄라이트", "데일리", "면접"],
-            },
-            {
-                "type": "community",
-                "post_type": "질문",
-                "category": "반영구",
-                "title": "자연눈썹 가격 25만원이면 적당한가요?",
-                "subtitle": "첫시술 · 잠실 · 2시간 전",
-                "meta": "댓글 11 · 저장 18 · 조회 488",
-                "description": "첫 반영구라 너무 진해질까 걱정돼요. 리터치 포함 가격인지도 꼭 확인해야 할까요?",
-                "badge": "질문",
-                "tags": ["반영구", "가격", "리터치"],
-            },
-            {
-                "type": "community",
-                "post_type": "자유",
-                "category": "웨딩",
-                "title": "하객 메이크업 셀프로 할지 샵 갈지 고민",
-                "subtitle": "하객룩고민 · 마포 · 3시간 전",
-                "meta": "댓글 5 · 저장 12 · 조회 271",
-                "description": "사진 많이 찍히는 자리라 샵을 갈까 하는데, 하객 메이크업은 어느 정도가 과하지 않을까요?",
-                "badge": "자유",
-                "tags": ["하객", "메이크업", "웨딩"],
-            },
-            {
-                "type": "community",
-                "post_type": "스냅",
-                "category": "포토",
-                "title": "프로필 촬영 전날 체크리스트",
-                "subtitle": "프로필준비 · 합정 · 5시간 전",
-                "meta": "좋아요 54 · 저장 37 · 댓글 2",
-                "description": "의상 2벌, 립 컬러 2개, 헤어 고정 스프레이, 보조배터리는 꼭 챙기면 좋아요.",
-                "badge": "스냅",
-                "tags": ["프로필", "촬영", "준비물"],
-            },
-            {
-                "type": "community",
-                "post_type": "비디오",
-                "category": "반영구",
-                "title": "눈썹 시술 전 체크리스트 영상",
-                "subtitle": "브로우메모 · 건대 · 6시간 전",
-                "meta": "좋아요 42 · 저장 31 · 댓글 9",
-                "description": "시술 전 피부 상태, 리터치 일정, 당일 세안 주의점을 짧게 정리했어요.",
-                "badge": "비디오",
-                "tags": ["반영구", "체크리스트", "영상"],
-            },
-        ]
-
     def community_posts():
         user_posts = [post.copy() for post in app_state.get("community_posts", [])]
         default_posts = []
@@ -2367,27 +2590,76 @@ async def main(page: ft.Page):
             default_posts.append(copied)
         return user_posts + default_posts
 
-    COMMUNITY_POST_TYPE_ORDER = {
-        "리뷰": 0,
-        "질문": 1,
-        "자유": 2,
-        "자유게시판": 2,
-        "공유": 2,
-        "스냅": 3,
-        "비디오": 4,
-    }
-
     def community_post_type(item):
         return item.get("post_type") or item.get("badge") or item.get("type") or "자유"
 
     def community_type_rank(item):
         return COMMUNITY_POST_TYPE_ORDER.get(community_post_type(item), 99)
 
+    def community_popularity_score(item):
+        meta = item.get("meta", "")
+        return (
+            extract_metric(meta, "좋아요")
+            + extract_metric(meta, "댓글")
+            + extract_metric(meta, "저장")
+        )
+
     def filtered_community_posts(board_type=None, category=None):
         board_type = board_type or app_state.get("community_board_type", "자유")
         category = category or app_state.get("community_category_filter", "전체")
         items = community_posts()
-        if board_type != "전체":
+        if board_type == "리뷰":
+            known_ids = {str(item.get("id")) for item in items}
+            for review in review_feed_items():
+                review_id = str(review_identity(review))
+                if review_id in known_ids:
+                    continue
+                rating = float(review.get("rating", 5) or 5)
+                review_category = service_category_label(
+                    review.get("serviceCategory") or review.get("category")
+                )
+                items.append(
+                    {
+                        "id": review_id,
+                        "type": "community",
+                        "post_type": "리뷰",
+                        "category": review_category,
+                        "title": review.get("reviewTitle")
+                        or review.get("shopName")
+                        or "서비스 이용 후기",
+                        "subtitle": (
+                            f'{public_profile_name(review)} · FINDY · '
+                            f'{review.get("created_at", review.get("createdAt", "추천 리뷰"))}'
+                        ),
+                        "meta": (
+                            f"만족도 {rating:.1f} · 댓글 {max(1, review_report_count(review_id))} "
+                            f"· 저장 {max(1, int(rating * 4))}"
+                        ),
+                        "description": review.get("reviewText")
+                        or review.get("content")
+                        or "",
+                        "badge": "리뷰",
+                        "rating": rating,
+                        "verifiedVisit": bool(review.get("verifiedVisit")),
+                        "tags": [
+                            tag
+                            for tag in [
+                                review_category,
+                                "인증된 방문" if review.get("verifiedVisit") else "비인증",
+                            ]
+                            if tag
+                        ],
+                        "source": review,
+                        "source_type": "review",
+                    }
+                )
+        if board_type == "인기":
+            items = [
+                item
+                for item in items
+                if item.get("post_type", item.get("badge")) in {"자유", "리뷰", "질문"}
+            ]
+        elif board_type != "전체":
             items = [item for item in items if item.get("post_type", item.get("badge")) == board_type]
         if category != "전체":
             normalized = normalize_overlay_category_name(category)
@@ -2397,23 +2669,17 @@ async def main(page: ft.Page):
                 if normalize_overlay_category_name(item.get("category")) == normalized
             ]
         sort_mode = app_state.get("community_sort_mode", "popular")
+        if board_type == "인기":
+            return sorted(items, key=community_popularity_score, reverse=True)
         if sort_mode == "latest":
             return items
         if sort_mode == "comment":
             return sorted(items, key=lambda item: extract_metric(item.get("meta", ""), "댓글"), reverse=True)
         return sorted(
             items,
-            key=lambda item: extract_metric(item.get("meta", ""), "저장") + extract_metric(item.get("meta", ""), "댓글") * 2,
+            key=community_popularity_score,
             reverse=True,
         )
-
-    def extract_metric(text, label):
-        try:
-            after = str(text).split(label, 1)[1].strip()
-            value = after.split(" ", 1)[0].replace("개", "")
-            return int(value)
-        except Exception:
-            return 0
 
     def community_chip(label, active, on_click):
         return ft.Container(
@@ -2468,13 +2734,20 @@ async def main(page: ft.Page):
             right.append(("CHAT_BUBBLE_OUTLINE", f"{comments:,}"))
         return " · ".join(left), right
 
-    def community_mini_badge(text):
+    def community_mini_badge(text, on_click=None, selected=False):
         return ft.Container(
             padding=ft.padding.symmetric(horizontal=9, vertical=5),
-            bgcolor=ft.Colors.with_opacity(0.66, CHIP_BG),
+            bgcolor=MAIN_COLOR if selected else ft.Colors.with_opacity(0.66, CHIP_BG),
             border_radius=999,
-            border=ft.border.all(1, ft.Colors.with_opacity(0.55, BORDER_COLOR)),
-            content=ft.Text(text, size=10, color=MAIN_COLOR_DARK, weight=ft.FontWeight.W_800),
+            border=ft.border.all(1, MAIN_COLOR if selected else ft.Colors.with_opacity(0.55, BORDER_COLOR)),
+            on_click=on_click,
+            ink=on_click is not None,
+            content=ft.Text(
+                text,
+                size=10,
+                color="#FFFFFF" if selected else MAIN_COLOR_DARK,
+                weight=ft.FontWeight.W_800,
+            ),
         )
 
     def community_result_card(item, back_page="search_results"):
@@ -2493,6 +2766,26 @@ async def main(page: ft.Page):
         stat_text = metric_left or display.get("meta", "")
         avatar_label = (author or "F")[0].upper()
         description_text = (display.get("description") or "").strip()
+        is_review = display.get("badge") == "리뷰" or display.get("post_type") == "리뷰"
+        raw_rating = display.get("rating")
+        if raw_rating is None and is_review:
+            satisfaction = str(display.get("meta", "")).split("만족도", 1)
+            try:
+                raw_rating = float(satisfaction[1].strip().split(" ", 1)[0]) if len(satisfaction) > 1 else 5.0
+            except (TypeError, ValueError):
+                raw_rating = 5.0
+        rating = max(0.0, min(5.0, float(raw_rating or 0))) if is_review else 0.0
+
+        def filter_review_type(e=None):
+            app_state["community_board_type"] = "리뷰"
+            app_state["community_category_filter"] = "전체"
+            show_community_board_page("리뷰", selected_tab=0)
+
+        def filter_review_category(e=None):
+            app_state["community_board_type"] = "리뷰"
+            app_state["community_category_filter"] = display.get("category", "전체")
+            show_community_board_page("리뷰", selected_tab=0)
+
         tag_controls = [
             community_mini_badge(tag)
             for tag in display.get("tags", [])[:3]
@@ -2504,11 +2797,40 @@ async def main(page: ft.Page):
             body_controls.append(
                 ft.Text(description_text, size=12, color=SUBTEXT_COLOR, max_lines=2, overflow=ft.TextOverflow.ELLIPSIS, height=1.25)
             )
+        if is_review:
+            body_controls.append(
+                ft.Row(
+                    controls=[
+                        community_mini_badge("리뷰", filter_review_type, selected=True),
+                        community_mini_badge(display.get("category", "전체"), filter_review_category),
+                        ft.Container(expand=True),
+                        ft.Row(
+                            controls=[
+                                ft.Icon(
+                                    ft.Icons.STAR_ROUNDED if index < int(round(rating)) else ft.Icons.STAR_BORDER_ROUNDED,
+                                    size=14,
+                                    color=MAIN_COLOR if index < int(round(rating)) else BORDER_COLOR,
+                                )
+                                for index in range(5)
+                            ],
+                            spacing=0,
+                        ),
+                        ft.Text(
+                            f"{rating:.1f}",
+                            size=11,
+                            color=MAIN_COLOR_DARK,
+                            weight=ft.FontWeight.W_900,
+                        ),
+                    ],
+                    spacing=6,
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                )
+            )
         if tag_controls:
             body_controls.append(
                 ft.Row(
                     controls=[
-                        community_mini_badge(display.get("category", "커뮤니티")),
+                        *([] if is_review else [community_mini_badge(display.get("category", "커뮤니티"))]),
                         *tag_controls,
                     ],
                     spacing=6,
@@ -2550,7 +2872,11 @@ async def main(page: ft.Page):
                                 spacing=2,
                                 expand=True,
                             ),
-                            community_mini_badge(display.get("badge", "글")),
+                            (
+                                ft.Container(width=0)
+                                if is_review
+                                else community_mini_badge(display.get("badge", "글"))
+                            ),
                             ft.Container(
                                 width=30,
                                 height=30,
@@ -2602,16 +2928,19 @@ async def main(page: ft.Page):
         close_overlays()
         if board_type in {"자유게시판", "공유"}:
             board_type = "자유"
-        if board_type not in {"자유", "리뷰", "질문"}:
+        if board_type not in {"인기", "자유", "리뷰", "질문"}:
             board_type = "자유"
         app_state["community_board_type"] = board_type
-        if selected_tab is not None:
-            app_state["selected_tab"] = selected_tab
-        else:
-            app_state["selected_tab"] = 2
+        # 리뷰·질문·자유게시판은 진입 경로와 관계없이 커뮤니티 탭에 속합니다.
+        app_state["selected_tab"] = 0
         app_state["current_page"] = "community_board"
 
-        board_labels = [("자유게시판", "자유"), ("리뷰", "리뷰"), ("질문", "질문")]
+        board_labels = [
+            ("인기글", "인기"),
+            ("자유게시판", "자유"),
+            ("리뷰", "리뷰"),
+            ("질문", "질문"),
+        ]
         category_labels = ["전체", "헤어", "네일아트", "메이크업", "반영구", "웨딩", "포토"]
         sort_labels = [("추천순", "popular"), ("최신순", "latest"), ("댓글순", "comment")]
 
@@ -2644,6 +2973,13 @@ async def main(page: ft.Page):
 
         def write_current(e=None):
             current = app_state.get("community_board_type", "질문")
+            if current == "리뷰":
+                app_state["review_target"] = None
+                app_state["current_page"] = "write_review"
+                show_write_review_page()
+                return
+            if current == "인기":
+                current = "자유"
             if current == "전체":
                 current = "질문"
             if current in {"스냅", "비디오"}:
@@ -2655,6 +2991,7 @@ async def main(page: ft.Page):
         current_category = app_state.get("community_category_filter", "전체")
         posts = filtered_community_posts(current_board, current_category)
         title_map = {
+            "인기": ("인기글", "좋아요, 댓글, 저장을 합산한 인기 글이에요."),
             "리뷰": ("리뷰 게시판", "시술 경험과 가격, 만족도를 솔직하게 확인해요."),
             "질문": ("질문 게시판", "회원들과 먼저 묻고 답변을 나눠요."),
             "자유": ("자유게시판", "뷰티 수다와 고민을 가볍게 나눠요."),
@@ -2860,7 +3197,7 @@ async def main(page: ft.Page):
 
         if content_type == "리뷰":
             app_state["community_category_filter"] = normalized_filter
-            show_community_board_page("리뷰", selected_tab=2 if selected_tab is None else selected_tab)
+            show_community_board_page("리뷰", selected_tab=0 if selected_tab is None else selected_tab)
             return
 
         if content_type == "자유게시판":
@@ -3890,104 +4227,9 @@ async def main(page: ft.Page):
         )
 
     def show_review_page():
-        app_state["current_page"] = "review"
-
-        my_count = len(app_state.get("written_reviews", []))
-        visible_reviews = review_feed_items()
-        def open_treatment_review(e=None):
-            app_state["review_target"] = None
-            app_state["current_page"] = "write_review"
-            show_write_review_page()
-
-        my_reviews_banner = ft.GestureDetector(
-            on_tap=lambda e: show_my_reviews_page(),
-            content=ft.Container(
-                width=content_width(),
-                padding=ft.padding.symmetric(horizontal=16, vertical=14),
-                bgcolor=MAIN_COLOR_SOFT,
-                border_radius=RADIUS_LG,
-                border=ft.border.all(1, ft.Colors.with_opacity(0.25, MAIN_COLOR)),
-                content=ft.Row(
-                    controls=[
-                        ft.Icon(ft.Icons.RATE_REVIEW_OUTLINED, size=20, color=MAIN_COLOR),
-                        ft.Column(
-                            controls=[
-                                ft.Text("내가 쓴 리뷰", size=14, weight=ft.FontWeight.W_600, color=MAIN_COLOR),
-                                ft.Text(
-                                    f"작성한 리뷰 {my_count}개" if my_count else "아직 작성한 리뷰가 없어요",
-                                    size=11, color=ft.Colors.with_opacity(0.75, MAIN_COLOR),
-                                ),
-                            ],
-                            spacing=2,
-                            expand=True,
-                        ),
-                        ft.Icon(ft.Icons.ARROW_FORWARD_IOS_ROUNDED, size=13, color=MAIN_COLOR),
-                    ],
-                    spacing=12,
-                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                ),
-            ),
-        )
-
-        write_review_banner = ft.Container(
-            width=content_width(),
-            padding=ft.padding.symmetric(horizontal=16, vertical=14),
-            bgcolor="#FFFFFF",
-            border_radius=RADIUS_LG,
-            border=ft.border.all(1, BORDER_COLOR),
-            on_click=open_treatment_review,
-            ink=True,
-            content=ft.Row(
-                controls=[
-                    ft.Icon(ft.Icons.ADD_COMMENT_OUTLINED, size=20, color=MAIN_COLOR),
-                    ft.Column(
-                        controls=[
-                            ft.Text("서비스 리뷰 작성", size=14, weight=ft.FontWeight.W_600, color=TEXT_COLOR),
-                            ft.Text("방문 경험을 안전한 표현으로 남겨보세요.", size=11, color=SUBTEXT_COLOR),
-                        ],
-                        spacing=2,
-                        expand=True,
-                    ),
-                    ft.Icon(ft.Icons.ARROW_FORWARD_IOS_ROUNDED, size=13, color=SUBTEXT_COLOR),
-                ],
-                spacing=12,
-                vertical_alignment=ft.CrossAxisAlignment.CENTER,
-            ),
-        )
-
-        body = ft.Column(
-            controls=[
-                ft.Container(
-                    width=content_width(),
-                    content=ft.Row(
-                        controls=[
-                            ft.Text("리뷰", size=26, color=TEXT_COLOR, weight=ft.FontWeight.W_900, expand=True),
-                            ft.Icon(app_icon("SEARCH", "SEARCH_OUTLINED"), size=24, color=TEXT_COLOR),
-                            ft.Icon(app_icon("NOTIFICATIONS_NONE", "NOTIFICATIONS_OUTLINED"), size=24, color=TEXT_COLOR),
-                        ],
-                        spacing=16,
-                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                    ),
-                ),
-                my_reviews_banner,
-                write_review_banner,
-                ft.Container(height=4),
-                ft.Container(
-                    width=content_width(),
-                    content=ft.Column(
-                        controls=[
-                            review_display_card(review)
-                            for review in visible_reviews
-                        ],
-                        spacing=SPACE_MD,
-                    ),
-                ),
-                ft.Container(height=20),
-            ],
-            spacing=SPACE_MD,
-            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-        )
-        make_shell(body, app_state.get("selected_tab", 2))
+        app_state["community_board_type"] = "리뷰"
+        app_state["selected_tab"] = 0
+        show_community_board_page("리뷰", selected_tab=0)
 
     def show_write_review_page():
         app_state["current_page"] = "write_review"
@@ -4315,7 +4557,13 @@ async def main(page: ft.Page):
             new_files = e.files[:remaining]
             for f in new_files:
                 if f.path:
-                    selected_photos.append(f.path)
+                    try:
+                        validate_image_file(f.path)
+                    except MediaStorageError as error:
+                        show_snack(str(error), bgcolor="#B85C5C")
+                        continue
+                    if f.path not in selected_photos:
+                        selected_photos.append(f.path)
             refresh_photo_preview()
             if len(e.files) > remaining:
                 show_snack("사진은 최대 10장까지 선택할 수 있어요.", bgcolor="#B85C5C")
@@ -4410,8 +4658,24 @@ async def main(page: ft.Page):
             review["negativeComment"] = maskPersonalInfo(review["negativeComment"])
             review["reviewText"] = maskPersonalInfo(review["reviewText"])
             review["content"] = review["reviewText"]
+            try:
+                stored_images = store_images(
+                    selected_photos,
+                    FINDY2_MEDIA_DIR,
+                    current_user_id(),
+                    limit=10,
+                )
+            except MediaStorageError as error:
+                show_snack(str(error), bgcolor="#B85C5C")
+                return
+            review["photos"] = [item["path"] for item in stored_images]
+            review["images"] = list(review["photos"])
+            review["imageMetadata"] = stored_images
             cleanup_file_picker()
-            submitReview(review)
+            if not submitReview(review):
+                for stored_image in stored_images:
+                    remove_media_file(stored_image.get("path"), FINDY2_MEDIA_DIR)
+                return
             app_state.pop("review_form_serviceCategory", None)
             app_state.pop("review_form_revisitIntent", None)
             app_state["review_target"] = None
@@ -4707,37 +4971,6 @@ async def main(page: ft.Page):
     def video_key(video):
         return video.get("id") or f'{video.get("category", "")}:{video.get("title", "")}:{video.get("subtitle", "")}'
 
-    def video_duration_seconds(duration):
-        parts = str(duration or "0:00").strip().split(":")
-        try:
-            if len(parts) == 2:
-                return int(parts[0]) * 60 + int(parts[1])
-            if len(parts) == 3:
-                return int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
-            return int(float(parts[0]))
-        except (TypeError, ValueError):
-            return 0
-
-    def is_short_video(video):
-        seconds = video_duration_seconds(video.get("duration", "0:59"))
-        return 0 <= seconds <= 60
-
-    def default_video_items():
-        return [
-            {"id": "video_hair_1", "title": "앞머리 들뜸 30초 정리법", "subtitle": "드라이기와 작은 롤빗으로 아침에 빠르게", "badge": "TIP", "category": "헤어", "duration": "0:48", "views": "3.2만"},
-            {"id": "video_hair_2", "title": "고데기 없이 볼륨 살리는 법", "subtitle": "뿌리 볼륨이 금방 죽는 사람들을 위한 팁", "badge": "TIP", "category": "헤어", "duration": "0:57", "views": "2.8만"},
-            {"id": "video_makeup_1", "title": "베이스 안 뜨게 바르는 순서", "subtitle": "기초 단계 후 5분 기다리는 작은 습관", "badge": "TIP", "category": "메이크업", "duration": "0:52", "views": "4.1만"},
-            {"id": "video_makeup_2", "title": "립 하나로 생기 살리는 조합", "subtitle": "볼과 입술에 같이 쓰는 데일리 컬러", "badge": "TIP", "category": "메이크업", "duration": "0:44", "views": "5.6만"},
-            {"id": "video_nail_1", "title": "네일 오래 가는 손끝 관리", "subtitle": "큐티클 오일 바르는 타이밍 공유", "badge": "TIP", "category": "네일아트", "duration": "0:45", "views": "2.1만"},
-            {"id": "video_nail_2", "title": "짧은 손톱 컬러 고르는 법", "subtitle": "손이 길어 보이는 누드톤 기준", "badge": "TIP", "category": "네일아트", "duration": "0:55", "views": "1.9만"},
-            {"id": "video_semi_1", "title": "자연눈썹 탈각 기간 관리", "subtitle": "첫 주에 피해야 할 습관과 보습 타이밍", "badge": "TIP", "category": "반영구", "duration": "0:51", "views": "2.6만"},
-            {"id": "video_semi_2", "title": "입술 반영구 전 체크", "subtitle": "컬러 상담 전에 확인하면 좋은 포인트", "badge": "TIP", "category": "반영구", "duration": "0:47", "views": "1.7만"},
-            {"id": "video_wedding_1", "title": "하객 메이크업 과하지 않게", "subtitle": "사진에서 깔끔하게 보이는 포인트", "badge": "TIP", "category": "웨딩", "duration": "0:58", "views": "6.3만"},
-            {"id": "video_wedding_2", "title": "셀프 웨이브 고정 루틴", "subtitle": "오래 앉아 있어도 덜 풀리는 방법", "badge": "TIP", "category": "웨딩", "duration": "0:54", "views": "3.7만"},
-            {"id": "video_photo_1", "title": "프로필 촬영 전날 체크", "subtitle": "붓기와 의상 준비를 한 번에 점검", "badge": "TIP", "category": "포토", "duration": "0:56", "views": "2.5만"},
-            {"id": "video_photo_2", "title": "폰으로 찍는 감성 포토 팁", "subtitle": "창가 자연광과 구도 잡는 법", "badge": "TIP", "category": "포토", "duration": "0:49", "views": "4.4만"},
-        ]
-
     def get_all_video_items():
         written = []
         for idx, item in enumerate(app_state.get("written_videos", []), start=1):
@@ -4758,7 +4991,21 @@ async def main(page: ft.Page):
         item = app_state.get("content_detail_item") or {}
         app_state["current_page"] = "content_detail"
         back_page = app_state.get("content_detail_back_page", "my_content")
-        app_state["selected_tab"] = 2 if back_page in {"home", "community_board", "beauty_category_page", "review"} else 4
+        item_type = item.get("post_type") or item.get("badge") or item.get("source_type")
+        is_community_content = item_type in {
+            "리뷰",
+            "질문",
+            "자유",
+            "자유게시판",
+            "community",
+            "review",
+        }
+        if back_page in {"community_board", "review"} or is_community_content:
+            app_state["selected_tab"] = 0
+        elif back_page in {"home", "beauty_category_page"}:
+            app_state["selected_tab"] = 2
+        else:
+            app_state["selected_tab"] = 4
 
         def go_back(e=None):
             if back_page == "saved_content":
@@ -4776,36 +5023,173 @@ async def main(page: ft.Page):
             else:
                 show_my_content_page()
 
-        photos = item.get("photos") or []
+        source = item.get("source") if isinstance(item.get("source"), dict) else item
+        normalized_type = str(item_type or "").strip().lower()
+        is_review_detail = normalized_type in {"리뷰", "review"} or item.get("source_type") == "review"
+        is_question_detail = normalized_type in {"질문", "question"}
+        photos = item.get("photos") or item.get("images") or source.get("photos") or source.get("images") or []
         content_id = content_identity(item)
         liked_ids = app_state.setdefault("community_liked_ids", set())
         saved_ids = app_state.setdefault("community_saved_ids", set())
+        answered_question_ids = app_state.setdefault("answered_question_ids", set())
+        content_reports = app_state.setdefault("content_reports", [])
         comment_store = app_state.setdefault("content_comments", {})
         comments = comment_store.setdefault(content_id, [])
+        comment_liked_ids = app_state.setdefault("comment_liked_ids", set())
         base_likes = extract_metric(item.get("meta", ""), "좋아요")
         base_saves = extract_metric(item.get("meta", ""), "저장")
         base_comments = extract_metric(item.get("meta", ""), "댓글")
         comment_field = ft.TextField(
             width=content_width(),
             hint_text="댓글을 입력해주세요.",
-            border_color=BORDER_COLOR,
+            border=ft.InputBorder.NONE,
             focused_border_color=MAIN_COLOR,
-            bgcolor="#FAFAF8",
-            border_radius=RADIUS_MD,
-            text_style=ft.TextStyle(size=13, color=TEXT_COLOR),
-            hint_style=ft.TextStyle(size=13, color=SUBTEXT_COLOR),
+            bgcolor=ft.Colors.TRANSPARENT,
+            text_style=ft.TextStyle(size=12, color=TEXT_COLOR),
+            hint_style=ft.TextStyle(size=12, color=SUBTEXT_COLOR),
+            content_padding=ft.padding.symmetric(horizontal=10, vertical=7),
         )
+        selected_comment_photos = []
+        selected_comment_location = [""]
+        reply_target = [None]
 
         def report_content(e=None):
             if item.get("source_type") == "review" and isinstance(item.get("source"), dict):
                 show_review_report_dialog(item["source"])
                 return
-            app_state.setdefault("reported_content_ids", set()).add(content_id)
-            show_snack("신고가 접수되었어요. 운영팀이 확인할게요.")
 
-        def hide_content(e=None):
-            app_state.setdefault("hidden_content_ids", set()).add(content_id)
-            show_snack("이 글을 숨겼어요.")
+            selected_reason = ["허위 정보"]
+            reason_options = ["허위 정보", "욕설/비방", "개인정보 노출", "사생활 침해", "광고/스팸", "기타"]
+            reason_controls = ft.Row(spacing=6, wrap=True)
+            detail_field = ft.TextField(
+                hint_text="필요한 경우 상세 내용을 입력해주세요.",
+                multiline=True,
+                min_lines=2,
+                max_lines=4,
+                border_color=BORDER_COLOR,
+                focused_border_color=MAIN_COLOR,
+                text_size=12,
+            )
+
+            def refresh_reasons():
+                reason_controls.controls = [
+                    community_mini_badge(
+                        reason,
+                        on_click=lambda event, value=reason: select_reason(value),
+                        selected=selected_reason[0] == reason,
+                    )
+                    for reason in reason_options
+                ]
+                page.update()
+
+            def select_reason(reason):
+                selected_reason[0] = reason
+                refresh_reasons()
+
+            def close_report_dialog(event=None):
+                page.dialog.open = False
+                page.update()
+
+            def submit_report(event=None):
+                already_reported = any(
+                    report.get("contentId") == content_id
+                    and report.get("reporterUserId") == current_user_id()
+                    and report.get("status") == "pending"
+                    for report in content_reports
+                )
+                if already_reported:
+                    close_report_dialog()
+                    show_snack("이미 검토 중인 신고가 있어요.")
+                    return
+                content_reports.append(
+                    {
+                        "id": f"content_report_{len(content_reports) + 1}_{int(datetime.now().timestamp())}",
+                        "contentId": content_id,
+                        "reporterUserId": current_user_id(),
+                        "reason": selected_reason[0],
+                        "detail": (detail_field.value or "").strip(),
+                        "status": "pending",
+                        "createdAt": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                    }
+                )
+                app_state.setdefault("reported_content_ids", set()).add(content_id)
+                persist_user_data()
+                close_report_dialog()
+                show_snack("신고가 접수되었어요. 운영팀이 확인할게요.")
+                show_content_detail_page()
+
+            refresh_reasons()
+            page.dialog = ft.AlertDialog(
+                modal=True,
+                title=ft.Text("게시글 신고", size=17, weight=ft.FontWeight.W_900),
+                content=ft.Container(
+                    width=min(330, content_width() - 24),
+                    content=ft.Column(
+                        controls=[
+                            ft.Text("신고 사유를 선택해주세요.", size=11, color=SUBTEXT_COLOR),
+                            reason_controls,
+                            detail_field,
+                        ],
+                        spacing=12,
+                        tight=True,
+                    ),
+                ),
+                actions=[
+                    ft.TextButton("취소", on_click=close_report_dialog),
+                    ft.TextButton("신고", on_click=submit_report),
+                ],
+                actions_alignment=ft.MainAxisAlignment.END,
+            )
+            page.dialog.open = True
+            page.update()
+
+        def toggle_question_answered(e=None):
+            if not is_owned_by_current_user(source):
+                show_snack("질문 작성자만 답변 상태를 변경할 수 있어요.", bgcolor="#B85C5C")
+                return
+            if content_id in answered_question_ids:
+                answered_question_ids.discard(content_id)
+                show_snack("답변 대기 상태로 변경했어요.")
+            else:
+                answered_question_ids.add(content_id)
+                show_snack("답변 완료로 표시했어요.")
+            persist_user_data()
+            show_content_detail_page()
+
+        def delete_owned_content(e=None):
+            source = item.get("source") if isinstance(item.get("source"), dict) else item
+            if not is_owned_by_current_user(source):
+                show_snack("작성자 본인만 삭제할 수 있어요.", bgcolor="#B85C5C")
+                return
+            source_id = source.get("id")
+            collection_keys = ("community_posts", "written_snaps", "written_videos", "written_reviews")
+            deleted = False
+            for key in collection_keys:
+                collection = app_state.get(key, [])
+                remaining = [
+                    entry
+                    for entry in collection
+                    if entry is not source and (not source_id or entry.get("id") != source_id)
+                ]
+                if len(remaining) != len(collection):
+                    app_state[key] = remaining
+                    deleted = True
+            if not deleted:
+                show_snack("삭제할 글을 찾지 못했어요.", bgcolor="#B85C5C")
+                return
+            app_state.get("community_liked_ids", set()).discard(content_id)
+            app_state.get("community_saved_ids", set()).discard(content_id)
+            app_state.get("content_comments", {}).pop(content_id, None)
+            if not persist_user_data(notify_on_error=True):
+                show_snack("삭제 상태를 저장하지 못했어요.", bgcolor="#B85C5C")
+                return
+            media_paths = list(source.get("photos") or source.get("images") or [])
+            video_path = source.get("video_path")
+            if video_path:
+                media_paths.append(video_path)
+            for media_path in media_paths:
+                remove_media_file(media_path, FINDY2_MEDIA_DIR)
+            show_snack("내 글이 삭제되었어요.")
             go_back()
 
         def toggle_content_like(e=None):
@@ -4815,6 +5199,7 @@ async def main(page: ft.Page):
             else:
                 liked_ids.add(content_id)
                 show_snack("좋아요를 눌렀어요.")
+            persist_user_data()
             show_content_detail_page()
 
         def toggle_content_save(e=None):
@@ -4824,48 +5209,157 @@ async def main(page: ft.Page):
             else:
                 saved_ids.add(content_id)
                 show_snack("저장했어요.")
+            persist_user_data()
             show_content_detail_page()
 
         def submit_content_comment(e=None):
             text = (comment_field.value or "").strip()
-            if not text:
+            if not text and not selected_comment_photos and not selected_comment_location[0]:
                 show_snack("댓글을 입력해주세요.", bgcolor="#B85C5C")
                 return
             comments.append({
-                "author": (app_state.get("current_user") or {}).get("nickname", "FINDY 회원"),
+                "id": f"{content_id}:comment:{len(comments) + 1}",
+                "userId": current_user_id(),
+                "author": current_user_label(),
                 "text": text,
                 "time": "방금 전",
+                "likes": 0,
+                "replyTo": reply_target[0],
+                "photos": list(selected_comment_photos),
+                "location": selected_comment_location[0],
             })
+            selected_comment_photos.clear()
+            selected_comment_location[0] = ""
+            reply_target[0] = None
+            persist_user_data()
             show_snack("댓글이 등록되었어요.")
             show_content_detail_page()
 
-        def content_action_button(icon_name, label, value, active, on_click):
-            return ft.Container(
-                expand=True,
-                height=44,
-                bgcolor=MAIN_COLOR if active else "#FFFFFF",
-                border_radius=999,
-                border=ft.border.all(1, MAIN_COLOR if active else BORDER_COLOR),
-                on_click=on_click,
-                ink=True,
-                alignment=ft.Alignment(0, 0),
+        def on_comment_photo_picked(e: ft.FilePickerResultEvent):
+            if not e.files or not e.files[0].path:
+                return
+            try:
+                validate_image_file(e.files[0].path)
+                stored = store_images(
+                    [e.files[0].path],
+                    FINDY2_MEDIA_DIR,
+                    current_user_id(),
+                    limit=1,
+                )
+                selected_comment_photos[:] = [stored[0]["path"]]
+                show_snack("댓글에 사진 1장을 첨부했어요.")
+            except MediaStorageError as error:
+                show_snack(str(error), bgcolor="#B85C5C")
+
+        comment_photo_picker = ft.FilePicker(on_result=on_comment_photo_picked)
+        page.overlay.append(comment_photo_picker)
+
+        def pick_comment_photo(e=None):
+            comment_photo_picker.pick_files(
+                allow_multiple=False,
+                allowed_extensions=["jpg", "jpeg", "png", "webp", "heic"],
+            )
+
+        def add_comment_location(e=None):
+            selected_comment_location[0] = "내 주변"
+            show_snack("댓글에 위치 정보를 추가했어요.")
+
+        def add_comment_emoji(emoji):
+            def handler(e=None):
+                comment_field.value = f"{comment_field.value or ''}{emoji}"
+                page.dialog.open = False
+                page.update()
+            return handler
+
+        def open_comment_emoji_picker(e=None):
+            page.dialog = ft.AlertDialog(
+                modal=True,
+                title=ft.Text("이모지", size=16, weight=ft.FontWeight.W_900),
                 content=ft.Row(
                     controls=[
-                        ft.Icon(app_icon(icon_name), size=16, color="#FFFFFF" if active else MAIN_COLOR),
-                        ft.Text(f"{label} {value}", size=12, color="#FFFFFF" if active else MAIN_COLOR_DARK, weight=ft.FontWeight.W_700),
+                        ft.Container(
+                            width=42,
+                            height=42,
+                            border_radius=12,
+                            alignment=ft.Alignment(0, 0),
+                            ink=True,
+                            on_click=add_comment_emoji(emoji),
+                            content=ft.Text(emoji, size=22),
+                        )
+                        for emoji in ["😊", "👍", "❤️", "✨", "궁금", "공감"]
                     ],
-                    spacing=5,
-                    alignment=ft.MainAxisAlignment.CENTER,
+                    spacing=6,
+                    wrap=True,
+                ),
+            )
+            page.dialog.open = True
+            page.update()
+
+        def content_action_button(icon_name, label, value, active, on_click):
+            return ft.Container(
+                padding=ft.padding.symmetric(horizontal=8, vertical=6),
+                bgcolor=MAIN_COLOR_SOFT if active else ft.Colors.TRANSPARENT,
+                border_radius=12,
+                on_click=on_click,
+                ink=True,
+                content=ft.Row(
+                    controls=[
+                        ft.Icon(app_icon(icon_name), size=15, color=MAIN_COLOR if active else SUBTEXT_COLOR),
+                        ft.Text(f"{label} {value}", size=10, color=MAIN_COLOR_DARK if active else SUBTEXT_COLOR, weight=ft.FontWeight.W_800),
+                    ],
+                    spacing=4,
                     vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                    tight=True,
                 ),
             )
 
+        def detail_info_chip(label, icon_name=None, emphasized=False, on_click=None):
+            controls = []
+            if icon_name:
+                controls.append(
+                    ft.Icon(
+                        app_icon(icon_name),
+                        size=13,
+                        color="#FFFFFF" if emphasized else MAIN_COLOR,
+                    )
+                )
+            controls.append(
+                ft.Text(
+                    label,
+                    size=9,
+                    color="#FFFFFF" if emphasized else MAIN_COLOR_DARK,
+                    weight=ft.FontWeight.W_800,
+                )
+            )
+            return ft.Container(
+                padding=ft.padding.symmetric(horizontal=8, vertical=5),
+                bgcolor=MAIN_COLOR if emphasized else ft.Colors.with_opacity(0.55, CHIP_BG),
+                border=ft.border.all(1, MAIN_COLOR if emphasized else BORDER_COLOR),
+                border_radius=999,
+                on_click=on_click,
+                ink=on_click is not None,
+                content=ft.Row(controls=controls, spacing=4, tight=True),
+            )
+
         author, area, time_text = community_author_meta(item)
-        comment_field.width = max(160, content_width() - 116)
-        comment_field.height = 42
+        comment_field.height = 38
+        comment_field.expand = True
+        review_rating = max(
+            0.0,
+            min(5.0, float(item.get("rating", source.get("rating", 5)) or 5)),
+        )
+        review_category = service_category_label(
+            item.get("category")
+            or item.get("serviceCategory")
+            or source.get("serviceCategory")
+            or source.get("category")
+        )
+        verified_visit = bool(item.get("verifiedVisit", source.get("verifiedVisit", False)))
+        question_answered = content_id in answered_question_ids
+        content_reported = content_id in app_state.setdefault("reported_content_ids", set())
         display_comments = comments[-6:] if comments else [
-            {"author": "FINDY 회원", "text": "저도 궁금했던 내용이에요.", "time": "첫 댓글"},
-            {"author": "뷰티기록", "text": "경험 공유해줘서 고마워요.", "time": "방금 전"},
+            {"id": f"{content_id}:seed:1", "author": "FINDY 회원", "text": "저도 궁금했던 내용이에요.", "time": "첫 댓글", "likes": 0},
+            {"id": f"{content_id}:seed:2", "author": "뷰티기록", "text": "경험 공유해줘서 고마워요.", "time": "방금 전", "likes": 0},
         ]
 
         def detail_icon_button(icon_name, on_click=None):
@@ -4879,59 +5373,222 @@ async def main(page: ft.Page):
                 content=ft.Icon(app_icon(icon_name), size=22, color=TEXT_COLOR),
             )
 
-        def detail_avatar(label):
+        def detail_avatar(label, size=32):
             initial = (label or "F")[0]
             return ft.Container(
-                width=38,
-                height=38,
-                border_radius=19,
+                width=size,
+                height=size,
+                border_radius=size / 2,
                 bgcolor=MAIN_COLOR_SOFT,
                 alignment=ft.Alignment(0, 0),
-                content=ft.Text(initial, size=15, color=MAIN_COLOR_DARK, weight=ft.FontWeight.W_900),
+                content=ft.Text(initial, size=12 if size <= 32 else 14, color=MAIN_COLOR_DARK, weight=ft.FontWeight.W_900),
             )
 
         def detail_comment_row(comment):
+            comment_id = str(comment.get("id") or f"{content_id}:{comment.get('author')}:{comment.get('time')}")
+            liked = comment_id in comment_liked_ids
+            likes = int(comment.get("likes", 0) or 0) + (1 if liked else 0)
+
+            def toggle_comment_like(e=None):
+                if liked:
+                    comment_liked_ids.discard(comment_id)
+                else:
+                    comment_liked_ids.add(comment_id)
+                persist_user_data()
+                show_content_detail_page()
+
+            def reply_to_comment(e=None):
+                reply_target[0] = comment.get("author", "FINDY 회원")
+                comment_field.value = f"@{reply_target[0]} "
+                comment_field.focus()
+                page.update()
+
+            def open_comment_menu(e=None):
+                page.dialog = ft.AlertDialog(
+                    modal=True,
+                    title=ft.Text("댓글 메뉴", size=16, weight=ft.FontWeight.W_900),
+                    content=ft.Column(
+                        tight=True,
+                        controls=[
+                            ft.TextButton("댓글 신고", on_click=lambda event: (setattr(page.dialog, "open", False), show_snack("댓글 신고가 접수되었어요."), page.update())),
+                            ft.TextButton("취소", on_click=lambda event: (setattr(page.dialog, "open", False), page.update())),
+                        ],
+                    ),
+                )
+                page.dialog.open = True
+                page.update()
+
+            comment_meta = " · ".join(
+                value
+                for value in [
+                    comment.get("time", ""),
+                    comment.get("location", ""),
+                ]
+                if value
+            )
+            comment_photos = comment.get("photos") or []
+            comment_body_controls = []
+            if comment.get("replyTo"):
+                comment_body_controls.append(
+                    ft.Text(
+                        f"@{comment.get('replyTo')}",
+                        size=9,
+                        color=MAIN_COLOR,
+                        weight=ft.FontWeight.W_800,
+                    )
+                )
+            if comment.get("text"):
+                comment_body_controls.append(
+                    ft.Text(
+                        comment.get("text", ""),
+                        size=12,
+                        color=TEXT_COLOR,
+                    )
+                )
+            if comment_photos:
+                comment_body_controls.append(
+                    ft.Container(
+                        width=76,
+                        height=76,
+                        border_radius=10,
+                        clip_behavior=ft.ClipBehavior.HARD_EDGE,
+                        content=ft.Image(
+                            src=comment_photos[0],
+                            width=76,
+                            height=76,
+                            fit=ft.ImageFit.COVER,
+                        ),
+                    )
+                )
             return ft.Container(
                 width=content_width(),
-                padding=ft.padding.symmetric(vertical=10),
+                padding=ft.padding.symmetric(vertical=7),
+                border=ft.border.only(bottom=ft.BorderSide(1, ft.Colors.with_opacity(0.35, BORDER_COLOR))),
                 content=ft.Row(
                     controls=[
-                        detail_avatar(comment.get("author", "F")),
+                        detail_avatar(comment.get("author", "F"), 30),
                         ft.Column(
                             controls=[
-                                ft.Text(comment.get("author", "FINDY 회원"), size=12, color=TEXT_COLOR, weight=ft.FontWeight.W_900),
-                                ft.Text(f'{area} · {comment.get("time", "")}', size=10, color=SUBTEXT_COLOR),
-                                ft.Text(comment.get("text", ""), size=13, color=TEXT_COLOR, height=1.35),
                                 ft.Row(
                                     controls=[
-                                        ft.Icon(app_icon("THUMB_UP_OUTLINED"), size=14, color=SUBTEXT_COLOR),
-                                        ft.Text("좋아요", size=11, color=SUBTEXT_COLOR),
-                                        ft.Icon(app_icon("CHAT_BUBBLE_OUTLINE"), size=14, color=SUBTEXT_COLOR),
-                                        ft.Text("답글쓰기", size=11, color=SUBTEXT_COLOR),
+                                        ft.Text(comment.get("author", "FINDY 회원"), size=11, color=TEXT_COLOR, weight=ft.FontWeight.W_900),
+                                        ft.Text(comment_meta, size=9, color=SUBTEXT_COLOR),
                                     ],
-                                    spacing=6,
+                                    spacing=5,
+                                ),
+                                *comment_body_controls,
+                                ft.Row(
+                                    controls=[
+                                        ft.Container(
+                                            on_click=toggle_comment_like,
+                                            ink=True,
+                                            content=ft.Text(
+                                                f"좋아요{f' {likes}' if likes else ''}",
+                                                size=9,
+                                                color=MAIN_COLOR if liked else SUBTEXT_COLOR,
+                                                weight=ft.FontWeight.W_800,
+                                            ),
+                                        ),
+                                        ft.Container(
+                                            on_click=reply_to_comment,
+                                            ink=True,
+                                            content=ft.Text("답글", size=9, color=SUBTEXT_COLOR, weight=ft.FontWeight.W_800),
+                                        ),
+                                    ],
+                                    spacing=10,
                                 ),
                             ],
-                            spacing=3,
+                            spacing=2,
                             expand=True,
                         ),
-                        ft.Icon(app_icon("MORE_VERT", "MORE_HORIZ"), size=17, color=SUBTEXT_COLOR),
+                        ft.Container(
+                            width=26,
+                            height=26,
+                            alignment=ft.Alignment(0, 0),
+                            on_click=open_comment_menu,
+                            ink=True,
+                            content=ft.Icon(app_icon("MORE_VERT", "MORE_HORIZ"), size=15, color=SUBTEXT_COLOR),
+                        ),
                     ],
-                    spacing=10,
+                    spacing=8,
                     vertical_alignment=ft.CrossAxisAlignment.START,
                 ),
+            )
+
+        detail_status_controls = []
+        if is_review_detail:
+            detail_status_controls.append(
+                ft.Row(
+                    controls=[
+                        detail_info_chip(review_category or "리뷰"),
+                        detail_info_chip(
+                            "인증된 방문" if verified_visit else "비인증 리뷰",
+                            "VERIFIED_OUTLINED" if verified_visit else None,
+                            emphasized=verified_visit,
+                        ),
+                        ft.Container(expand=True),
+                        ft.Row(
+                            controls=[
+                                ft.Icon(
+                                    ft.Icons.STAR_ROUNDED
+                                    if index < int(round(review_rating))
+                                    else ft.Icons.STAR_BORDER_ROUNDED,
+                                    size=15,
+                                    color=MAIN_COLOR if index < int(round(review_rating)) else BORDER_COLOR,
+                                )
+                                for index in range(5)
+                            ],
+                            spacing=0,
+                        ),
+                        ft.Text(
+                            f"{review_rating:.1f}",
+                            size=10,
+                            color=MAIN_COLOR_DARK,
+                            weight=ft.FontWeight.W_900,
+                        ),
+                    ],
+                    spacing=5,
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                )
+            )
+        elif is_question_detail:
+            detail_status_controls.append(
+                ft.Row(
+                    controls=[
+                        detail_info_chip(
+                            "답변 완료" if question_answered else "답변 기다리는 중",
+                            "CHECK_CIRCLE_OUTLINE" if question_answered else "SCHEDULE",
+                            emphasized=question_answered,
+                        ),
+                        ft.Container(expand=True),
+                        detail_info_chip(
+                            "답변 대기로 변경" if question_answered else "답변 완료",
+                            "CHECK",
+                            on_click=toggle_question_answered,
+                        )
+                        if is_owned_by_current_user(source)
+                        else ft.Container(),
+                    ],
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                )
             )
 
         content_controls = [
             ft.Container(
                 width=content_width(),
+                height=40,
                 content=ft.Row(
                     controls=[
                         detail_icon_button("ARROW_BACK_IOS_NEW", go_back),
                         ft.Container(expand=True),
-                        detail_icon_button("NOTIFICATIONS_OFF_OUTLINED"),
-                        detail_icon_button("SHARE_OUTLINED"),
-                        detail_icon_button("MORE_VERT"),
+                        detail_icon_button(
+                            "SHARE_OUTLINED",
+                            lambda e: show_snack("공유 링크가 준비되었어요."),
+                        ),
+                        detail_icon_button(
+                            "DELETE_OUTLINE" if is_owned_by_current_user(item) else "MORE_VERT",
+                            delete_owned_content if is_owned_by_current_user(item) else report_content,
+                        ),
                     ],
                     spacing=8,
                     vertical_alignment=ft.CrossAxisAlignment.CENTER,
@@ -4939,55 +5596,34 @@ async def main(page: ft.Page):
             ),
             ft.Container(
                 width=content_width(),
-                padding=ft.padding.symmetric(horizontal=0, vertical=8),
+                padding=ft.padding.only(top=4, bottom=6),
                 content=ft.Column(
                     controls=[
-                        community_mini_badge(item.get("badge", "글")),
                         ft.Row(
                             controls=[
-                                detail_avatar(author),
-                                ft.Column(
-                                    controls=[
-                                        ft.Text(author, size=13, color=TEXT_COLOR, weight=ft.FontWeight.W_900),
-                                        ft.Text(f"{area} · {time_text}", size=11, color=SUBTEXT_COLOR),
-                                    ],
-                                    spacing=2,
-                                    expand=True,
-                                ),
+                                community_mini_badge(item.get("badge", "글")),
+                                ft.Container(expand=True),
+                                ft.Text(f"{area} · {time_text}", size=9, color=SUBTEXT_COLOR),
                             ],
-                            spacing=9,
                             vertical_alignment=ft.CrossAxisAlignment.CENTER,
                         ),
-                        ft.Text(item.get("title", "제목 없음"), size=22, weight=ft.FontWeight.W_900, color=TEXT_COLOR),
-                        ft.Text(item.get("description", "내용이 없어요."), size=15, color=TEXT_COLOR, height=1.7),
-                    ],
-                    spacing=16,
-                    horizontal_alignment=ft.CrossAxisAlignment.START,
-                ),
-            ),
-        ]
-        if photos:
-            content_controls.append(
-                ft.Container(
-                    width=content_width(),
-                    clip_behavior=ft.ClipBehavior.HARD_EDGE,
-                    border_radius=12,
-                    content=ft.Image(
-                        src=photos[0],
-                        width=content_width(),
-                        height=230,
-                        fit=ft.ImageFit.COVER,
-                    ),
-                )
-            )
-        content_controls.append(
-            ft.Container(
-                width=content_width(),
-                padding=ft.padding.only(top=8),
-                content=ft.Column(
-                    controls=[
+                        *detail_status_controls,
+                        ft.Text(
+                            item.get("title", "제목 없음"),
+                            size=21,
+                            weight=ft.FontWeight.W_900,
+                            color=TEXT_COLOR,
+                        ),
+                        ft.Text(
+                            item.get("description", "내용이 없어요."),
+                            size=14,
+                            color=TEXT_COLOR,
+                        ),
                         ft.Row(
                             controls=[
+                                detail_avatar(author, 28),
+                                ft.Text(author, size=10, color=TEXT_COLOR, weight=ft.FontWeight.W_900),
+                                ft.Container(expand=True),
                                 content_action_button(
                                     "FAVORITE" if content_id in liked_ids else "FAVORITE_BORDER",
                                     "좋아요",
@@ -5003,90 +5639,133 @@ async def main(page: ft.Page):
                                     toggle_content_save,
                                 ),
                             ],
-                            spacing=8,
+                            spacing=5,
+                            vertical_alignment=ft.CrossAxisAlignment.CENTER,
                         ),
+                    ],
+                    spacing=10,
+                    horizontal_alignment=ft.CrossAxisAlignment.START,
+                ),
+            ),
+        ]
+        if photos:
+            content_controls.append(
+                ft.Row(
+                    width=content_width(),
+                    spacing=8,
+                    scroll=ft.ScrollMode.HIDDEN,
+                    controls=[
+                        ft.Container(
+                            width=content_width() if len(photos) == 1 else max(220, content_width() - 56),
+                            height=230,
+                            clip_behavior=ft.ClipBehavior.HARD_EDGE,
+                            border_radius=12,
+                            content=ft.Image(
+                                src=photo,
+                                width=content_width() if len(photos) == 1 else max(220, content_width() - 56),
+                                height=230,
+                                fit=ft.ImageFit.COVER,
+                            ),
+                        )
+                        for photo in photos[:6]
+                    ],
+                )
+            )
+        content_controls.append(
+            ft.Container(
+                width=content_width(),
+                padding=ft.padding.only(top=4),
+                content=ft.Column(
+                    controls=[
                         ft.Container(height=1, bgcolor=BORDER_COLOR),
                         ft.Row(
                             controls=[
-                                ft.Text("댓글", size=15, weight=ft.FontWeight.W_900, color=TEXT_COLOR, expand=True),
-                                ft.Text(f"{base_comments + len(comments)}개", size=12, color=SUBTEXT_COLOR, weight=ft.FontWeight.W_700),
+                                ft.Text("댓글", size=14, weight=ft.FontWeight.W_900, color=TEXT_COLOR),
+                                ft.Text(f"{base_comments + len(comments)}", size=10, color=SUBTEXT_COLOR, weight=ft.FontWeight.W_700),
+                                ft.Container(expand=True),
+                                ft.Text("최신순", size=9, color=SUBTEXT_COLOR, weight=ft.FontWeight.W_700),
                             ],
                             vertical_alignment=ft.CrossAxisAlignment.CENTER,
                         ),
                         *[detail_comment_row(comment) for comment in display_comments],
-                        ft.Container(height=1, bgcolor=BORDER_COLOR),
-                        ft.Row(
-                            controls=[
-                                ft.Icon(app_icon("IMAGE_OUTLINED", "PHOTO_LIBRARY_OUTLINED"), size=23, color=SUBTEXT_COLOR),
-                                ft.Icon(app_icon("LOCATION_ON_OUTLINED", "PLACE_OUTLINED"), size=23, color=SUBTEXT_COLOR),
-                                comment_field,
-                                ft.Container(
-                                    width=34,
-                                    height=34,
-                                    border_radius=17,
-                                    alignment=ft.Alignment(0, 0),
-                                    content=ft.Icon(app_icon("SENTIMENT_SATISFIED_ALT_OUTLINED", "INSERT_EMOTICON"), size=22, color=SUBTEXT_COLOR),
-                                ),
-                                ft.Container(
-                                    width=34,
-                                    height=34,
-                                    border_radius=17,
-                                    alignment=ft.Alignment(0, 0),
-                                    bgcolor=MAIN_COLOR_SOFT,
-                                    on_click=submit_content_comment,
-                                    ink=True,
-                                    content=ft.Icon(app_icon("SEND", "ARROW_FORWARD"), size=18, color=MAIN_COLOR),
-                                ),
-                            ],
-                            spacing=8,
-                            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                        ft.Container(
+                            padding=ft.padding.symmetric(horizontal=8, vertical=3),
+                            bgcolor=ft.Colors.with_opacity(0.68, CHIP_BG),
+                            border_radius=17,
+                            border=ft.border.all(1, BORDER_COLOR),
+                            content=ft.Row(
+                                controls=[
+                                    ft.Container(
+                                        width=28,
+                                        height=28,
+                                        alignment=ft.Alignment(0, 0),
+                                        on_click=pick_comment_photo,
+                                        ink=True,
+                                        tooltip="사진 첨부",
+                                        content=ft.Icon(app_icon("IMAGE_OUTLINED", "PHOTO_LIBRARY_OUTLINED"), size=18, color=SUBTEXT_COLOR),
+                                    ),
+                                    ft.Container(
+                                        width=28,
+                                        height=28,
+                                        alignment=ft.Alignment(0, 0),
+                                        on_click=add_comment_location,
+                                        ink=True,
+                                        tooltip="장소 추가",
+                                        content=ft.Icon(app_icon("LOCATION_ON_OUTLINED", "PLACE_OUTLINED"), size=18, color=SUBTEXT_COLOR),
+                                    ),
+                                    comment_field,
+                                    ft.Container(
+                                        width=28,
+                                        height=28,
+                                        alignment=ft.Alignment(0, 0),
+                                        on_click=open_comment_emoji_picker,
+                                        ink=True,
+                                        tooltip="이모지",
+                                        content=ft.Icon(app_icon("SENTIMENT_SATISFIED_ALT_OUTLINED", "INSERT_EMOTICON"), size=18, color=SUBTEXT_COLOR),
+                                    ),
+                                    ft.Container(
+                                        width=30,
+                                        height=30,
+                                        border_radius=15,
+                                        alignment=ft.Alignment(0, 0),
+                                        bgcolor=MAIN_COLOR,
+                                        on_click=submit_content_comment,
+                                        ink=True,
+                                        tooltip="댓글 전송",
+                                        content=ft.Icon(app_icon("SEND", "ARROW_FORWARD"), size=16, color="#FFFFFF"),
+                                    ),
+                                ],
+                                spacing=2,
+                                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                            ),
                         ),
                     ],
-                    spacing=14,
+                    spacing=8,
                 ),
             )
         )
         content_controls.append(
             ft.Container(
                 width=content_width(),
-                content=ft.Row(
-                    controls=[
-                        ft.Container(
-                            expand=True,
-                            padding=ft.padding.symmetric(horizontal=14, vertical=12),
-                            bgcolor="#FFFFFF",
-                            border_radius=999,
-                            border=ft.border.all(1, BORDER_COLOR),
-                            ink=True,
-                            on_click=report_content,
-                            content=ft.Row(
-                                controls=[
-                                    ft.Icon(ft.Icons.FLAG_OUTLINED, size=16, color=SUBTEXT_COLOR),
-                                    ft.Text("신고", size=12, color=SUBTEXT_COLOR, weight=ft.FontWeight.W_700),
-                                ],
-                                spacing=6,
-                                alignment=ft.MainAxisAlignment.CENTER,
+                alignment=ft.Alignment(1, 0),
+                content=ft.Container(
+                    padding=ft.padding.symmetric(horizontal=8, vertical=5),
+                    border_radius=10,
+                    on_click=report_content,
+                    ink=True,
+                    content=ft.Row(
+                        controls=[
+                            ft.Icon(ft.Icons.FLAG_OUTLINED, size=13, color=SUBTEXT_COLOR),
+                            ft.Text(
+                                "신고 검토 중" if content_reported else "신고",
+                                size=9,
+                                color=SUBTEXT_COLOR,
+                                weight=ft.FontWeight.W_700,
                             ),
-                        ),
-                        ft.Container(
-                            expand=True,
-                            padding=ft.padding.symmetric(horizontal=14, vertical=12),
-                            bgcolor="#FFFFFF",
-                            border_radius=999,
-                            border=ft.border.all(1, BORDER_COLOR),
-                            ink=True,
-                            on_click=hide_content,
-                            content=ft.Row(
-                                controls=[
-                                    ft.Icon(ft.Icons.VISIBILITY_OFF_OUTLINED, size=16, color=SUBTEXT_COLOR),
-                                    ft.Text("숨김", size=12, color=SUBTEXT_COLOR, weight=ft.FontWeight.W_700),
-                                ],
-                                spacing=6,
-                                alignment=ft.MainAxisAlignment.CENTER,
-                            ),
-                        ),
-                    ],
-                    spacing=8,
+                        ],
+                        spacing=4,
+                        tight=True,
+                    ),
                 ),
             )
         )
@@ -5282,7 +5961,7 @@ async def main(page: ft.Page):
             return items
 
         if content_type in {"질문", "자유게시판"}:
-            items = saved_community_items(content_type)
+            items = saved_community_items("자유" if content_type == "자유게시판" else content_type)
         elif content_type == "스냅":
             items = saved_snap_items()
         elif content_type == "비디오":
@@ -5398,7 +6077,7 @@ async def main(page: ft.Page):
             return items
 
         if content_type in {"질문", "자유게시판"}:
-            items = liked_community_items(content_type)
+            items = liked_community_items("자유" if content_type == "자유게시판" else content_type)
         elif content_type == "스냅":
             items = liked_snap_items()
         elif content_type == "비디오":
@@ -6145,18 +6824,22 @@ async def main(page: ft.Page):
         unread_count = unread_notification_count()
         badge_text = "9+" if unread_count > 9 else str(unread_count)
         page_title = page_title_map().replace("FINDY ", "", 1).strip()
+        compact_header = full_phone_width() < 340
+        logo_width = 70 if compact_header else 98
+        action_size = 28 if compact_header else 34
+        action_icon_size = 20 if compact_header else 25
         logo_path = resolve_asset_file("app_logo/app_findy_logo_wordmark.png")
         logo = (
-            ft.Image(src=logo_path, width=98, height=26, fit=ft.ImageFit.CONTAIN)
+            ft.Image(src=logo_path, width=logo_width, height=24, fit=ft.ImageFit.CONTAIN)
             if logo_path
-            else ft.Text("FINDY", size=24, color=MAIN_COLOR, weight=ft.FontWeight.W_900)
+            else ft.Text("FINDY", size=20 if compact_header else 24, color=MAIN_COLOR, weight=ft.FontWeight.W_900)
         )
 
         def action_icon(icon_names, on_click, tooltip, badge=False):
             return ft.Container(
-                width=34,
-                height=34,
-                border_radius=17,
+                width=action_size,
+                height=action_size,
+                border_radius=action_size / 2,
                 alignment=ft.Alignment(0, 0),
                 on_click=on_click,
                 ink=True,
@@ -6165,7 +6848,7 @@ async def main(page: ft.Page):
                     controls=[
                         ft.Container(
                             alignment=ft.Alignment(0, 0),
-                            content=ft.Icon(app_icon(*icon_names), size=25, color=TEXT_COLOR),
+                            content=ft.Icon(app_icon(*icon_names), size=action_icon_size, color=TEXT_COLOR),
                         ),
                         ft.Container(
                             visible=badge and unread_count > 0,
@@ -6187,7 +6870,12 @@ async def main(page: ft.Page):
             right=0,
             top=0,
             height=64,
-            padding=ft.padding.only(left=22, right=22, top=10, bottom=8),
+            padding=ft.padding.only(
+                left=8 if compact_header else 22,
+                right=8 if compact_header else 22,
+                top=10,
+                bottom=8,
+            ),
             bgcolor=ft.Colors.with_opacity(0.98, BG_COLOR),
             border=ft.border.only(bottom=ft.BorderSide(1, ft.Colors.with_opacity(0.55, BORDER_COLOR))),
             content=ft.Row(
@@ -6195,9 +6883,17 @@ async def main(page: ft.Page):
                     ft.Row(
                         controls=[
                             logo,
-                            ft.Text(page_title, size=22, color=TEXT_COLOR, weight=ft.FontWeight.W_900, visible=bool(page_title)),
+                            ft.Text(
+                                page_title,
+                                size=16 if compact_header else 22,
+                                color=TEXT_COLOR,
+                                weight=ft.FontWeight.W_900,
+                                visible=bool(page_title),
+                                max_lines=1,
+                                overflow=ft.TextOverflow.ELLIPSIS,
+                            ),
                         ],
-                        spacing=8,
+                        spacing=4 if compact_header else 8,
                         vertical_alignment=ft.CrossAxisAlignment.CENTER,
                         expand=True,
                     ),
@@ -6207,11 +6903,11 @@ async def main(page: ft.Page):
                             action_icon(("SEND_OUTLINED", "NEAR_ME_OUTLINED"), lambda e: show_customer_messages_page(), "소식함"),
                             action_icon(("NOTIFICATIONS_OUTLINED", "NOTIFICATIONS", "NOTIFICATION_ADD"), open_notifications_page, "알림", badge=True),
                         ],
-                        spacing=10,
+                        spacing=2 if compact_header else 10,
                         vertical_alignment=ft.CrossAxisAlignment.CENTER,
                     ),
                 ],
-                spacing=12,
+                spacing=4 if compact_header else 12,
                 alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
@@ -6219,6 +6915,11 @@ async def main(page: ft.Page):
 
     def render_phone_frame(body_content, nav_index=None):
         current_page = app_state.get("current_page", "home")
+        if current_page not in public_pages and not app_state.get("current_user"):
+            app_state["current_page"] = "login"
+            app_state["page_history"] = []
+            show_login_page()
+            return
         last_page = app_state.get("_last_rendered_page")
         page_changed = current_page != last_page
         suppress_history_record = bool(app_state.pop("_suppress_next_history_record", False))
@@ -6278,8 +6979,8 @@ async def main(page: ft.Page):
             "settings",
             "placeholder_info",
         }
-        full_height_pages = {"login", "signup"}
-        has_fixed_top_bar = current_page not in {"opening", "login", "signup", "home_category_transition", "search"}
+        full_height_pages = {"login", "signup", "account_recovery", "phone_onboarding"}
+        has_fixed_top_bar = current_page not in {"opening", "login", "signup", "account_recovery", "phone_onboarding", "home_category_transition", "search"}
         content_top_padding = 64 if current_page == "video" else 76 if has_fixed_top_bar else 16
         nav_safe_bottom = (NAV_BAR_HEIGHT + NAV_SAFE_GAP) if nav_index is not None else 12
         nav_spacer = ft.Container(height=nav_safe_bottom)
@@ -6342,7 +7043,7 @@ async def main(page: ft.Page):
 
         phone_frame = ft.Container(
             width=full_phone_width(),
-            height=PHONE_HEIGHT,
+            height=full_phone_height(),
             bgcolor=BG_COLOR,
             border_radius=34,
             clip_behavior=ft.ClipBehavior.NONE,
@@ -6382,7 +7083,7 @@ async def main(page: ft.Page):
             alignment=ft.Alignment(0, 0),
             content=ft.Stack(
                 width=full_phone_width(),
-                height=PHONE_HEIGHT,
+                height=full_phone_height(),
                 controls=stack_controls,
             ),
         )
@@ -6984,7 +7685,7 @@ async def main(page: ft.Page):
     def render_opening_frame(opening_content):
         phone_frame = ft.Container(
             width=full_phone_width(),
-            height=PHONE_HEIGHT,
+            height=full_phone_height(),
             bgcolor=BG_COLOR,
             border_radius=34,
             clip_behavior=ft.ClipBehavior.NONE,
@@ -7065,7 +7766,7 @@ async def main(page: ft.Page):
         )
         opening_image = ft.Container(
             width=full_phone_width(),
-            height=PHONE_HEIGHT,
+            height=full_phone_height(),
             opacity=0,
             animate_opacity=ft.Animation(420, ft.AnimationCurve.EASE_IN_OUT),
             alignment=ft.Alignment(0, 0.02),
@@ -7085,7 +7786,7 @@ async def main(page: ft.Page):
 
         image_holder = ft.Container(
             width=full_phone_width(),
-            height=PHONE_HEIGHT,
+            height=full_phone_height(),
             alignment=ft.Alignment(0, 0),
             content=opening_image,
             scale=1.04,
@@ -7094,7 +7795,7 @@ async def main(page: ft.Page):
 
         opening_overlay = ft.Container(
             width=full_phone_width(),
-            height=PHONE_HEIGHT,
+            height=full_phone_height(),
             bgcolor=ft.Colors.with_opacity(0.10, "#FFFFFF"),
             opacity=1.0,
             animate_opacity=ft.Animation(700, ft.AnimationCurve.EASE_IN_OUT),
@@ -7104,7 +7805,7 @@ async def main(page: ft.Page):
             controls=[
                 ft.Container(
                     width=full_phone_width(),
-                    height=PHONE_HEIGHT,
+                    height=full_phone_height(),
                     bgcolor="#FFFFFF",
                 ),
                 image_holder,
@@ -7136,107 +7837,205 @@ async def main(page: ft.Page):
     async def start_opening_flow():
         show_opening_page()
         await asyncio.sleep(OPENING_DURATION)
-        show_login_page()
+        if app_state.get("current_user"):
+            show_home_page()
+        else:
+            show_login_page()
+
+    def social_auth_buttons(error_text, policy_checkbox=None):
+        button_width = max(126, (content_width() - 58) / 2)
+
+        def social_button(provider_key):
+            provider = SOCIAL_PROVIDERS[provider_key]
+            return ft.Container(
+                width=button_width,
+                height=44,
+                border_radius=15,
+                bgcolor=provider["background"],
+                border=ft.border.all(
+                    1,
+                    "#E4E4E4" if provider_key in {"google", "kakao"} else provider["background"],
+                ),
+                ink=True,
+                on_click=lambda e, key=provider_key: page.run_task(
+                    perform_social_auth,
+                    key,
+                    error_text,
+                    policy_checkbox,
+                ),
+                content=ft.Row(
+                    controls=[
+                        ft.Image(
+                            src=provider["asset"],
+                            width=21,
+                            height=21,
+                            fit=ft.ImageFit.CONTAIN,
+                        ),
+                        ft.Text(
+                            provider["label"],
+                            size=12,
+                            color=provider["foreground"],
+                            weight=ft.FontWeight.W_800,
+                        ),
+                    ],
+                    spacing=9,
+                    alignment=ft.MainAxisAlignment.CENTER,
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                ),
+            )
+
+        return ft.Column(
+            controls=[
+                ft.Row(
+                    controls=[social_button("naver"), social_button("kakao")],
+                    spacing=8,
+                    alignment=ft.MainAxisAlignment.CENTER,
+                ),
+                ft.Row(
+                    controls=[social_button("google"), social_button("apple")],
+                    spacing=8,
+                    alignment=ft.MainAxisAlignment.CENTER,
+                ),
+            ],
+            spacing=8,
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+        )
+
+    async def perform_social_auth(
+        provider_key,
+        error_text,
+        policy_checkbox=None,
+        link_current_account=False,
+    ):
+        if policy_checkbox is not None and not policy_checkbox.value:
+            error_text.value = "이용약관과 개인정보 처리방침 동의가 필요합니다."
+            page.update()
+            return
+        if app_state.get("_social_auth_busy"):
+            show_snack("소셜 로그인을 진행 중이에요.")
+            return
+        if not social_auth_is_configured(FINDY2_AUTH_API_URL):
+            error_text.value = "통합 로그인 서버 연결 전입니다. 개발자 설정이 필요해요."
+            show_snack(
+                "네이버·카카오·Google·Apple 앱 키와 FINDY 인증 서버 주소를 설정해주세요.",
+                bgcolor="#B85C5C",
+            )
+            page.update()
+            return
+
+        app_state["_social_auth_busy"] = True
+        provider_label = SOCIAL_PROVIDERS[provider_key]["label"]
+        error_text.value = f"{provider_label} 로그인 페이지를 여는 중이에요."
+        page.update()
+        try:
+            flow = await start_social_auth(
+                FINDY2_AUTH_API_URL,
+                provider_key,
+                remote_session_token=read_remote_session_token(
+                    FINDY2_SESSION_PATH
+                ),
+                link_account=link_current_account,
+            )
+            page.launch_url(flow.authorization_url)
+            error_text.value = f"브라우저에서 {provider_label} 로그인을 완료해주세요."
+            page.update()
+            identity = await wait_for_social_auth(
+                FINDY2_AUTH_API_URL,
+                flow,
+                timeout_seconds=FINDY2_SOCIAL_AUTH_TIMEOUT_SECONDS,
+            )
+            user = social_login_or_register(
+                FINDY2_AUTH_DATA_PATH,
+                identity,
+                link_user_id=(
+                    current_user_id()
+                    if link_current_account
+                    else None
+                ),
+            )
+            if not user.get("phoneVerified"):
+                app_state["pending_social_signup"] = {
+                    "user": user,
+                    "identity": identity,
+                    "providerLabel": provider_label,
+                }
+                app_state["current_page"] = "phone_onboarding"
+                show_phone_onboarding_page()
+                return
+            create_session(
+                FINDY2_SESSION_PATH,
+                user,
+                remote_session_token=identity.get("findySessionToken"),
+            )
+            load_user_workspace(user)
+            persist_user_data()
+            app_state["selected_tab"] = 2
+            if link_current_account:
+                show_snack(f"{provider_label} 계정이 FINDY 통합회원에 연결됐어요.")
+                app_state["selected_tab"] = 4
+                show_connected_accounts_page()
+            else:
+                show_snack(f"{user['nickname']}님, {provider_label} 통합 로그인이 완료됐어요.")
+                show_home_page()
+        except (AuthError, SocialAuthError) as error:
+            error_text.value = str(error)
+            page.update()
+        finally:
+            app_state["_social_auth_busy"] = False
 
     def show_login_page():
         app_state["current_page"] = "login"
 
-        async def _go_to_home_transition():
-            close_overlays()
-            app_state["selected_tab"] = 2
-            login_card.opacity = 0
-            login_card.offset = ft.Offset(0, 0.04)
-            body.opacity = 0
-            page.update()
-            await asyncio.sleep(0.24)
-            show_home_page()
-
-        provider_user_map = {
-            "네이버": ("네이버 회원", "naver"),
-            "카카오": ("카카오 회원", "kakao"),
-            "구글": ("Google 회원", "google"),
-            "애플": ("Apple 회원", "apple"),
-        }
-
-        def go_to_home(provider):
-            def handler(e):
-                nickname, provider_key = provider_user_map.get(provider, (f"{provider} 회원", provider))
-                app_state["current_user"] = {
-                    "provider": provider_key,
-                    "provider_label": provider,
-                    "nickname": nickname,
-                    "role": "user",
-                }
-                show_snack(f"{provider}로 로그인하고 있어요.")
-                page.run_task(_go_to_home_transition)
-            return handler
-
-        def open_signup(e):
-            show_signup_page("user")
-
-        def themed_login_button(label, bgcolor, text_color, on_click, *, border=None, width=288, delay_ms=0):
-            button = ft.Container(
-                width=width,
-                height=50,
-                bgcolor=bgcolor,
+        def auth_field(label, hint, password=False):
+            return ft.TextField(
+                label=label,
+                hint_text=hint,
+                password=password,
+                can_reveal_password=password,
+                height=54,
+                border_color=BORDER_COLOR,
+                focused_border_color=MAIN_COLOR,
                 border_radius=17,
-                border=border or ft.border.all(1, BORDER_COLOR),
-                alignment=ft.Alignment(0, 0),
-                shadow=ft.BoxShadow(
-                    spread_radius=0,
-                    blur_radius=10,
-                    color="#0B000000",
-                    offset=ft.Offset(0, 3),
-                ),
-                content=ft.Text(
-                    label,
-                    color=text_color,
-                    size=15,
-                    weight=ft.FontWeight.BOLD,
-                    text_align=ft.TextAlign.CENTER,
-                ),
-                opacity=0,
-                offset=ft.Offset(0, 0.04),
-                animate_opacity=ft.Animation(260, ft.AnimationCurve.EASE_OUT),
-                animate_offset=ft.Animation(260, ft.AnimationCurve.EASE_OUT),
-                ink=True,
-                on_click=on_click,
+                bgcolor="#FFFFFF",
+                text_style=ft.TextStyle(size=14, color=TEXT_COLOR, weight=ft.FontWeight.W_600),
+                label_style=ft.TextStyle(size=12, color=SUBTEXT_COLOR, weight=ft.FontWeight.W_700),
+                content_padding=ft.padding.symmetric(horizontal=16, vertical=10),
             )
 
-            async def reveal():
-                await asyncio.sleep(delay_ms / 1000)
-                button.opacity = 1
-                button.offset = ft.Offset(0, 0)
+        phone_field = auth_field("휴대폰 번호", "010-1234-5678")
+        password_field = auth_field("비밀번호", "영문과 숫자를 포함한 8자 이상", password=True)
+        error_text = ft.Text("", size=11, color="#B85C5C", weight=ft.FontWeight.W_700)
+
+        def submit_login(e=None):
+            try:
+                if (
+                    FINDY2_DEMO_LOGIN_ENABLED
+                    and not str(phone_field.value or "").strip()
+                    and not str(password_field.value or "").strip()
+                ):
+                    user = get_or_create_demo_user(FINDY2_AUTH_DATA_PATH)
+                else:
+                    user = authenticate_user(
+                        FINDY2_AUTH_DATA_PATH,
+                        phone_field.value,
+                        password_field.value,
+                    )
+                create_session(FINDY2_SESSION_PATH, user)
+            except AuthError as error:
+                error_text.value = str(error)
                 page.update()
+                return
+            load_user_workspace(user)
+            persist_user_data()
+            app_state["selected_tab"] = 2
+            show_snack(f"{user['nickname']}님, 반가워요.")
+            show_home_page()
 
-            page.run_task(reveal)
-            return button
-
-        logo_box = ft.Container(
-            padding=ft.padding.only(top=2, bottom=4),
-            content=login_logo_visual(156),
-            opacity=0,
-            offset=ft.Offset(0, -0.03),
-            animate_opacity=ft.Animation(380, ft.AnimationCurve.EASE_OUT),
-            animate_offset=ft.Animation(380, ft.AnimationCurve.EASE_OUT),
-        )
-
-        intro_copy = ft.Container(
-            opacity=0,
-            offset=ft.Offset(0, 0.03),
-            animate_opacity=ft.Animation(360, ft.AnimationCurve.EASE_OUT),
-            animate_offset=ft.Animation(360, ft.AnimationCurve.EASE_OUT),
-            content=ft.Column(
-                controls=[
-                ],
-                spacing=10,
-                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-            ),
-        )
+        password_field.on_submit = submit_login
 
         login_card = ft.Container(
             width=content_width(),
-            padding=ft.padding.symmetric(horizontal=24, vertical=24),
+            padding=ft.padding.symmetric(horizontal=24, vertical=28),
             bgcolor="#FFFFFF",
             border_radius=32,
             border=ft.border.all(1, BORDER_COLOR),
@@ -7246,40 +8045,88 @@ async def main(page: ft.Page):
                 color="#0E000000",
                 offset=ft.Offset(0, 6),
             ),
-            opacity=0,
-            offset=ft.Offset(0, 0.05),
-            animate_opacity=ft.Animation(420, ft.AnimationCurve.EASE_OUT),
-            animate_offset=ft.Animation(420, ft.AnimationCurve.EASE_OUT),
             content=ft.Column(
                 controls=[
-                    logo_box,
-                    intro_copy,
-                    ft.Container(height=6),
-                    themed_login_button("네이버 로그인", "#FFFFFF", TEXT_COLOR, go_to_home("네이버"), border=ft.border.all(1, BORDER_COLOR), width=288, delay_ms=140),
-                    themed_login_button("카카오 로그인", "#FFFFFF", TEXT_COLOR, go_to_home("카카오"), border=ft.border.all(1, BORDER_COLOR), width=288, delay_ms=220),
-                    themed_login_button("구글 로그인", "#FFFFFF", TEXT_COLOR, go_to_home("구글"), border=ft.border.all(1, BORDER_COLOR), width=288, delay_ms=300),
-                    themed_login_button("애플 로그인", "#FFFFFF", TEXT_COLOR, go_to_home("애플"), border=ft.border.all(1, BORDER_COLOR), width=288, delay_ms=380),
+                    login_logo_visual(148),
+                    ft.Text("로그인", size=23, color=TEXT_COLOR, weight=ft.FontWeight.W_900),
+                    ft.Text("나의 뷰티 기록과 커뮤니티 활동을 이어가세요.", size=11, color=SUBTEXT_COLOR, text_align=ft.TextAlign.CENTER),
+                    ft.Text(
+                        "현재 테스트 버전은 입력 없이 로그인할 수 있어요.",
+                        size=9,
+                        color=MAIN_COLOR_DARK,
+                        weight=ft.FontWeight.W_700,
+                        visible=FINDY2_DEMO_LOGIN_ENABLED,
+                    ),
+                    ft.Container(height=4),
+                    phone_field,
+                    password_field,
+                    error_text,
                     ft.Container(
-                        padding=ft.padding.only(top=4),
-                        content=ft.Row(
-                            controls=[
-                                ft.TextButton(
-                                    "회원가입",
-                                    style=ft.ButtonStyle(
-                                        color=TEXT_COLOR,
-                                        text_style=ft.TextStyle(size=11, weight=ft.FontWeight.W_700),
-                                        padding=ft.padding.symmetric(horizontal=8, vertical=4),
-                                    ),
-                                    on_click=open_signup,
+                        width=288,
+                        height=50,
+                        bgcolor=MAIN_COLOR,
+                        border_radius=17,
+                        alignment=ft.Alignment(0, 0),
+                        ink=True,
+                        on_click=submit_login,
+                        content=ft.Text("로그인", size=15, color="#FFFFFF", weight=ft.FontWeight.W_900),
+                    ),
+                    ft.Row(
+                        controls=[
+                            ft.TextButton(
+                                "가입 계정 확인",
+                                on_click=lambda e: show_account_recovery_page("find_id"),
+                                style=ft.ButtonStyle(
+                                    color=SUBTEXT_COLOR,
+                                    text_style=ft.TextStyle(size=10, weight=ft.FontWeight.W_700),
                                 ),
-                            ],
-                            spacing=2,
-                            alignment=ft.MainAxisAlignment.CENTER,
-                            vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                        ),
+                            ),
+                            ft.Container(width=1, height=12, bgcolor=BORDER_COLOR),
+                            ft.TextButton(
+                                "비밀번호 재설정",
+                                on_click=lambda e: show_account_recovery_page("reset_password"),
+                                style=ft.ButtonStyle(
+                                    color=SUBTEXT_COLOR,
+                                    text_style=ft.TextStyle(size=10, weight=ft.FontWeight.W_700),
+                                ),
+                            ),
+                        ],
+                        spacing=2,
+                        alignment=ft.MainAxisAlignment.CENTER,
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                    ),
+                    ft.Row(
+                        controls=[
+                            ft.Text("아직 계정이 없나요?", size=11, color=SUBTEXT_COLOR),
+                            ft.TextButton(
+                                "회원가입",
+                                on_click=lambda e: show_signup_page("user"),
+                                style=ft.ButtonStyle(
+                                    color=MAIN_COLOR_DARK,
+                                    text_style=ft.TextStyle(size=11, weight=ft.FontWeight.W_900),
+                                ),
+                            ),
+                        ],
+                        spacing=0,
+                        alignment=ft.MainAxisAlignment.CENTER,
+                    ),
+                    ft.Row(
+                        controls=[
+                            ft.Container(height=1, bgcolor=BORDER_COLOR, expand=True),
+                            ft.Text("통합회원 로그인", size=10, color=SUBTEXT_COLOR, weight=ft.FontWeight.W_700),
+                            ft.Container(height=1, bgcolor=BORDER_COLOR, expand=True),
+                        ],
+                        spacing=10,
+                    ),
+                    social_auth_buttons(error_text),
+                    ft.Text(
+                        "계속하면 이용약관과 개인정보 처리방침에 동의하는 것으로 봅니다.",
+                        size=9,
+                        color=SUBTEXT_COLOR,
+                        text_align=ft.TextAlign.CENTER,
                     ),
                 ],
-                spacing=11,
+                spacing=10,
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                 alignment=ft.MainAxisAlignment.CENTER,
             ),
@@ -7289,8 +8136,6 @@ async def main(page: ft.Page):
             expand=True,
             bgcolor="#FFFFFF",
             alignment=ft.Alignment(0, 0),
-            opacity=1,
-            animate_opacity=ft.Animation(260, ft.AnimationCurve.EASE_IN_OUT),
             content=ft.Stack(
                 controls=[
                     ft.Container(
@@ -7312,76 +8157,624 @@ async def main(page: ft.Page):
 
         render_phone_frame(body, None)
 
-        async def reveal_login():
-            await asyncio.sleep(0.02)
-            login_card.opacity = 1
-            login_card.offset = ft.Offset(0, 0)
-            logo_box.opacity = 1
-            logo_box.offset = ft.Offset(0, 0)
-            intro_copy.opacity = 1
-            intro_copy.offset = ft.Offset(0, 0)
-            page.update()
+    def show_account_recovery_page(mode="find_id"):
+        mode = "reset_password" if mode == "reset_password" else "find_id"
+        app_state["current_page"] = "account_recovery"
+        app_state["account_recovery_mode"] = mode
 
-        page.run_task(reveal_login)
-
-        async def animate_login_intro():
-            await asyncio.sleep(0.05)
-            login_card.opacity = 1
-            login_card.offset = ft.Offset(0, 0)
-            logo_box.opacity = 1
-            logo_box.offset = ft.Offset(0, 0)
-            page.update()
-
-        page.run_task(animate_login_intro)
-
-    def show_signup_page(role="user"):
-        role = "user"
-        app_state["current_page"] = "signup"
-
-        def back_to_login(e=None):
-            show_login_page()
-
-        title = "회원가입"
-        subtitle = "소셜 계정으로 가입하고 나에게 맞는 뷰티를 찾아보세요."
-        role_label = "이용자"
-
-        provider_user_map = {
-            "네이버": ("네이버 회원", "naver"),
-            "카카오": ("카카오 회원", "kakao"),
-            "구글": ("Google 회원", "google"),
-            "애플": ("Apple 회원", "apple"),
-        }
-
-        def social_signup(provider):
-            def handler(e):
-                nickname, provider_key = provider_user_map.get(provider, (f"{provider} 회원", provider))
-                app_state["current_user"] = {
-                    "provider": provider_key,
-                    "provider_label": f"{role_label} · {provider}",
-                    "nickname": nickname,
-                    "role": "user",
-                }
-                show_snack(f"{provider}로 {role_label} 가입을 진행해요.")
-                show_home_page()
-            return handler
-
-        def signup_button(label, on_click):
-            return ft.Container(
-                width=288,
-                height=50,
+        def recovery_field(label, hint, password=False):
+            return ft.TextField(
+                label=label,
+                hint_text=hint,
+                password=password,
+                can_reveal_password=password,
+                height=52,
+                border_color=BORDER_COLOR,
+                focused_border_color=MAIN_COLOR,
+                border_radius=16,
                 bgcolor="#FFFFFF",
-                border_radius=17,
-                border=ft.border.all(1, BORDER_COLOR),
+                text_style=ft.TextStyle(size=13, color=TEXT_COLOR, weight=ft.FontWeight.W_600),
+                label_style=ft.TextStyle(size=11, color=SUBTEXT_COLOR, weight=ft.FontWeight.W_700),
+                content_padding=ft.padding.symmetric(horizontal=15, vertical=9),
+            )
+
+        phone_field = recovery_field("휴대폰 번호", "010-1234-5678")
+        otp_field = recovery_field("인증번호", "문자로 받은 6자리 숫자")
+        new_password_field = recovery_field(
+            "새 비밀번호",
+            "영문과 숫자를 포함한 8자 이상",
+            password=True,
+        )
+        confirm_password_field = recovery_field(
+            "새 비밀번호 확인",
+            "비밀번호를 다시 입력해주세요.",
+            password=True,
+        )
+        recovery_state = {
+            "flow": None,
+            "verified": False,
+            "phone_number": "",
+        }
+        status_text = ft.Text(
+            "PASS 본인확인 또는 문자 인증으로 계정을 안전하게 확인할 수 있어요.",
+            size=10,
+            color=SUBTEXT_COLOR,
+            weight=ft.FontWeight.W_600,
+        )
+        result_column = ft.Column(spacing=8)
+
+        def switch_mode(selected_mode):
+            app_state["account_recovery_mode"] = selected_mode
+            show_account_recovery_page(selected_mode)
+
+        def mode_chip(label, value):
+            active = mode == value
+            return ft.Container(
+                expand=True,
+                height=42,
+                border_radius=14,
+                bgcolor=MAIN_COLOR if active else "#FFFFFF",
+                border=ft.border.all(1, MAIN_COLOR if active else BORDER_COLOR),
                 alignment=ft.Alignment(0, 0),
                 ink=True,
-                on_click=on_click,
-                content=ft.Text(label, size=15, weight=ft.FontWeight.BOLD, color=TEXT_COLOR),
+                on_click=lambda e: switch_mode(value),
+                content=ft.Text(
+                    label,
+                    size=12,
+                    color="#FFFFFF" if active else TEXT_COLOR,
+                    weight=ft.FontWeight.W_800,
+                ),
+            )
+
+        def show_pass_information(e=None):
+            status_text.value = (
+                "PASS는 휴대폰 명의와 실제 사용자를 확인하는 강한 인증입니다. "
+                "NICE·KCB·다날·KCP 등 본인확인기관 계약과 운영 키 발급 후 활성화됩니다."
+            )
+            status_text.color = MAIN_COLOR_DARK
+            page.update()
+
+        async def send_recovery_otp():
+            recovery_state["verified"] = False
+            result_column.controls = []
+            status_text.value = "인증번호를 발송하는 중이에요."
+            status_text.color = SUBTEXT_COLOR
+            page.update()
+            try:
+                flow = await request_phone_otp(
+                    FINDY2_AUTH_API_URL,
+                    phone_field.value,
+                    mode,
+                )
+                recovery_state["flow"] = flow
+                status_text.value = f"{flow.masked_phone_number}로 인증번호를 보냈어요."
+                status_text.color = MAIN_COLOR_DARK
+            except PhoneAuthError as error:
+                status_text.value = str(error)
+                status_text.color = "#B85C5C"
+            page.update()
+
+        async def verify_recovery_otp():
+            flow = recovery_state.get("flow")
+            if not flow:
+                status_text.value = "먼저 인증번호를 요청해주세요."
+                status_text.color = "#B85C5C"
+                page.update()
+                return
+            try:
+                result = await verify_phone_otp(
+                    FINDY2_AUTH_API_URL,
+                    flow,
+                    otp_field.value,
+                )
+                recovery_state["verified"] = True
+                recovery_state["phone_number"] = result["phoneNumber"]
+                phone_field.disabled = True
+                otp_field.disabled = True
+                status_text.value = "휴대폰 인증이 완료됐어요."
+                status_text.color = "#4F8A5B"
+                if mode == "find_id":
+                    accounts = find_usernames_by_phone(
+                        FINDY2_AUTH_DATA_PATH,
+                        result["phoneNumber"],
+                    )
+                    if accounts:
+                        result_column.controls = [
+                            ft.Container(
+                                padding=ft.padding.symmetric(horizontal=14, vertical=12),
+                                bgcolor=MAIN_COLOR_SOFT,
+                                border_radius=14,
+                                content=ft.Column(
+                                    controls=[
+                                        ft.Text(
+                                            f"가입 이름  {account['realName']}",
+                                            size=12,
+                                            color=TEXT_COLOR,
+                                            weight=ft.FontWeight.W_800,
+                                        ),
+                                        ft.Text(
+                                            "휴대폰 번호로 로그인할 수 있는 계정입니다.",
+                                            size=10,
+                                            color=SUBTEXT_COLOR,
+                                        ),
+                                    ],
+                                    spacing=3,
+                                ),
+                            )
+                            for account in accounts
+                        ]
+                    else:
+                        result_column.controls = [
+                            ft.Text(
+                                "이 번호로 가입한 FINDY 계정을 찾지 못했어요.",
+                                size=11,
+                                color="#B85C5C",
+                                weight=ft.FontWeight.W_700,
+                            )
+                        ]
+            except (PhoneAuthError, AuthError) as error:
+                status_text.value = str(error)
+                status_text.color = "#B85C5C"
+            page.update()
+
+        def complete_password_reset(e=None):
+            if not recovery_state.get("verified"):
+                status_text.value = "먼저 휴대폰 인증을 완료해주세요."
+                status_text.color = "#B85C5C"
+                page.update()
+                return
+            if new_password_field.value != confirm_password_field.value:
+                status_text.value = "새 비밀번호 확인이 일치하지 않습니다."
+                status_text.color = "#B85C5C"
+                page.update()
+                return
+            try:
+                reset_password_by_phone(
+                    FINDY2_AUTH_DATA_PATH,
+                    recovery_state["phone_number"],
+                    new_password_field.value,
+                )
+                show_snack("비밀번호를 새로 설정했어요. 다시 로그인해주세요.")
+                show_login_page()
+            except AuthError as error:
+                status_text.value = str(error)
+                status_text.color = "#B85C5C"
+                page.update()
+
+        card_controls = [
+            login_logo_visual(116),
+            ft.Text(
+                "가입 계정 확인" if mode == "find_id" else "비밀번호 재설정",
+                size=21,
+                color=TEXT_COLOR,
+                weight=ft.FontWeight.W_900,
+            ),
+            ft.Row(
+                controls=[
+                    mode_chip("가입 계정 확인", "find_id"),
+                    mode_chip("비밀번호 재설정", "reset_password"),
+                ],
+                spacing=8,
+            ),
+            ft.Container(
+                padding=ft.padding.symmetric(horizontal=14, vertical=12),
+                bgcolor=MAIN_COLOR_SOFT,
+                border_radius=16,
+                ink=True,
+                on_click=show_pass_information,
+                content=ft.Row(
+                    controls=[
+                        ft.Icon(app_icon("VERIFIED_USER_OUTLINED", "SECURITY"), size=20, color=MAIN_COLOR_DARK),
+                        ft.Column(
+                            controls=[
+                                ft.Text("PASS 본인확인", size=12, color=TEXT_COLOR, weight=ft.FontWeight.W_800),
+                                ft.Text("휴대폰 명의 확인 · 도입 준비", size=9, color=SUBTEXT_COLOR),
+                            ],
+                            spacing=2,
+                            expand=True,
+                        ),
+                        ft.Icon(app_icon("CHEVRON_RIGHT", "ARROW_FORWARD_IOS"), size=14, color=SUBTEXT_COLOR),
+                    ],
+                    spacing=10,
+                ),
+            ),
+            ft.Row(
+                controls=[
+                    ft.Container(height=1, bgcolor=BORDER_COLOR, expand=True),
+                    ft.Text("문자 인증", size=9, color=SUBTEXT_COLOR, weight=ft.FontWeight.W_700),
+                    ft.Container(height=1, bgcolor=BORDER_COLOR, expand=True),
+                ],
+                spacing=8,
+            ),
+            phone_field,
+            otp_field,
+            ft.Row(
+                controls=[
+                    ft.Container(
+                        expand=True,
+                        height=42,
+                        border_radius=14,
+                        bgcolor=MAIN_COLOR_SOFT,
+                        alignment=ft.Alignment(0, 0),
+                        ink=True,
+                        on_click=lambda e: page.run_task(send_recovery_otp),
+                        content=ft.Text("인증번호 받기", size=11, color=MAIN_COLOR_DARK, weight=ft.FontWeight.W_800),
+                    ),
+                    ft.Container(
+                        expand=True,
+                        height=42,
+                        border_radius=14,
+                        bgcolor="#FFFFFF",
+                        border=ft.border.all(1, BORDER_COLOR),
+                        alignment=ft.Alignment(0, 0),
+                        ink=True,
+                        on_click=lambda e: page.run_task(verify_recovery_otp),
+                        content=ft.Text("인증 확인", size=11, color=TEXT_COLOR, weight=ft.FontWeight.W_800),
+                    ),
+                ],
+                spacing=8,
+            ),
+            status_text,
+            result_column,
+        ]
+        if mode == "reset_password":
+            card_controls.extend(
+                [
+                    new_password_field,
+                    confirm_password_field,
+                    ft.Container(
+                        width=288,
+                        height=46,
+                        bgcolor=MAIN_COLOR,
+                        border_radius=16,
+                        alignment=ft.Alignment(0, 0),
+                        ink=True,
+                        on_click=complete_password_reset,
+                        content=ft.Text("새 비밀번호 저장", size=13, color="#FFFFFF", weight=ft.FontWeight.W_900),
+                    ),
+                ]
             )
 
         card = ft.Container(
             width=content_width(),
-            height=640,
+            padding=ft.padding.symmetric(horizontal=24, vertical=22),
+            bgcolor="#FFFFFF",
+            border_radius=30,
+            border=ft.border.all(1, BORDER_COLOR),
+            content=ft.Column(
+                controls=card_controls,
+                spacing=10,
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
+        )
+        body = ft.Container(
+            expand=True,
+            bgcolor="#FFFFFF",
+            content=ft.Stack(
+                controls=[
+                    ft.ListView(
+                        expand=True,
+                        padding=ft.padding.only(left=16, right=16, top=34, bottom=28),
+                        controls=[card],
+                    ),
+                    ft.Container(
+                        left=18,
+                        top=18,
+                        content=ft.IconButton(
+                            icon=app_icon("ARROW_BACK_IOS_NEW", "ARROW_BACK"),
+                            icon_color=TEXT_COLOR,
+                            icon_size=20,
+                            tooltip="로그인으로",
+                            on_click=lambda e: show_login_page(),
+                        ),
+                    ),
+                ],
+            ),
+        )
+        render_phone_frame(body, None)
+
+    def show_phone_onboarding_page():
+        pending = app_state.get("pending_social_signup") or {}
+        pending_user = pending.get("user") or {}
+        identity = pending.get("identity") or {}
+        if not pending_user:
+            show_login_page()
+            return
+        app_state["current_page"] = "phone_onboarding"
+
+        def onboarding_field(label, hint):
+            return ft.TextField(
+                label=label,
+                hint_text=hint,
+                height=52,
+                border_color=BORDER_COLOR,
+                focused_border_color=MAIN_COLOR,
+                border_radius=16,
+                bgcolor="#FFFFFF",
+                text_style=ft.TextStyle(size=13, color=TEXT_COLOR, weight=ft.FontWeight.W_600),
+                label_style=ft.TextStyle(size=11, color=SUBTEXT_COLOR, weight=ft.FontWeight.W_700),
+                content_padding=ft.padding.symmetric(horizontal=15, vertical=9),
+            )
+
+        real_name_field = onboarding_field("이름(실명)", "한글 또는 영문 이름")
+        phone_field = onboarding_field("휴대폰 번호", "010-1234-5678")
+        otp_field = onboarding_field("인증번호", "문자로 받은 6자리 숫자")
+        state = {"flow": None, "phoneNumber": "", "verified": False}
+        status_text = ft.Text(
+            "통합회원 가입을 마치려면 휴대폰 확인이 필요합니다.",
+            size=10,
+            color=SUBTEXT_COLOR,
+            weight=ft.FontWeight.W_600,
+        )
+
+        async def send_otp():
+            try:
+                state["flow"] = await request_phone_otp(
+                    FINDY2_AUTH_API_URL,
+                    phone_field.value,
+                    "signup",
+                )
+                status_text.value = f"{state['flow'].masked_phone_number}로 인증번호를 보냈어요."
+                status_text.color = MAIN_COLOR_DARK
+            except PhoneAuthError as error:
+                status_text.value = str(error)
+                status_text.color = "#B85C5C"
+            page.update()
+
+        async def verify_and_finish():
+            if not state.get("flow"):
+                status_text.value = "먼저 인증번호를 요청해주세요."
+                status_text.color = "#B85C5C"
+                page.update()
+                return
+            try:
+                result = await verify_phone_otp(
+                    FINDY2_AUTH_API_URL,
+                    state["flow"],
+                    otp_field.value,
+                )
+                user = attach_verified_phone(
+                    FINDY2_AUTH_DATA_PATH,
+                    pending_user["id"],
+                    result["phoneNumber"],
+                    verification_method="sms",
+                    real_name=real_name_field.value,
+                )
+                create_session(
+                    FINDY2_SESSION_PATH,
+                    user,
+                    remote_session_token=identity.get("findySessionToken"),
+                )
+                app_state.pop("pending_social_signup", None)
+                load_user_workspace(user)
+                persist_user_data()
+                show_snack(f"{pending.get('providerLabel', '소셜')} 통합회원 가입이 완료됐어요.")
+                show_home_page()
+            except (PhoneAuthError, AuthError) as error:
+                status_text.value = str(error)
+                status_text.color = "#B85C5C"
+                page.update()
+
+        card = ft.Container(
+            width=content_width(),
             padding=ft.padding.symmetric(horizontal=24, vertical=24),
+            bgcolor="#FFFFFF",
+            border_radius=30,
+            border=ft.border.all(1, BORDER_COLOR),
+            content=ft.Column(
+                controls=[
+                    login_logo_visual(116),
+                    ft.Text("통합회원 확인", size=21, color=TEXT_COLOR, weight=ft.FontWeight.W_900),
+                    ft.Text(
+                        f"{pending.get('providerLabel', '소셜')} 계정에 휴대폰 번호를 연결해주세요.",
+                        size=10,
+                        color=SUBTEXT_COLOR,
+                        text_align=ft.TextAlign.CENTER,
+                    ),
+                    real_name_field,
+                    phone_field,
+                    otp_field,
+                    ft.Row(
+                        controls=[
+                            ft.Container(
+                                expand=True,
+                                height=42,
+                                border_radius=14,
+                                bgcolor=MAIN_COLOR_SOFT,
+                                alignment=ft.Alignment(0, 0),
+                                ink=True,
+                                on_click=lambda e: page.run_task(send_otp),
+                                content=ft.Text("인증번호 받기", size=11, color=MAIN_COLOR_DARK, weight=ft.FontWeight.W_800),
+                            ),
+                            ft.Container(
+                                expand=True,
+                                height=42,
+                                border_radius=14,
+                                bgcolor=MAIN_COLOR,
+                                alignment=ft.Alignment(0, 0),
+                                ink=True,
+                                on_click=lambda e: page.run_task(verify_and_finish),
+                                content=ft.Text("가입 완료", size=11, color="#FFFFFF", weight=ft.FontWeight.W_900),
+                            ),
+                        ],
+                        spacing=8,
+                    ),
+                    status_text,
+                    ft.Text(
+                        "이름은 가입 후 변경할 수 없고, 커뮤니티에는 소셜 프로필 닉네임만 표시됩니다.",
+                        size=9,
+                        color=SUBTEXT_COLOR,
+                        text_align=ft.TextAlign.CENTER,
+                    ),
+                ],
+                spacing=10,
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
+        )
+        body = ft.Container(
+            expand=True,
+            bgcolor="#FFFFFF",
+            content=ft.ListView(
+                expand=True,
+                padding=ft.padding.only(left=16, right=16, top=40, bottom=28),
+                controls=[card],
+            ),
+        )
+        render_phone_frame(body, None)
+
+    def show_signup_page(role="user"):
+        app_state["current_page"] = "signup"
+
+        def signup_field(label, hint, password=False):
+            return ft.TextField(
+                label=label,
+                hint_text=hint,
+                password=password,
+                can_reveal_password=password,
+                height=52,
+                border_color=BORDER_COLOR,
+                focused_border_color=MAIN_COLOR,
+                border_radius=16,
+                bgcolor="#FFFFFF",
+                text_style=ft.TextStyle(size=13, color=TEXT_COLOR, weight=ft.FontWeight.W_600),
+                label_style=ft.TextStyle(size=11, color=SUBTEXT_COLOR, weight=ft.FontWeight.W_700),
+                content_padding=ft.padding.symmetric(horizontal=15, vertical=9),
+            )
+
+        real_name_field = signup_field("이름(실명)", "한글 또는 영문 이름")
+        nickname_field = signup_field("닉네임", "커뮤니티에 표시할 이름")
+        password_field = signup_field("비밀번호", "영문과 숫자를 포함한 8자 이상", password=True)
+        confirm_field = signup_field("비밀번호 확인", "비밀번호를 다시 입력해주세요.", password=True)
+        phone_field = signup_field("휴대폰 번호", "010-1234-5678")
+        otp_field = signup_field("인증번호", "문자로 받은 6자리 숫자")
+        phone_state = {
+            "flow": None,
+            "verified": False,
+            "phone_number": "",
+        }
+        policy_agreed = ft.Checkbox(
+            value=False,
+            active_color=MAIN_COLOR,
+            label="이용약관과 개인정보 처리방침에 동의합니다.",
+            label_style=ft.TextStyle(size=10, color=SUBTEXT_COLOR, weight=ft.FontWeight.W_600),
+        )
+        error_text = ft.Text("", size=11, color="#B85C5C", weight=ft.FontWeight.W_700)
+        phone_status = ft.Text(
+            "휴대폰 번호는 계정 찾기와 보안 알림에 사용됩니다.",
+            size=9,
+            color=SUBTEXT_COLOR,
+            weight=ft.FontWeight.W_600,
+        )
+
+        async def send_signup_otp():
+            phone_state["verified"] = False
+            phone_status.value = "인증번호를 발송하는 중이에요."
+            phone_status.color = SUBTEXT_COLOR
+            page.update()
+            try:
+                flow = await request_phone_otp(
+                    FINDY2_AUTH_API_URL,
+                    phone_field.value,
+                    "signup",
+                )
+                phone_state["flow"] = flow
+                phone_status.value = f"{flow.masked_phone_number}로 인증번호를 보냈어요. 3분 안에 입력해주세요."
+                phone_status.color = MAIN_COLOR_DARK
+            except PhoneAuthError as error:
+                phone_status.value = str(error)
+                phone_status.color = "#B85C5C"
+            page.update()
+
+        async def confirm_signup_otp():
+            flow = phone_state.get("flow")
+            if not flow:
+                phone_status.value = "먼저 인증번호를 요청해주세요."
+                phone_status.color = "#B85C5C"
+                page.update()
+                return
+            try:
+                result = await verify_phone_otp(
+                    FINDY2_AUTH_API_URL,
+                    flow,
+                    otp_field.value,
+                )
+                phone_state["verified"] = True
+                phone_state["phone_number"] = result["phoneNumber"]
+                phone_status.value = "휴대폰 인증이 완료됐어요."
+                phone_status.color = "#4F8A5B"
+                phone_field.disabled = True
+                otp_field.disabled = True
+            except PhoneAuthError as error:
+                phone_status.value = str(error)
+                phone_status.color = "#B85C5C"
+            page.update()
+
+        otp_actions = ft.Row(
+            controls=[
+                ft.Container(
+                    expand=True,
+                    height=42,
+                    bgcolor=MAIN_COLOR_SOFT,
+                    border_radius=14,
+                    alignment=ft.Alignment(0, 0),
+                    ink=True,
+                    on_click=lambda e: page.run_task(send_signup_otp),
+                    content=ft.Text("인증번호 받기", size=11, color=MAIN_COLOR_DARK, weight=ft.FontWeight.W_800),
+                ),
+                ft.Container(
+                    expand=True,
+                    height=42,
+                    bgcolor="#FFFFFF",
+                    border=ft.border.all(1, BORDER_COLOR),
+                    border_radius=14,
+                    alignment=ft.Alignment(0, 0),
+                    ink=True,
+                    on_click=lambda e: page.run_task(confirm_signup_otp),
+                    content=ft.Text("인증 확인", size=11, color=TEXT_COLOR, weight=ft.FontWeight.W_800),
+                ),
+            ],
+            spacing=8,
+        )
+
+        def submit_signup(e=None):
+            if password_field.value != confirm_field.value:
+                error_text.value = "비밀번호 확인이 일치하지 않습니다."
+                page.update()
+                return
+            if not policy_agreed.value:
+                error_text.value = "이용약관과 개인정보 처리방침 동의가 필요합니다."
+                page.update()
+                return
+            if not phone_state.get("verified"):
+                error_text.value = "휴대폰 인증을 완료해주세요."
+                page.update()
+                return
+            try:
+                user = register_user(
+                    FINDY2_AUTH_DATA_PATH,
+                    "",
+                    real_name_field.value,
+                    nickname_field.value,
+                    password_field.value,
+                    phone_number=phone_state["phone_number"],
+                    phone_verified=True,
+                    phone_verification_method="sms",
+                )
+                create_session(FINDY2_SESSION_PATH, user)
+            except AuthError as error:
+                error_text.value = str(error)
+                page.update()
+                return
+            load_user_workspace(user)
+            persist_user_data()
+            show_snack("FINDY2 가입이 완료되었어요.")
+            show_home_page()
+
+        confirm_field.on_submit = submit_signup
+
+        card = ft.Container(
+            width=content_width(),
+            padding=ft.padding.symmetric(horizontal=24, vertical=22),
             bgcolor="#FFFFFF",
             border_radius=32,
             border=ft.border.all(1, BORDER_COLOR),
@@ -7393,16 +8786,46 @@ async def main(page: ft.Page):
             ),
             content=ft.Column(
                 controls=[
-                    login_logo_visual(150),
-                    ft.Text(title, size=23, weight=ft.FontWeight.W_800, color=TEXT_COLOR, text_align=ft.TextAlign.CENTER),
-                    ft.Text(subtitle, size=11, color=SUBTEXT_COLOR, text_align=ft.TextAlign.CENTER),
-                    ft.Container(height=2),
-                    signup_button("네이버로 계속하기", social_signup("네이버")),
-                    signup_button("카카오로 계속하기", social_signup("카카오")),
-                    signup_button("구글로 계속하기", social_signup("구글")),
-                    signup_button("애플로 계속하기", social_signup("애플")),
+                    login_logo_visual(126),
+                    ft.Text("회원가입", size=22, weight=ft.FontWeight.W_900, color=TEXT_COLOR),
+                    ft.Text("하나의 계정으로 글, 저장, 프로필을 안전하게 관리해요.", size=10, color=SUBTEXT_COLOR, text_align=ft.TextAlign.CENTER),
+                    social_auth_buttons(error_text, policy_agreed),
+                    ft.Row(
+                        controls=[
+                            ft.Container(height=1, bgcolor=BORDER_COLOR, expand=True),
+                            ft.Text("또는 휴대폰으로 가입", size=9, color=SUBTEXT_COLOR, weight=ft.FontWeight.W_700),
+                            ft.Container(height=1, bgcolor=BORDER_COLOR, expand=True),
+                        ],
+                        spacing=8,
+                    ),
+                    real_name_field,
+                    nickname_field,
+                    phone_field,
+                    otp_field,
+                    otp_actions,
+                    phone_status,
+                    ft.Text(
+                        "입력한 이름은 가입 후 변경할 수 없으며 공개 화면에는 닉네임만 표시됩니다.",
+                        size=9,
+                        color=SUBTEXT_COLOR,
+                        text_align=ft.TextAlign.CENTER,
+                    ),
+                    password_field,
+                    confirm_field,
+                    policy_agreed,
+                    error_text,
+                    ft.Container(
+                        width=288,
+                        height=48,
+                        bgcolor=MAIN_COLOR,
+                        border_radius=17,
+                        alignment=ft.Alignment(0, 0),
+                        ink=True,
+                        on_click=submit_signup,
+                        content=ft.Text("가입 완료", size=14, color="#FFFFFF", weight=ft.FontWeight.W_900),
+                    ),
                 ],
-                spacing=10,
+                spacing=8,
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                 alignment=ft.MainAxisAlignment.CENTER,
             ),
@@ -7415,9 +8838,13 @@ async def main(page: ft.Page):
                 controls=[
                     ft.Container(
                         width=full_phone_width(),
-                        height=PHONE_HEIGHT,
+                        height=full_phone_height(),
                         alignment=ft.Alignment(0, 0),
-                        content=card,
+                        content=ft.ListView(
+                            expand=True,
+                            padding=ft.padding.only(left=16, right=16, top=28, bottom=28),
+                            controls=[card],
+                        ),
                     ),
                     ft.Container(
                         left=20,
@@ -7427,7 +8854,7 @@ async def main(page: ft.Page):
                             icon_color=TEXT_COLOR,
                             icon_size=20,
                             tooltip="뒤로가기",
-                            on_click=back_to_login,
+                            on_click=lambda e: show_login_page(),
                         ),
                     ),
                 ],
@@ -8353,10 +9780,13 @@ async def main(page: ft.Page):
                         category_data[key[: -len(suffix)]] = value
                 recommendation_by_category[category] = category_data
             profile["recommendationByCategory"] = recommendation_by_category
+            if not sync_profile_to_auth(profile):
+                return
             app_state["user_profile"] = profile
             app_state["profile_edit_draft"] = None
             if app_state.get("current_user"):
                 app_state["current_user"]["nickname"] = profile.get("name") or profile.get("username") or "FINDY 회원"
+            persist_user_data(notify_on_error=True)
             show_snack("프로필이 저장되었어요.")
             show_profile_page()
 
@@ -8584,8 +10014,38 @@ async def main(page: ft.Page):
                         horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                     ),
                 ),
-                edit_text_row("이름", "name", "오경민"),
-                edit_text_row("사용자 이름", "username", "995km__"),
+                ft.Container(
+                    width=content_width(),
+                    padding=ft.padding.symmetric(horizontal=14, vertical=13),
+                    bgcolor=MAIN_COLOR_SOFT,
+                    border_radius=16,
+                    content=ft.Row(
+                        controls=[
+                            ft.Column(
+                                controls=[
+                                    ft.Text("가입 이름", size=11, color=SUBTEXT_COLOR, weight=ft.FontWeight.W_700),
+                                    ft.Text(
+                                        (app_state.get("current_user") or {}).get("realName")
+                                        or draft.get("realName")
+                                        or "등록된 이름 없음",
+                                        size=13,
+                                        color=TEXT_COLOR,
+                                        weight=ft.FontWeight.W_900,
+                                    ),
+                                ],
+                                spacing=3,
+                                expand=True,
+                            ),
+                            ft.Container(
+                                padding=ft.padding.symmetric(horizontal=10, vertical=6),
+                                bgcolor="#FFFFFF",
+                                border_radius=999,
+                                content=ft.Text("수정 불가", size=9, color=MAIN_COLOR_DARK, weight=ft.FontWeight.W_800),
+                            ),
+                        ],
+                    ),
+                ),
+                edit_text_row("닉네임", "name", "커뮤니티에 표시할 이름"),
                 edit_text_row("성별 대명사", "pronouns", "성별 대명사"),
                 edit_text_row("소개", "bio", "Ch.2", multiline=True),
                 edit_text_row("링크", "link", "youtube.com/..."),
@@ -8686,8 +10146,11 @@ async def main(page: ft.Page):
                 recommendation_by_category[category] = category_data
             profile["recommendationByCategory"] = recommendation_by_category
 
+            if not sync_profile_to_auth(profile):
+                return
             app_state["user_profile"] = profile
             app_state["findy_recommendation_draft"] = None
+            persist_user_data(notify_on_error=True)
             show_snack("FINDY 추천정보가 저장되었어요.")
             show_my_page()
 
@@ -9256,6 +10719,9 @@ async def main(page: ft.Page):
 
         def save_beauty_profile(e=None):
             sync_beauty_to_user_profile()
+            if not sync_profile_to_auth(get_user_profile()):
+                return
+            persist_user_data(notify_on_error=True)
             show_snack("나의 FINDY가 추천 기준에 반영되었어요.")
 
         body = ft.Column(
@@ -10444,6 +11910,7 @@ async def main(page: ft.Page):
 
         def home_community_preview_card(post, board_type="전체"):
             def open_post(e=None):
+                app_state["selected_tab"] = 0
                 app_state["content_detail_back_page"] = "home"
                 open_content_detail(post, back_page="home")
 
@@ -10730,8 +12197,8 @@ async def main(page: ft.Page):
         popular_block = animated_block(
             ft.Column(
                 controls=[
-                    section_title("인기글", "지금 많이 보는 글", on_click=lambda e: show_community_board_page("자유", selected_tab=2)),
-                    build_home_community_preview("전체", 3),
+                    section_title("인기글", "지금 많이 보는 글", on_click=lambda e: show_community_board_page("인기", selected_tab=0)),
+                    build_home_community_preview("인기", 3),
                 ],
                 spacing=SPACE_MD,
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -10752,7 +12219,7 @@ async def main(page: ft.Page):
         question_block = animated_block(
             ft.Column(
                 controls=[
-                    section_title("질문", "답변이 필요한 질문", on_click=lambda e: show_community_board_page("질문", selected_tab=2)),
+                    section_title("질문", "답변이 필요한 질문", on_click=lambda e: show_community_board_page("질문", selected_tab=0)),
                     build_home_community_preview("질문", 2),
                 ],
                 spacing=SPACE_MD,
@@ -10763,7 +12230,7 @@ async def main(page: ft.Page):
         free_board_block = animated_block(
             ft.Column(
                 controls=[
-                    section_title("자유게시판", "자유로운 이야기", on_click=lambda e: show_community_board_page("자유", selected_tab=2)),
+                    section_title("자유게시판", "자유로운 이야기", on_click=lambda e: show_community_board_page("자유", selected_tab=0)),
                     build_home_community_preview("자유", 2),
                 ],
                 spacing=SPACE_MD,
@@ -11051,6 +12518,12 @@ async def main(page: ft.Page):
         )
 
     def snap_photo_tile(item, width, height, layout_mode=1):
+        image_path = item.get("image_path") or ((item.get("photos") or [None])[0])
+        media_control = (
+            ft.Image(src=image_path, width=width, height=height, fit=ft.ImageFit.COVER)
+            if image_path
+            else black_image_box(width, height)
+        )
         tile = ft.Container(
             width=width,
             height=height,
@@ -11060,7 +12533,7 @@ async def main(page: ft.Page):
             scale=1.0,
             content=ft.Stack(
                 controls=[
-                    black_image_box(width, height),
+                    media_control,
                     ft.Container(
                         left=8,
                         top=8,
@@ -11462,6 +12935,78 @@ async def main(page: ft.Page):
             max_lines=12,
             size=14,
         )
+        selected_photos = []
+        snap_photo_row = ft.Row(spacing=8, scroll=ft.ScrollMode.HIDDEN)
+        snap_photo_preview = ft.Container(width=content_width() - 36, visible=False, content=snap_photo_row)
+        snap_photo_count = ft.Text("0/10", size=10, color=SUBTEXT_COLOR, weight=ft.FontWeight.W_700)
+
+        def refresh_snap_photo_preview():
+            snap_photo_row.controls.clear()
+            for index, path in enumerate(selected_photos):
+                def remove_photo(e=None, target_index=index):
+                    selected_photos.pop(target_index)
+                    refresh_snap_photo_preview()
+
+                snap_photo_row.controls.append(
+                    ft.Stack(
+                        width=82,
+                        height=102,
+                        controls=[
+                            ft.Image(src=path, width=82, height=102, fit=ft.ImageFit.COVER, border_radius=12),
+                            ft.Container(
+                                right=4,
+                                top=4,
+                                width=22,
+                                height=22,
+                                border_radius=11,
+                                bgcolor=ft.Colors.with_opacity(0.72, "#000000"),
+                                alignment=ft.Alignment(0, 0),
+                                on_click=remove_photo,
+                                ink=True,
+                                content=ft.Icon(app_icon("CLOSE"), size=13, color="#FFFFFF"),
+                            ),
+                        ],
+                    )
+                )
+            snap_photo_preview.visible = bool(selected_photos)
+            snap_photo_count.value = f"{len(selected_photos)}/10"
+            page.update()
+
+        def on_snap_photos_picked(e: ft.FilePickerResultEvent):
+            if not e.files:
+                return
+            remaining = 10 - len(selected_photos)
+            for selected_file in e.files[:remaining]:
+                if not selected_file.path:
+                    continue
+                try:
+                    validate_image_file(selected_file.path)
+                except MediaStorageError as error:
+                    show_snack(str(error), bgcolor="#B85C5C")
+                    continue
+                if selected_file.path not in selected_photos:
+                    selected_photos.append(selected_file.path)
+            refresh_snap_photo_preview()
+            if len(e.files) > remaining:
+                show_snack("스냅 사진은 최대 10장까지 등록할 수 있어요.", bgcolor="#B85C5C")
+
+        snap_photo_picker = ft.FilePicker(on_result=on_snap_photos_picked)
+        page.overlay.append(snap_photo_picker)
+        page.update()
+
+        def pick_snap_photos(e=None):
+            if len(selected_photos) >= 10:
+                show_snack("스냅 사진은 최대 10장까지 등록할 수 있어요.", bgcolor="#B85C5C")
+                return
+            snap_photo_picker.pick_files(
+                allow_multiple=True,
+                allowed_extensions=["jpg", "jpeg", "png", "webp", "heic", "gif"],
+            )
+
+        def go_back_from_snap_write(e=None):
+            if snap_photo_picker in page.overlay:
+                page.overlay.remove(snap_photo_picker)
+            show_snap_page()
 
         def submit_snap(e):
             title = (title_field.value or "").strip()
@@ -11469,8 +13014,22 @@ async def main(page: ft.Page):
             if not title:
                 show_snack("스냅 제목을 입력해주세요.", bgcolor="#B85C5C")
                 return
+            if not selected_photos:
+                show_snack("스냅 사진을 한 장 이상 선택해주세요.", bgcolor="#B85C5C")
+                return
+            try:
+                stored_images = store_images(
+                    selected_photos,
+                    FINDY2_MEDIA_DIR,
+                    current_user_id(),
+                    limit=10,
+                )
+            except MediaStorageError as error:
+                show_snack(str(error), bgcolor="#B85C5C")
+                return
             snap = {
                 "id": f"user_{len(app_state.get('written_snaps', [])) + 1}",
+                "userId": current_user_id(),
                 "category": selected_category[0],
                 "title": title,
                 "artist_id": None,
@@ -11482,9 +13041,19 @@ async def main(page: ft.Page):
                 "saves": 0,
                 "views": 0,
                 "ts": 999 + len(app_state.get("written_snaps", [])),
+                "image_path": stored_images[0]["path"],
+                "photos": [item["path"] for item in stored_images],
+                "imageMetadata": stored_images,
             }
             app_state.setdefault("written_snaps", []).insert(0, snap)
             app_state["snap_filter"] = snap["category"]
+            if not persist_user_data(notify_on_error=True):
+                app_state["written_snaps"].remove(snap)
+                for stored_image in stored_images:
+                    remove_media_file(stored_image.get("path"), FINDY2_MEDIA_DIR)
+                return
+            if snap_photo_picker in page.overlay:
+                page.overlay.remove(snap_photo_picker)
             open_completion_feedback(
                 "스냅이 등록되었어요",
                 "작성한 스냅은 스냅 화면에서 확인할 수 있어요.",
@@ -11496,7 +13065,7 @@ async def main(page: ft.Page):
 
         body = ft.Column(
             controls=[
-                compose_top_bar("스냅 작성", safe_go_back, submit_snap),
+                compose_top_bar("스냅 작성", go_back_from_snap_write, submit_snap),
                 ft.Container(
                     width=content_width(),
                     padding=ft.padding.symmetric(horizontal=18, vertical=14),
@@ -11515,10 +13084,13 @@ async def main(page: ft.Page):
                             ),
                             title_field,
                             note_field,
+                            snap_photo_preview,
                             compose_bottom_toolbar([
-                                compose_bottom_action(("IMAGE_OUTLINED", "PHOTO_LIBRARY_OUTLINED"), "사진", lambda e: show_snack("사진 첨부는 곧 연결될 예정이에요.")),
+                                compose_bottom_action(("IMAGE_OUTLINED", "PHOTO_LIBRARY_OUTLINED"), "사진", pick_snap_photos),
                                 compose_bottom_action(("PLACE_OUTLINED", "LOCATION_ON_OUTLINED"), "장소", lambda e: show_snack("장소 첨부는 곧 연결될 예정이에요.")),
                                 compose_bottom_action(("TAG", "NUMBERS"), "태그", lambda e: show_snack("설명에 #태그를 입력해보세요.")),
+                                ft.Container(expand=True),
+                                snap_photo_count,
                             ]),
                         ],
                         spacing=8,
@@ -11639,6 +13211,7 @@ async def main(page: ft.Page):
                 liked_ids.discard(item_id)
             else:
                 liked_ids.add(item_id)
+            persist_user_data()
             refresh_snap_action_controls()
             update_snap_action_controls()
 
@@ -11648,6 +13221,7 @@ async def main(page: ft.Page):
                 saved_ids.discard(item_id)
             else:
                 saved_ids.add(item_id)
+            persist_user_data()
             refresh_snap_action_controls()
             update_snap_action_controls()
 
@@ -11863,6 +13437,7 @@ async def main(page: ft.Page):
                 liked_ids.discard(key)
             else:
                 liked_ids.add(key)
+            persist_user_data()
             refresh_actions()
             update_actions()
 
@@ -11871,6 +13446,7 @@ async def main(page: ft.Page):
                 saved_ids.discard(key)
             else:
                 saved_ids.add(key)
+            persist_user_data()
             refresh_actions()
             update_actions()
 
@@ -11882,6 +13458,7 @@ async def main(page: ft.Page):
             video["comments"] = comment_count["value"]
             comment_label.value = f"댓글 {comment_count['value']}"
             comment_field.value = ""
+            persist_user_data()
             comment_label.update()
             comment_field.update()
             show_snack("댓글이 등록되었어요.")
@@ -11993,7 +13570,7 @@ async def main(page: ft.Page):
             selected_cat = "전체"
             app_state["video_category_filter"] = "전체"
 
-        video_view_height = PHONE_HEIGHT - 64
+        video_view_height = full_phone_height() - 64
         slide_direction = app_state.pop("video_slide_direction", 0)
         active_index = max(0, min(app_state.get("active_video_index", 0), len(filtered) - 1))
         app_state["active_video_index"] = active_index
@@ -12042,6 +13619,7 @@ async def main(page: ft.Page):
                 liked_ids.discard(active_key)
             else:
                 liked_ids.add(active_key)
+            persist_user_data()
             show_video_page()
 
         def toggle_video_save(e):
@@ -12049,6 +13627,7 @@ async def main(page: ft.Page):
                 saved_ids.discard(active_key)
             else:
                 saved_ids.add(active_key)
+            persist_user_data()
             show_video_page()
 
         def toggle_video_repost(e=None):
@@ -12058,6 +13637,7 @@ async def main(page: ft.Page):
             else:
                 reposted_ids.add(active_key)
                 show_snack("내 활동에 리포스트했어요.")
+            persist_user_data()
             show_video_page()
 
         def share_video(e=None):
@@ -12123,6 +13703,7 @@ async def main(page: ft.Page):
                 return
             profile = get_user_profile()
             active_comments.insert(0, {
+                "userId": current_user_id(),
                 "author": profile.get("username") or profile.get("name") or "FINDY 회원",
                 "time": "방금 전",
                 "text": text,
@@ -12131,6 +13712,7 @@ async def main(page: ft.Page):
             })
             active_video["comments"] = len(active_comments)
             app_state["video_comments_open"] = True
+            persist_user_data()
             show_video_page()
 
         def on_video_drag_start(e):
@@ -12178,6 +13760,7 @@ async def main(page: ft.Page):
             else:
                 followed_creators.add(active_creator)
                 show_snack(f"{active_creator}님을 팔로우했어요.")
+            persist_user_data()
             show_video_page()
 
         def reels_action(icon_name, count, on_click=None, active=False):
@@ -12658,7 +14241,16 @@ async def main(page: ft.Page):
         if selected_category[0] == "전체":
             selected_category[0] = "헤어"
         selected_video_path = [None]
+        selected_video_info = [None]
         video_name_text = ft.Text("선택된 영상이 없어요.", size=12, color=SUBTEXT_COLOR)
+        video_preview = ft.Container(
+            width=content_width() - 36,
+            height=190,
+            visible=False,
+            border_radius=18,
+            clip_behavior=ft.ClipBehavior.HARD_EDGE,
+            bgcolor="#120D0A",
+        )
 
         title_field = compose_text_field("팁 제목을 입력해주세요.", size=20, weight=ft.FontWeight.W_900)
         subtitle_field = compose_text_field(
@@ -12701,8 +14293,56 @@ async def main(page: ft.Page):
             if not e.files:
                 return
             selected_file = e.files[0]
-            selected_video_path[0] = selected_file.path or selected_file.name
-            video_name_text.value = selected_file.name
+            source_path = selected_file.path or selected_file.name
+            try:
+                metadata = validate_video_file(source_path)
+            except MediaStorageError as error:
+                selected_video_path[0] = None
+                selected_video_info[0] = None
+                video_preview.visible = False
+                video_name_text.value = "선택된 영상이 없어요."
+                show_snack(str(error), bgcolor="#B85C5C")
+                page.update()
+                return
+            selected_video_path[0] = metadata["sourcePath"]
+            selected_video_info[0] = metadata
+            size_mb = metadata["size"] / (1024 * 1024)
+            video_name_text.value = f"{metadata['name']} · {size_mb:.1f}MB"
+            video_preview.visible = True
+            video_preview.content = ft.Stack(
+                controls=[
+                    ft.Video(
+                        playlist=[ft.VideoMedia(resource=metadata["sourcePath"])],
+                        width=content_width() - 36,
+                        height=190,
+                        fit=ft.ImageFit.CONTAIN,
+                        autoplay=False,
+                        muted=True,
+                        show_controls=True,
+                        on_error=lambda event: show_snack("영상 미리보기를 재생하지 못했어요.", bgcolor="#B85C5C"),
+                    ),
+                    ft.Container(
+                        right=8,
+                        top=8,
+                        width=30,
+                        height=30,
+                        border_radius=15,
+                        bgcolor=ft.Colors.with_opacity(0.78, "#000000"),
+                        alignment=ft.Alignment(0, 0),
+                        ink=True,
+                        on_click=lambda event: clear_selected_video(),
+                        content=ft.Icon(app_icon("CLOSE"), size=17, color="#FFFFFF"),
+                    ),
+                ],
+            )
+            page.update()
+
+        def clear_selected_video():
+            selected_video_path[0] = None
+            selected_video_info[0] = None
+            video_name_text.value = "선택된 영상이 없어요."
+            video_preview.visible = False
+            video_preview.content = None
             page.update()
 
         file_picker = ft.FilePicker(on_result=on_video_picked)
@@ -12737,19 +14377,36 @@ async def main(page: ft.Page):
             if not title:
                 show_snack("영상 제목을 입력해주세요.", bgcolor="#B85C5C")
                 return
+            try:
+                stored_video = store_video(
+                    selected_video_path[0],
+                    FINDY2_MEDIA_DIR,
+                    current_user_id(),
+                )
+            except MediaStorageError as error:
+                show_snack(str(error), bgcolor="#B85C5C")
+                return
             profile = get_user_profile()
-            app_state.setdefault("written_videos", []).insert(0, {
+            new_video = {
+                "id": f"user_video_{int(datetime.now().timestamp())}",
+                "userId": current_user_id(),
                 "title": title,
                 "subtitle": subtitle or "FINDY 회원이 올린 뷰티 팁",
                 "badge": "TIP",
                 "category": selected_category[0],
                 "duration": "0:59",
                 "views": "0",
-                "video_path": selected_video_path[0],
+                "video_path": stored_video["path"],
+                "videoMetadata": stored_video,
                 "creatorName": profile.get("name", "FINDY 회원"),
                 "profileName": profile.get("username", ""),
-            })
+            }
+            app_state.setdefault("written_videos", []).insert(0, new_video)
             app_state["video_category_filter"] = selected_category[0]
+            if not persist_user_data(notify_on_error=True):
+                app_state["written_videos"].remove(new_video)
+                remove_media_file(stored_video.get("path"), FINDY2_MEDIA_DIR)
+                return
             cleanup_file_picker()
             open_completion_feedback(
                 "팁 비디오가 등록되었어요",
@@ -12792,6 +14449,7 @@ async def main(page: ft.Page):
                                 ),
                             ),
                             ft.Text("MP4, MOV, M4V, WEBM 형식의 짧은 뷰티 팁을 올려주세요.", size=11, color=SUBTEXT_COLOR),
+                            video_preview,
                             category_row,
                             title_field,
                             subtitle_field,
@@ -12847,6 +14505,7 @@ async def main(page: ft.Page):
             current = app_state.setdefault("recent_searches", [])
             app_state["recent_searches"] = [query] + [item for item in current if item != query]
             app_state["recent_searches"] = app_state["recent_searches"][:8]
+            persist_user_data()
 
         def run_search(e=None, query=None):
             entered_text = (query if query is not None else search_field.value or "").strip()
@@ -12869,11 +14528,13 @@ async def main(page: ft.Page):
         def remove_recent(term):
             def handler(e):
                 app_state["recent_searches"] = [item for item in app_state.get("recent_searches", []) if item != term]
+                persist_user_data()
                 show_search_page()
             return handler
 
         def clear_recent(e=None):
             app_state["recent_searches"] = []
+            persist_user_data()
             show_search_page()
 
         def open_community_type(label):
@@ -13652,6 +15313,280 @@ async def main(page: ft.Page):
 
         make_shell(body, app_state["selected_tab"])
 
+    def show_legal_page(initial_document=None):
+        clear_transient_ui()
+        close_overlays()
+        app_state["selected_tab"] = 4
+        app_state["current_page"] = "legal"
+        selected_document = app_state.setdefault(
+            "selected_legal_document",
+            "개인정보 처리방침",
+        )
+        if initial_document and initial_document in LEGAL_DOCUMENTS:
+            selected_document = initial_document
+            app_state["selected_legal_document"] = initial_document
+
+        def select_document(title):
+            app_state["selected_legal_document"] = title
+            show_legal_page(title)
+
+        tabs = ft.Row(
+            controls=[
+                ft.Container(
+                    padding=ft.padding.symmetric(horizontal=14, vertical=9),
+                    border_radius=18,
+                    bgcolor=MAIN_COLOR if title == selected_document else "#FFFFFF",
+                    border=ft.border.all(1, MAIN_COLOR if title == selected_document else BORDER_COLOR),
+                    ink=True,
+                    on_click=lambda e, name=title: select_document(name),
+                    content=ft.Text(
+                        title,
+                        size=11,
+                        color="#FFFFFF" if title == selected_document else TEXT_COLOR,
+                        weight=ft.FontWeight.W_800,
+                    ),
+                )
+                for title in LEGAL_DOCUMENTS
+            ],
+            spacing=8,
+            scroll=ft.ScrollMode.HIDDEN,
+        )
+
+        sections = []
+        for title, body in LEGAL_DOCUMENTS[selected_document]:
+            sections.append(
+                ft.Container(
+                    width=content_width(),
+                    padding=18,
+                    bgcolor="#FFFFFF",
+                    border_radius=18,
+                    border=ft.border.all(1, BORDER_COLOR),
+                    content=ft.Column(
+                        controls=[
+                            ft.Text(title, size=15, color=TEXT_COLOR, weight=ft.FontWeight.W_900),
+                            ft.Text(body, size=12, color=SUBTEXT_COLOR, selectable=True),
+                        ],
+                        spacing=8,
+                    ),
+                )
+            )
+
+        controls = [
+            page_header("정책 안내", on_back=go_back_page),
+            ft.Text(
+                f"마지막 업데이트: {LEGAL_UPDATED_AT}",
+                width=content_width(),
+                size=11,
+                color=SUBTEXT_COLOR,
+            ),
+            ft.Container(width=content_width(), content=tabs),
+            *sections,
+            ft.Container(height=24),
+        ]
+        make_shell(
+            ft.Column(
+                controls=controls,
+                spacing=12,
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
+            app_state["selected_tab"],
+        )
+
+    def show_connected_accounts_page():
+        clear_transient_ui()
+        close_overlays()
+        app_state["selected_tab"] = 4
+        app_state["current_page"] = "connected_accounts"
+
+        current_user = app_state.get("current_user") or {}
+        linked_identities = {
+            item.get("provider"): item
+            for item in current_user.get("identities", [])
+            if item.get("provider")
+        }
+        status_text = ft.Text(
+            "",
+            width=content_width(),
+            size=11,
+            color="#B85C5C",
+            weight=ft.FontWeight.W_700,
+        )
+
+        def provider_row(provider_key, is_last=False):
+            provider = SOCIAL_PROVIDERS[provider_key]
+            identity = linked_identities.get(provider_key)
+            linked = identity is not None
+            email = str((identity or {}).get("email") or "").strip()
+
+            def connect_provider(event=None):
+                page.run_task(
+                    perform_social_auth,
+                    provider_key,
+                    status_text,
+                    None,
+                    True,
+                )
+
+            return ft.Container(
+                width=content_width() - 36,
+                padding=ft.padding.symmetric(vertical=13),
+                border=(
+                    None
+                    if is_last
+                    else ft.border.only(bottom=ft.BorderSide(1, BORDER_COLOR))
+                ),
+                content=ft.Row(
+                    controls=[
+                        ft.Container(
+                            width=38,
+                            height=38,
+                            border_radius=13,
+                            bgcolor=provider["background"],
+                            border=ft.border.all(
+                                1,
+                                "#E4E4E4"
+                                if provider_key in {"google", "kakao"}
+                                else provider["background"],
+                            ),
+                            alignment=ft.Alignment(0, 0),
+                            content=ft.Image(
+                                src=provider["asset"],
+                                width=21,
+                                height=21,
+                                fit=ft.ImageFit.CONTAIN,
+                            ),
+                        ),
+                        ft.Column(
+                            controls=[
+                                ft.Text(
+                                    provider["label"],
+                                    size=14,
+                                    color=TEXT_COLOR,
+                                    weight=ft.FontWeight.W_800,
+                                ),
+                                ft.Text(
+                                    email if linked and email else (
+                                        "FINDY 통합회원에 연결됨"
+                                        if linked
+                                        else "추가 로그인 수단으로 연결할 수 있어요."
+                                    ),
+                                    size=10,
+                                    color=SUBTEXT_COLOR,
+                                    max_lines=1,
+                                    overflow=ft.TextOverflow.ELLIPSIS,
+                                ),
+                            ],
+                            spacing=3,
+                            expand=True,
+                        ),
+                        ft.Container(
+                            padding=ft.padding.symmetric(
+                                horizontal=12,
+                                vertical=8,
+                            ),
+                            border_radius=14,
+                            bgcolor=MAIN_COLOR_SOFT if linked else MAIN_COLOR,
+                            ink=not linked,
+                            on_click=None if linked else connect_provider,
+                            content=ft.Text(
+                                "연결됨" if linked else "연결하기",
+                                size=10,
+                                color=MAIN_COLOR_DARK if linked else "#FFFFFF",
+                                weight=ft.FontWeight.W_800,
+                            ),
+                        ),
+                    ],
+                    spacing=12,
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                ),
+            )
+
+        provider_keys = list(SOCIAL_PROVIDERS)
+        provider_rows = [
+            provider_row(
+                provider_key,
+                is_last=index == len(provider_keys) - 1,
+            )
+            for index, provider_key in enumerate(provider_keys)
+        ]
+
+        email_account = bool(
+            current_user.get("email")
+            and not str(current_user.get("email")).endswith("@social.findy.local")
+        )
+        controls = [
+            page_header("연결된 계정", on_back=go_back_page),
+            ft.Text(
+                "여러 로그인 수단을 하나의 FINDY 계정에 연결해도 글, 저장, 프로필은 그대로 유지됩니다.",
+                width=content_width(),
+                size=12,
+                color=SUBTEXT_COLOR,
+            ),
+            status_text,
+            ft.Container(
+                width=content_width(),
+                padding=ft.padding.symmetric(horizontal=18, vertical=8),
+                bgcolor="#FFFFFF",
+                border_radius=20,
+                border=ft.border.all(1, BORDER_COLOR),
+                content=ft.Column(
+                    controls=provider_rows,
+                    spacing=0,
+                ),
+            ),
+            ft.Container(
+                width=content_width(),
+                padding=18,
+                bgcolor="#FFFFFF",
+                border_radius=20,
+                border=ft.border.all(1, BORDER_COLOR),
+                content=ft.Row(
+                    controls=[
+                        ft.Icon(
+                            app_icon("MAIL_OUTLINE"),
+                            size=24,
+                            color=MAIN_COLOR,
+                        ),
+                        ft.Column(
+                            controls=[
+                                ft.Text(
+                                    "이메일 로그인",
+                                    size=14,
+                                    color=TEXT_COLOR,
+                                    weight=ft.FontWeight.W_800,
+                                ),
+                                ft.Text(
+                                    current_user.get("email", "")
+                                    if email_account
+                                    else "이메일 비밀번호는 등록되지 않았어요.",
+                                    size=10,
+                                    color=SUBTEXT_COLOR,
+                                ),
+                            ],
+                            spacing=3,
+                            expand=True,
+                        ),
+                        ft.Text(
+                            "사용 중" if email_account else "미등록",
+                            size=10,
+                            color=MAIN_COLOR_DARK if email_account else SUBTEXT_COLOR,
+                            weight=ft.FontWeight.W_800,
+                        ),
+                    ],
+                    spacing=12,
+                ),
+            ),
+            ft.Container(height=24),
+        ]
+        make_shell(
+            ft.Column(
+                controls=controls,
+                spacing=12,
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
+            app_state["selected_tab"],
+        )
+
     def show_settings_page():
         clear_transient_ui()
         close_overlays()
@@ -13680,6 +15615,7 @@ async def main(page: ft.Page):
 
         def update_setting(key, value):
             settings[key] = value
+            persist_user_data()
             page.update()
 
         def open_coming_soon(title):
@@ -13780,6 +15716,12 @@ async def main(page: ft.Page):
                 [
                     setting_switch("비공개 프로필", "내 프로필과 작성글 노출 범위를 제한해요.", "privateProfile"),
                     setting_switch("활동 상태 표시", "최근 활동 여부를 다른 사용자에게 보여줘요.", "activityStatus"),
+                    setting_row(
+                        "LINK",
+                        "연결된 계정",
+                        "네이버, 카카오, Google, Apple 로그인 연결을 관리해요.",
+                        on_click=lambda e: show_connected_accounts_page(),
+                    ),
                     setting_row("LOCK_OUTLINE", "계정 보안", "로그인 기기, 비밀번호, 2단계 인증을 관리해요."),
                     setting_row("BLOCK", "차단/숨김 관리", "차단한 사용자와 숨긴 글을 확인해요."),
                 ],
@@ -13806,8 +15748,19 @@ async def main(page: ft.Page):
                 "지원과 정보",
                 [
                     setting_row("HELP_OUTLINE", "도움말", "앱 이용 방법과 자주 묻는 질문", on_click=lambda e: show_support_page()),
-                    setting_row("DESCRIPTION_OUTLINED", "약관 및 개인정보 처리방침", "서비스 정책과 데이터 이용 기준"),
+                    setting_row(
+                        "DESCRIPTION_OUTLINED",
+                        "약관 및 개인정보 처리방침",
+                        "서비스 정책과 데이터 이용 기준",
+                        on_click=lambda e: show_legal_page(),
+                    ),
                     setting_row("INFO_OUTLINE", "앱 정보", "FINDY2 beta · 커뮤니티 데이터 수집 버전"),
+                    setting_row(
+                        "PERSON_REMOVE_OUTLINED",
+                        "계정 삭제",
+                        "계정과 이 기기에 저장된 데이터를 영구 삭제해요.",
+                        on_click=open_account_deletion_dialog,
+                    ),
                 ],
             ),
             ft.Container(height=24),
@@ -14925,6 +16878,32 @@ async def main(page: ft.Page):
         )
 
         render_phone_frame(content, None)
+
+    def handle_page_error(event):
+        error_message = getattr(event, "data", None) or getattr(event, "error", None) or "unknown page error"
+        show_runtime_error_page(error_message)
+
+    def handle_page_resized(event):
+        app_state["_resize_generation"] = app_state.get("_resize_generation", 0) + 1
+        generation = app_state["_resize_generation"]
+
+        async def rerender_after_resize():
+            await asyncio.sleep(0.12)
+            if generation != app_state.get("_resize_generation"):
+                return
+            if app_state.get("current_page") == "opening":
+                return
+            render_current_page()
+
+        page.run_task(rerender_after_resize)
+
+    def handle_disconnect(event):
+        if app_state.get("current_user"):
+            persist_user_data()
+
+    page.on_error = handle_page_error
+    page.on_resized = handle_page_resized
+    page.on_disconnect = handle_disconnect
 
     await start_opening_flow()
 

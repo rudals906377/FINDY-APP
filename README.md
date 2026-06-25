@@ -38,6 +38,19 @@ python3 python_files/FINDY2.py
 /Users/kyoungmin/Desktop/FINDY/web/index.html
 ```
 
+FINDY2 커뮤니티 웹사이트를 로컬 서버로 실행:
+
+```bash
+cd /Users/kyoungmin/Desktop/FINDY
+python3 -m http.server 4173
+```
+
+브라우저에서 `http://localhost:4173/web/`을 엽니다.
+
+웹사이트는 FINDY2의 첫 배포 방향을 기준으로 커뮤니티, 스냅, 비디오,
+통합 검색, 글쓰기, 좋아요/저장, 나의 FINDY를 구현합니다. 작성 글과
+사용자 선택은 브라우저 `localStorage`에 저장됩니다.
+
 ## 설치
 
 ```bash
@@ -71,9 +84,11 @@ core/                # 상태와 라우터
 data/                # 더미 데이터
 data/beauty_mood_keywords.py # FINDY2 추천 알고리즘 준비용 감성어/키워드 사전
 data/review_safety.py # 리뷰 위험어 감지, 개인정보 마스킹, 신고/상태 헬퍼
+services/findy2_phone_auth.py # 휴대폰 문자 인증 앱 통신
+auth_gateway/app.py # 소셜 로그인, 문자 인증, PASS 본인확인 연결 게이트웨이
 pages/               # 일부 모듈화된 페이지
 services/            # 예약/아티스트 서비스 로직
-web/                 # FINDY 웹사이트
+web/                 # FINDY2 커뮤니티 웹사이트 (HTML/CSS/JavaScript)
 docs/                # 프로젝트 문서
 docs/artist/         # 아티스트 정책 문서
 ```
