@@ -5,6 +5,7 @@ description = "FINDY2 community-first beauty app"
 requires-python = ">=3.9"
 dependencies = [
     "flet==0.28.3",
+    "flet-geolocator>=0.1.0",
     "Pillow>=11.0",
     "httpx>=0.28,<0.29",
 ]
@@ -15,7 +16,7 @@ org = "com.findybeauty"
 bundle_id = "com.findybeauty.findy2"
 company = "FINDY"
 copyright = "Copyright (c) 2026 FINDY"
-permissions = ["photo_library"]
+permissions = ["photo_library", "location"]
 
 [tool.flet.app]
 module = "main"
@@ -24,15 +25,21 @@ module = "main"
 adaptive_icon_background = "#FCFAF7"
 split_per_abi = false
 
+[tool.flet.android.permission]
+"android.permission.ACCESS_COARSE_LOCATION" = true
+"android.permission.ACCESS_FINE_LOCATION" = true
+
 [tool.flet.splash]
 color = "#FCFAF7"
 dark_color = "#1F1A17"
 
 [tool.flet.ios.info]
 NSPhotoLibraryUsageDescription = "FINDY2 글, 스냅, 리뷰에 사진을 첨부하기 위해 사진 보관함 접근이 필요합니다."
+NSLocationWhenInUseUsageDescription = "내 주변 뷰티 콘텐츠와 추천 정보를 제공하기 위해 위치 접근이 필요합니다."
 
 [tool.flet.macos.info]
 NSPhotoLibraryUsageDescription = "FINDY2 글, 스냅, 리뷰에 사진을 첨부하기 위해 사진 보관함 접근이 필요합니다."
+NSLocationWhenInUseUsageDescription = "내 주변 뷰티 콘텐츠와 추천 정보를 제공하기 위해 위치 접근이 필요합니다."
 
 [tool.flet.web]
 pwa_background_color = "#FCFAF7"

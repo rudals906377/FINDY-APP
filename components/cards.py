@@ -253,113 +253,121 @@ def chip(label, selected=False, on_click=None):
     )
 
 def review_card(name, category, review, width, photos=None, rating=5):
-    def review_photo_stack():
-        stack_items = []
-        photo_sources = list(photos or [])[:3]
-        offsets = [(18, 10), (9, 5), (0, 0)]
-        for idx, (left, top) in enumerate(offsets):
-            source = photo_sources[idx] if idx < len(photo_sources) else None
-            stack_items.append(
-                ft.Container(
-                    left=left,
-                    top=top,
-                    width=48,
-                    height=48,
-                    border_radius=13,
-                    clip_behavior=ft.ClipBehavior.HARD_EDGE,
-                    bgcolor="#000000",
-                    border=ft.border.all(2, "#FFFFFF"),
-                    content=ft.Image(src=source, width=48, height=48, fit=ft.ImageFit.COVER) if source else None,
-                )
-            )
-        return ft.Container(
-            width=66,
-            height=60,
-            content=ft.Stack(controls=stack_items),
-        )
+    safe_rating = max(0, min(5, int(round(float(rating or 0)))))
+    photo_sources = list(photos or [])[:3]
+    initial = (str(name or "F").strip()[:1] or "F")
 
+    category_pill = ft.Container(
+        height=26,
+        padding=ft.padding.symmetric(horizontal=10),
+        bgcolor="#FFFFFF",
+        border_radius=13,
+        border=ft.border.all(1, BORDER_COLOR),
+        alignment=ft.Alignment(0, 0),
+        content=ft.Text(
+            category,
+            size=10,
+            color=MAIN_COLOR_DARK,
+            weight=ft.FontWeight.W_700,
+            max_lines=1,
+            overflow=ft.TextOverflow.ELLIPSIS,
+        ),
+    )
+    rating_row = ft.Row(
+        controls=[
+            ft.Icon(
+                ft.Icons.STAR_ROUNDED if i < safe_rating else ft.Icons.STAR_BORDER_ROUNDED,
+                size=14,
+                color=MAIN_COLOR if i < safe_rating else BORDER_COLOR,
+            )
+            for i in range(5)
+        ],
+        spacing=0,
+    )
     body_controls = [
         ft.Row(
             controls=[
+                ft.Container(
+                    width=42,
+                    height=42,
+                    border_radius=21,
+                    bgcolor="#FFFFFF",
+                    border=ft.border.all(1, BORDER_COLOR),
+                    alignment=ft.Alignment(0, 0),
+                    content=ft.Text(initial, size=16, color=MAIN_COLOR_DARK, weight=ft.FontWeight.W_900),
+                ),
                 ft.Column(
                     controls=[
-                        ft.Row(
-                            controls=[
-                                ft.Text(
-                                    name,
-                                    size=15,
-                                    weight=ft.FontWeight.W_500,
-                                    color=TEXT_STRONG,
-                                    max_lines=1,
-                                    overflow=ft.TextOverflow.ELLIPSIS,
-                                    expand=True,
-                                ),
-                                ft.Container(
-                                    padding=ft.padding.symmetric(horizontal=8, vertical=3),
-                                    bgcolor=CHIP_BG,
-                                    border_radius=10,
-                                    border=ft.border.all(1, BORDER_COLOR),
-                                    content=ft.Text(category, size=10, color=TEXT_COLOR, max_lines=1, overflow=ft.TextOverflow.ELLIPSIS),
-                                ),
-                            ],
-                            spacing=8,
-                            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                        ft.Text(
+                            name,
+                            size=15,
+                            weight=ft.FontWeight.W_800,
+                            color=TEXT_STRONG,
+                            max_lines=1,
+                            overflow=ft.TextOverflow.ELLIPSIS,
                         ),
-                        ft.Row(
-                            controls=[
-                                ft.Icon(ft.Icons.STAR_ROUNDED, size=14, color=MAIN_COLOR if i < rating else BORDER_COLOR)
-                                for i in range(5)
-                            ],
-                            spacing=1,
-                        ),
-                        ft.Row(
-                            controls=[
-                                ft.Icon(ft.Icons.VERIFIED_ROUNDED, size=12, color=MAIN_COLOR),
-                                ft.Text("예약 기반 리뷰", size=10, color=MAIN_COLOR, weight=ft.FontWeight.W_600),
-                            ],
-                            spacing=3,
-                            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                        ft.Text(
+                            "인증 방문 리뷰",
+                            size=10,
+                            color=SUBTEXT_COLOR,
+                            weight=ft.FontWeight.W_600,
+                            max_lines=1,
+                            overflow=ft.TextOverflow.ELLIPSIS,
                         ),
                     ],
-                    spacing=3,
+                    spacing=1,
                     expand=True,
                 ),
-                ft.Container(
-                    width=66,
-                    height=60,
-                    content=review_photo_stack(),
-                ),
+                category_pill,
             ],
-            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+            spacing=10,
             vertical_alignment=ft.CrossAxisAlignment.CENTER,
         ),
-        ft.Text(review, size=12, color=SUBTEXT_COLOR, max_lines=2, overflow=ft.TextOverflow.ELLIPSIS),
+        ft.Row(
+            controls=[
+                rating_row,
+                ft.Text(f"{safe_rating:.1f}", size=11, color=MAIN_COLOR_DARK, weight=ft.FontWeight.W_800),
+                ft.Container(expand=True),
+            ],
+            spacing=5,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+        ),
+        ft.Text(
+            review,
+            size=13,
+            color=TEXT_COLOR,
+            weight=ft.FontWeight.W_600,
+            max_lines=2,
+            overflow=ft.TextOverflow.ELLIPSIS,
+            height=1.35,
+        ),
     ]
     if photos:
         body_controls.append(
             ft.Container(
-                margin=ft.margin.only(top=4),
+                margin=ft.margin.only(top=2),
                 content=ft.Row(
                     controls=[
                         ft.Container(
-                            width=68,
-                            height=68,
-                            border_radius=8,
+                            width=54,
+                            height=54,
+                            border_radius=16,
                             clip_behavior=ft.ClipBehavior.HARD_EDGE,
-                            content=ft.Image(src=p, width=68, height=68, fit=ft.ImageFit.COVER),
+                            bgcolor="#000000",
+                            content=ft.Image(src=p, width=54, height=54, fit=ft.ImageFit.COVER),
                         )
-                        for p in photos[:10]
+                        for p in photo_sources
                     ],
-                    spacing=6,
+                    spacing=8,
                     scroll=ft.ScrollMode.HIDDEN,
                 ),
             )
         )
     return ft.Container(
         width=width,
-        padding=SPACE_LG,
+        padding=ft.padding.symmetric(horizontal=18, vertical=16),
         bgcolor="#FFFFFF",
-        border_radius=RADIUS_LG,
+        border_radius=RADIUS_XL,
         border=ft.border.all(1, BORDER_COLOR),
         shadow=_shadow(SHADOW_CARD),
         content=ft.Column(controls=body_controls, spacing=8),

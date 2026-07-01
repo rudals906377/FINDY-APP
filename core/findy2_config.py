@@ -42,6 +42,14 @@ FINDY2_AUTH_API_URL = os.environ.get(
     "FINDY2_AUTH_API_URL",
     str(PUBLIC_CONFIG.get("authApiUrl") or ""),
 ).rstrip("/")
+FINDY2_API_URL = os.environ.get(
+    "FINDY2_API_URL",
+    str(PUBLIC_CONFIG.get("apiUrl") or ""),
+).rstrip("/")
+FINDY2_ADMIN_API_KEY = os.environ.get(
+    "FINDY2_ADMIN_API_KEY",
+    str(PUBLIC_CONFIG.get("adminApiKey") or ""),
+)
 FINDY2_SOCIAL_AUTH_TIMEOUT_SECONDS = int(
     os.environ.get("FINDY2_SOCIAL_AUTH_TIMEOUT_SECONDS", "180")
 )

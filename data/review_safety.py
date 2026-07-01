@@ -227,7 +227,7 @@ def validateReviewBeforeSubmit(review):
 
 def _masked_review_copy(review):
     copied = dict(review or {})
-    for field in ("positiveComment", "negativeComment", "reviewText", "visitPurpose"):
+    for field in ("positiveComment", "negativeComment", "reviewText", "visitPurpose", "artistName", "artist_name"):
         copied[field] = maskPersonalInfo(copied.get(field, ""))
     return copied
 
