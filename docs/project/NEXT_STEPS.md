@@ -1,6 +1,13 @@
 # FINDY 다음 작업 순서
 
-FINDY는 현재 화면 프로토타입과 기본 흐름 검증 단계입니다. 이후 완성도를 높일 때는 디자인 추가보다 흐름 안정화, 핵심 기능 완성, 데이터 구조 정리, 출시 준비 순서로 진행합니다.
+FINDY는 현재 화면 프로토타입, FINDY2 커뮤니티 운영 기능, 로컬 API 서버 기본 검증 단계입니다. 이후 완성도를 높일 때는 화면 안정화, 운영 데이터 연결, 출시 준비, 실제 사업자/외부 API 계약 순서로 진행합니다.
+
+## 0. 지금 바로 필요한 작업
+
+1. GitHub 인증을 완료하고 현재 커밋을 원격 저장소에 푸시합니다.
+2. `python3 python_files/FINDY2.py`로 앱을 실행해 커뮤니티, 리뷰, 스냅, 비디오, 내정보, 약관 동의, 운영 관리 화면을 수동 확인합니다.
+3. `./findy_server/run_local.sh`로 서버를 켜고 `FINDY2_API_URL=http://localhost:8790` 환경에서 운영 관리 연결 상태를 확인합니다.
+4. 앱 제출 전에는 로컬 SQLite 대신 Supabase/PostgreSQL 같은 운영 DB를 결정합니다.
 
 ## 1. 흐름 안정화
 
@@ -34,7 +41,22 @@ FINDY는 현재 화면 프로토타입과 기본 흐름 검증 단계입니다. 
 - 아티스트 승인 프로세스와 운영툴을 준비합니다.
 - 개인정보처리방침, 이용약관, 신고/숨김 정책을 준비합니다.
 
-## 5. 전문성 강화 우선순위
+## 5. 운영 서버 연결
+
+1. 로컬 FastAPI 서버는 `findy_server/`에 있습니다.
+2. 개발 중 실행은 `./findy_server/run_local.sh`를 사용합니다.
+3. 앱 연결은 아래 환경 변수로 합니다.
+
+```bash
+export FINDY2_API_URL=http://localhost:8790
+export FINDY2_ADMIN_API_KEY=dev-admin-key
+python3 python_files/FINDY2.py
+```
+
+4. 운영 배포 전에는 `FINDY_ADMIN_API_KEY`를 반드시 변경합니다.
+5. 실제 출시 전에는 관리자 화면, 요청 제한, 사용자 인증 토큰 검증, 이미지/영상 스토리지, 푸시 알림을 연결합니다.
+
+## 6. 전문성 강화 우선순위
 
 1. 예약 관리 화면을 실제 업무 캘린더처럼 안정화
 2. 아티스트 포트폴리오와 가격 메뉴 연결 고도화
@@ -47,11 +69,12 @@ FINDY는 현재 화면 프로토타입과 기본 흐름 검증 단계입니다. 
 9. 실제 배포 환경 검토
 10. QA 체크리스트 기반 전체 회귀 테스트
 
-## 6. 매 수정 후 기본 검증
+## 7. 매 수정 후 기본 검증
 
 ```bash
 PYTHONPYCACHEPREFIX=/private/tmp/findy_pycache python3 -m py_compile python_files/FINDY.py python_files/FINDY2.py python_files/FINDY_customer.py python_files/FINDY_artist.py
 PYTHONPYCACHEPREFIX=/private/tmp/findy_pycache python3 python_files/smoke_test.py
+PYTHONPYCACHEPREFIX=/private/tmp/findy_pycache python3 python_files/test_findy2_services.py
 git diff --check
 ```
 

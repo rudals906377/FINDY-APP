@@ -2,7 +2,9 @@ import os
 import re
 import sys
 import py_compile
+import tempfile
 from html.parser import HTMLParser
+from pathlib import Path
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -13,6 +15,9 @@ if not os.environ.get("PYTHONPYCACHEPREFIX"):
     cache_prefix = os.path.join(BASE_DIR, ".pycache_smoke")
     os.environ["PYTHONPYCACHEPREFIX"] = cache_prefix
     sys.pycache_prefix = cache_prefix
+
+if BASE_DIR not in sys.path:
+    sys.path.insert(0, BASE_DIR)
 
 files = [
     "main.py",
@@ -253,6 +258,112 @@ if os.path.exists(web_index):
 else:
     missing.append("web/index.html")
 
+
+runtime_errors = []
+
+try:
+    from data.community_safety import (
+        calculateRiskScore,
+        detectContentRisks,
+        maskPersonalInfo,
+        reportContent,
+        submitCommunityPost,
+        updateContentStatus,
+        validateContentBeforeSubmit,
+    )
+
+    safe_validation = validateContentBeforeSubmit(
+        {
+            "title": "네일 유지력 후기",
+            "content": "프렌치 네일 유지력이 좋아서 만족했어요.",
+        }
+    )
+    risky_validation = validateContentBeforeSubmit(
+        {
+            "title": "위험한 리뷰",
+            "content": "010-1234-5678 연락주세요. OOO 디자이너 인성 최악이에요.",
+        }
+    )
+    masked_text = maskPersonalInfo("010-1234-5678 example@email.com @findy")
+    if not safe_validation["canSubmit"]:
+        runtime_errors.append("community_safety: safe content should be submittable")
+    if risky_validation["canSubmit"] or "real_name_attack" not in risky_validation["detectedRiskTypes"]:
+        runtime_errors.append("community_safety: risky real-name attack was not blocked")
+    if "010-****-****" not in masked_text or "@****" not in masked_text:
+        runtime_errors.append("community_safety: personal info masking failed")
+    if calculateRiskScore(detectContentRisks("사기꾼")) <= 0:
+        runtime_errors.append("community_safety: risk score did not increase")
+    saved_post = submitCommunityPost({"title": "안전한 후기", "content": "상담이 친절했고 결과도 만족했어요."})
+    report = reportContent(saved_post["id"], "기타", "스모크 테스트")
+    action = updateContentStatus(saved_post["id"], "hidden", "스모크 테스트")
+    if not report["id"] or not action["id"]:
+        runtime_errors.append("community_safety: report/status flow failed")
+except Exception as e:
+    runtime_errors.append(f"community_safety runtime check failed: {e}")
+
+try:
+    from core.findy2_state import create_findy2_state
+    from services.findy2_points import earn_points, point_summary, revoke_points, use_points
+
+    point_state = create_findy2_state()
+    user_id = "smoke_user"
+    signup = earn_points(point_state, user_id, "signup", "가입 보상")
+    duplicate_signup = earn_points(point_state, user_id, "signup", "중복 가입 보상")
+    short_comment = earn_points(point_state, user_id, "comment", "짧은 댓글", text="짧")
+    comment = earn_points(point_state, user_id, "comment", "댓글 보상", relatedPostId="comment-1", text="좋은 정보예요")
+    used = use_points(point_state, user_id, 10, "테스트 사용")
+    revoked = revoke_points(point_state, user_id, 5, "테스트 회수")
+    summary = point_summary(point_state, user_id)
+    if not signup or duplicate_signup or short_comment or not comment or not used or not revoked:
+        runtime_errors.append("findy2_points: point reward/use/revoke policy failed")
+    if summary["wallet"]["balance"] <= 0:
+        runtime_errors.append("findy2_points: wallet balance was not updated")
+except Exception as e:
+    runtime_errors.append(f"findy2_points runtime check failed: {e}")
+
+try:
+    from services.findy2_api_client import FindyApiClient
+
+    local_result = FindyApiClient("", "").health()
+    if local_result["ok"] or "로컬 모드" not in local_result["error"]:
+        runtime_errors.append("findy2_api_client: local-mode health result failed")
+except Exception as e:
+    runtime_errors.append(f"findy2_api_client runtime check failed: {e}")
+
+try:
+    with tempfile.TemporaryDirectory() as directory:
+        os.environ["FINDY_DATABASE_URL"] = f"sqlite:///{Path(directory) / 'findy_server.db'}"
+        from fastapi.testclient import TestClient
+        import importlib
+        import findy_server.config as server_config
+        import findy_server.database as server_database
+        import findy_server.main as server_main
+
+        importlib.reload(server_config)
+        importlib.reload(server_database)
+        importlib.reload(server_main)
+        client = TestClient(server_main.app)
+        health = client.get("/health")
+        notices = client.get("/v1/notices")
+        dashboard = client.get(
+            "/v1/admin/dashboard",
+            headers={"X-FINDY-ADMIN-KEY": "dev-admin-key"},
+        )
+        if health.status_code != 200 or health.json().get("status") != "ok":
+            runtime_errors.append("findy_server: health endpoint failed")
+        if notices.status_code != 200:
+            runtime_errors.append("findy_server: notices endpoint failed")
+        if dashboard.status_code != 200:
+            runtime_errors.append("findy_server: admin dashboard endpoint failed")
+finally:
+    os.environ.pop("FINDY_DATABASE_URL", None)
+
+if runtime_errors:
+    print("FAILED - Runtime checks:")
+    for item in runtime_errors:
+        print(f"  - {item}")
+    sys.exit(1)
+
 if missing or compile_errors or text_check_errors:
     if missing:
         print("FAILED - Missing:")
@@ -268,5 +379,5 @@ if missing or compile_errors or text_check_errors:
             print(f"  - {item}")
     sys.exit(1)
 
-print("OK: compile, asset, route, brand, and web checks passed")
+print("OK: compile, asset, route, brand, web, safety, points, API client, and server checks passed")
 sys.exit(0)
